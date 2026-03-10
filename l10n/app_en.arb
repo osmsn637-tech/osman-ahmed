@@ -1,0 +1,224 @@
+{
+  "@@locale": "en",
+  "appTitle": "Warehouse Inventory",
+  "tabHome": "Home",
+  "tabAccount": "Account",
+  "homeWorkerTitle": "Putaway Worker",
+  "moreTitle": "More",
+  "moreHome": "Home",
+  "moreItemLookup": "Item Lookup",
+  "moreStockAdjustment": "Stock Adjustment",
+  "moreExceptions": "Exceptions",
+  "accountMyAccount": "My Account",
+  "accountDetails": "Account Details",
+  "accountPhone": "Phone",
+  "accountRole": "Role",
+  "accountZone": "Zone",
+  "accountLanguage": "Language",
+  "accountArabic": "Arabic",
+  "accountEnglish": "English",
+  "accountActions": "Actions",
+  "accountChangePassword": "Change Password",
+  "accountSignOut": "Sign Out",
+  "accountComingSoon": "Coming soon",
+  "roleSupervisor": "SUPERVISOR",
+  "roleInbound": "INBOUND",
+  "roleWorker": "WORKER",
+  "zoneWithCode": "Zone {zone}",
+  "@zoneWithCode": {
+    "placeholders": {
+      "zone": {}
+    }
+  },
+  "receiveTitle": "Receive Items",
+  "receiveScanItemBarcode": "Scan Item Barcode",
+  "receiveScanDestinationLocation": "Scan Destination Location",
+  "receiveUsePhysicalScanner": "Use physical scanner trigger",
+  "receiveConfirmDestinationThenQuantity": "Confirm destination then quantity",
+  "receiveConfirmReceive": "Confirm Receive",
+  "receiveReceiving": "Receiving...",
+  "receiveAwaitingScan": "Awaiting scan...",
+  "receiveSkuLabel": "SKU: {barcode}",
+  "@receiveSkuLabel": {
+    "placeholders": {
+      "barcode": {}
+    }
+  },
+  "receiveTotalLabel": "Total: {quantity}",
+  "@receiveTotalLabel": {
+    "placeholders": {
+      "quantity": {}
+    }
+  },
+  "receiveShelf": "Shelf",
+  "receiveBulk": "Bulk",
+  "receiveDestinationLocationScan": "Destination Location (scan)",
+  "receiveQuantityToReceive": "Quantity to receive",
+  "receiveFullQty": "Full Qty",
+  "moveTitle": "Move Item",
+  "moveScanItemBarcode": "Scan Item Barcode",
+  "moveScanDestinationLocation": "Scan Destination Location",
+  "moveTriggerScannerToCaptureItem": "Trigger scanner to capture item",
+  "moveScanTargetLocationThenConfirm": "Scan target location then confirm",
+  "moveFromLocation": "FROM LOCATION",
+  "moveItemSection": "ITEM",
+  "moveToLocation": "TO LOCATION",
+  "moveQuantitySection": "QUANTITY",
+  "moveDestinationLocationBarcode": "Destination Location Barcode",
+  "moveQtyToMove": "Qty to move",
+  "moveAwaitingScan": "Awaiting scan...",
+  "moveConfirmMove": "Confirm Move",
+  "moveMoving": "Moving...",
+  "moveNoSourceLocations": "No source locations",
+  "moveSkuLabel": "SKU: {barcode}",
+  "@moveSkuLabel": {
+    "placeholders": {
+      "barcode": {}
+    }
+  },
+  "moveTotalLabel": "Total: {quantity}",
+  "@moveTotalLabel": {
+    "placeholders": {
+      "quantity": {}
+    }
+  },
+  "stockAdjustmentTitle": "Stock Adjustment",
+  "stockScanItemBarcode": "Scan Item Barcode",
+  "stockScanLocationBarcode": "Scan Location Barcode",
+  "stockReadyToSubmit": "Ready to submit",
+  "stockLocationBarcode": "Location Barcode",
+  "stockNewQuantity": "New Quantity",
+  "stockReason": "Reason",
+  "stockSubmitting": "Submitting...",
+  "stockSubmitAdjustment": "Submit Adjustment",
+  "exceptionsTitle": "Picking Exceptions",
+  "exceptionsExpected": "Expected: {location}",
+  "@exceptionsExpected": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "workerRefreshTasks": "Refresh tasks",
+  "workerLookup": "Lookup",
+  "workerAvailableTasks": "Available Tasks",
+  "workerMyActiveTasks": "My Active Tasks",
+  "workerNoAvailableTasks": "No available tasks right now",
+  "workerNoActiveTasks": "No active tasks - claim one above",
+  "workerStart": "Start",
+  "workerComplete": "Complete",
+  "workerWelcomeBack": "Welcome back, {name}",
+  "@workerWelcomeBack": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "workerTrackQueue": "Track your queue and close tasks quickly",
+  "metricAvailable": "Available",
+  "metricActive": "Active",
+  "metricDone": "Done",
+  "workerDone": "Done",
+  "workerQty": "Qty {quantity}",
+  "@workerQty": {
+    "placeholders": {
+      "quantity": {}
+    }
+  },
+  "workerTaskDetailsTitle": "Task Details",
+  "workerStartTask": "Start Task",
+  "workerItem": "Item",
+  "workerBarcode": "Barcode",
+  "workerNoBarcodeAvailable": "No barcode available",
+  "workerScanOrEnterProductBarcode": "Scan/Enter product barcode",
+  "workerValidateProduct": "Validate Product",
+  "workerProductValidated": "Product validated",
+  "workerProductMismatch": "Product mismatch",
+  "workerMovement": "Movement",
+  "workerFromWithType": "From ({type})",
+  "@workerFromWithType": {
+    "placeholders": {
+      "type": {}
+    }
+  },
+  "workerToWithType": "To ({type})",
+  "@workerToWithType": {
+    "placeholders": {
+      "type": {}
+    }
+  },
+  "workerScanOrEnterLocation": "Scan/Enter location",
+  "workerValidateLocation": "Validate Location",
+  "workerLocationValidated": "Location validated",
+  "workerLocationMismatch": "Location mismatch",
+  "workerTaskInfo": "Task Info",
+  "workerTaskType": "Task type",
+  "workerQuantity": "Quantity",
+  "workerStatus": "Status",
+  "supervisorTitle": "Supervisor",
+  "supervisorRefresh": "Refresh",
+  "supervisorNoTasksForZone": "No tasks for {zone}",
+  "@supervisorNoTasksForZone": {
+    "placeholders": {
+      "zone": {}
+    }
+  },
+  "supervisorCreateTask": "Create Task",
+  "supervisorTaskType": "Task Type",
+  "supervisorItemBarcode": "Item barcode",
+  "supervisorEnterBarcode": "Enter barcode",
+  "supervisorQuantity": "Quantity",
+  "supervisorEnterValidQuantity": "Enter valid quantity",
+  "supervisorFrom": "From",
+  "supervisorTo": "To",
+  "supervisorZone": "Zone",
+  "supervisorOperationsOverview": "Operations Overview",
+  "supervisorPending": "Pending",
+  "supervisorUnassigned": "Unassigned",
+  "supervisorWorkerNumber": "Worker #{id}",
+  "@supervisorWorkerNumber": {
+    "placeholders": {
+      "id": {}
+    }
+  },
+  "inboundTitle": "Inbound Management",
+  "inboundRefresh": "Refresh",
+  "inboundPending": "Pending Inbounds",
+  "inboundInProgress": "In Progress",
+  "inboundCompleted": "Completed Inbounds",
+  "inboundNoDocuments": "No inbound documents",
+  "inboundUseCreatePrompt": "Use Create Inbound to get started",
+  "inboundCreateDialogTodo": "Create Inbound dialog - TODO",
+  "inboundReceiveDialogTodo": "Receive Items dialog - TODO",
+  "inboundViewTodo": "View {documentNumber} - TODO",
+  "@inboundViewTodo": {
+    "placeholders": {
+      "documentNumber": {}
+    }
+  },
+  "inboundItemsProgress": "{received}/{total} items",
+  "@inboundItemsProgress": {
+    "placeholders": {
+      "received": {},
+      "total": {}
+    }
+  },
+  "inboundStart": "Start",
+  "inboundReceive": "Receive",
+  "inboundComplete": "Complete",
+  "inboundView": "View",
+  "inboundOverview": "Inbound Overview",
+  "inboundTotal": "Total",
+  "inboundInProgressMetric": "In Progress",
+  "inboundCreateInbound": "Create Inbound",
+  "inboundDocumentsCount": "{count} documents",
+  "@inboundDocumentsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "inboundDocumentSingular": "{count} document",
+  "@inboundDocumentSingular": {
+    "placeholders": {
+      "count": {}
+    }
+  }
+}

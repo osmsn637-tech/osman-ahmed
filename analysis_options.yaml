@@ -1,0 +1,13 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/flutter/**"
+    - "**/flutter/**/**"
+    - "flutter/**"
+    - "flutter/**/**"
+    - "flutter/examples/**"
+    - "flutter/dev/**"
+    - "**/flutter/examples/**"
+    - "**/flutter/dev/**"
+    - "build/**"

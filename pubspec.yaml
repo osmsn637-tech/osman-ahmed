@@ -1,0 +1,42 @@
+name: putaway_app
+description: Warehouse inventory mobile app frontend built with Flutter and Clean Architecture.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  provider: ^6.1.2
+  package_info_plus: ^6.0.0
+  dio: ^5.4.3
+  flutter_secure_storage: ^9.0.0
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.9.0
+  connectivity_plus: ^6.0.5
+  equatable: ^2.0.5
+  go_router: ^14.1.4
+
+  # UI
+  intl: ^0.20.2
+  google_fonts: ^6.2.1
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.9
+  freezed: ^2.5.2
+  json_serializable: ^6.8.0
+
+flutter:
+  generate: true
+  uses-material-design: true
+  assets:
+    - assets/images/

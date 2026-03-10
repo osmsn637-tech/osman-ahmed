@@ -1,0 +1,224 @@
+{
+  "@@locale": "ar",
+  "appTitle": "إدارة المخزون",
+  "tabHome": "الرئيسية",
+  "tabAccount": "الحساب",
+  "homeWorkerTitle": "عامل الترصيص",
+  "moreTitle": "المزيد",
+  "moreHome": "الرئيسية",
+  "moreItemLookup": "البحث عن صنف",
+  "moreStockAdjustment": "تعديل المخزون",
+  "moreExceptions": "الاستثناءات",
+  "accountMyAccount": "حسابي",
+  "accountDetails": "تفاصيل الحساب",
+  "accountPhone": "الهاتف",
+  "accountRole": "الدور",
+  "accountZone": "المنطقة",
+  "accountLanguage": "اللغة",
+  "accountArabic": "العربية",
+  "accountEnglish": "الإنجليزية",
+  "accountActions": "الإجراءات",
+  "accountChangePassword": "تغيير كلمة المرور",
+  "accountSignOut": "تسجيل الخروج",
+  "accountComingSoon": "قريبًا",
+  "roleSupervisor": "مشرف",
+  "roleInbound": "استلام",
+  "roleWorker": "عامل",
+  "zoneWithCode": "المنطقة {zone}",
+  "@zoneWithCode": {
+    "placeholders": {
+      "zone": {}
+    }
+  },
+  "receiveTitle": "استلام الأصناف",
+  "receiveScanItemBarcode": "امسح باركود الصنف",
+  "receiveScanDestinationLocation": "امسح موقع الوجهة",
+  "receiveUsePhysicalScanner": "استخدم زر جهاز المسح",
+  "receiveConfirmDestinationThenQuantity": "أكد الوجهة ثم الكمية",
+  "receiveConfirmReceive": "تأكيد الاستلام",
+  "receiveReceiving": "جارٍ الاستلام...",
+  "receiveAwaitingScan": "بانتظار المسح...",
+  "receiveSkuLabel": "SKU: {barcode}",
+  "@receiveSkuLabel": {
+    "placeholders": {
+      "barcode": {}
+    }
+  },
+  "receiveTotalLabel": "الإجمالي: {quantity}",
+  "@receiveTotalLabel": {
+    "placeholders": {
+      "quantity": {}
+    }
+  },
+  "receiveShelf": "رف",
+  "receiveBulk": "تخزين",
+  "receiveDestinationLocationScan": "موقع الوجهة (مسح)",
+  "receiveQuantityToReceive": "الكمية المطلوب استلامها",
+  "receiveFullQty": "الكمية كاملة",
+  "moveTitle": "نقل صنف",
+  "moveScanItemBarcode": "امسح باركود الصنف",
+  "moveScanDestinationLocation": "امسح موقع الوجهة",
+  "moveTriggerScannerToCaptureItem": "استخدم جهاز المسح لالتقاط الصنف",
+  "moveScanTargetLocationThenConfirm": "امسح الموقع الهدف ثم أكد",
+  "moveFromLocation": "من الموقع",
+  "moveItemSection": "الصنف",
+  "moveToLocation": "إلى الموقع",
+  "moveQuantitySection": "الكمية",
+  "moveDestinationLocationBarcode": "باركود موقع الوجهة",
+  "moveQtyToMove": "الكمية للنقل",
+  "moveAwaitingScan": "بانتظار المسح...",
+  "moveConfirmMove": "تأكيد النقل",
+  "moveMoving": "جارٍ النقل...",
+  "moveNoSourceLocations": "لا توجد مواقع مصدر",
+  "moveSkuLabel": "SKU: {barcode}",
+  "@moveSkuLabel": {
+    "placeholders": {
+      "barcode": {}
+    }
+  },
+  "moveTotalLabel": "الإجمالي: {quantity}",
+  "@moveTotalLabel": {
+    "placeholders": {
+      "quantity": {}
+    }
+  },
+  "stockAdjustmentTitle": "تعديل المخزون",
+  "stockScanItemBarcode": "امسح باركود الصنف",
+  "stockScanLocationBarcode": "امسح باركود الموقع",
+  "stockReadyToSubmit": "جاهز للإرسال",
+  "stockLocationBarcode": "باركود الموقع",
+  "stockNewQuantity": "الكمية الجديدة",
+  "stockReason": "السبب",
+  "stockSubmitting": "جارٍ الإرسال...",
+  "stockSubmitAdjustment": "إرسال التعديل",
+  "exceptionsTitle": "استثناءات الالتقاط",
+  "exceptionsExpected": "المتوقع: {location}",
+  "@exceptionsExpected": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "workerRefreshTasks": "تحديث المهام",
+  "workerLookup": "بحث",
+  "workerAvailableTasks": "المهام المتاحة",
+  "workerMyActiveTasks": "مهامي النشطة",
+  "workerNoAvailableTasks": "لا توجد مهام متاحة الآن",
+  "workerNoActiveTasks": "لا توجد مهام نشطة - اختر مهمة أعلاه",
+  "workerStart": "بدء",
+  "workerComplete": "إكمال",
+  "workerWelcomeBack": "مرحبًا بعودتك، {name}",
+  "@workerWelcomeBack": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "workerTrackQueue": "تابع قائمة المهام وأنهِها بسرعة",
+  "metricAvailable": "متاح",
+  "metricActive": "نشط",
+  "metricDone": "منجز",
+  "workerDone": "منجز",
+  "workerQty": "الكمية {quantity}",
+  "@workerQty": {
+    "placeholders": {
+      "quantity": {}
+    }
+  },
+  "workerTaskDetailsTitle": "تفاصيل المهمة",
+  "workerStartTask": "بدء المهمة",
+  "workerItem": "الصنف",
+  "workerBarcode": "الباركود",
+  "workerNoBarcodeAvailable": "لا يوجد باركود",
+  "workerScanOrEnterProductBarcode": "امسح/أدخل باركود الصنف",
+  "workerValidateProduct": "التحقق من الصنف",
+  "workerProductValidated": "تم التحقق من الصنف",
+  "workerProductMismatch": "الصنف غير مطابق",
+  "workerMovement": "الحركة",
+  "workerFromWithType": "من ({type})",
+  "@workerFromWithType": {
+    "placeholders": {
+      "type": {}
+    }
+  },
+  "workerToWithType": "إلى ({type})",
+  "@workerToWithType": {
+    "placeholders": {
+      "type": {}
+    }
+  },
+  "workerScanOrEnterLocation": "امسح/أدخل الموقع",
+  "workerValidateLocation": "التحقق من الموقع",
+  "workerLocationValidated": "تم التحقق من الموقع",
+  "workerLocationMismatch": "الموقع غير مطابق",
+  "workerTaskInfo": "معلومات المهمة",
+  "workerTaskType": "نوع المهمة",
+  "workerQuantity": "الكمية",
+  "workerStatus": "الحالة",
+  "supervisorTitle": "المشرف",
+  "supervisorRefresh": "تحديث",
+  "supervisorNoTasksForZone": "لا توجد مهام للمنطقة {zone}",
+  "@supervisorNoTasksForZone": {
+    "placeholders": {
+      "zone": {}
+    }
+  },
+  "supervisorCreateTask": "إنشاء مهمة",
+  "supervisorTaskType": "نوع المهمة",
+  "supervisorItemBarcode": "باركود الصنف",
+  "supervisorEnterBarcode": "أدخل الباركود",
+  "supervisorQuantity": "الكمية",
+  "supervisorEnterValidQuantity": "أدخل كمية صحيحة",
+  "supervisorFrom": "من",
+  "supervisorTo": "إلى",
+  "supervisorZone": "المنطقة",
+  "supervisorOperationsOverview": "نظرة عامة على العمليات",
+  "supervisorPending": "قيد الانتظار",
+  "supervisorUnassigned": "غير مسندة",
+  "supervisorWorkerNumber": "عامل #{id}",
+  "@supervisorWorkerNumber": {
+    "placeholders": {
+      "id": {}
+    }
+  },
+  "inboundTitle": "إدارة الوارد",
+  "inboundRefresh": "تحديث",
+  "inboundPending": "وارد قيد الانتظار",
+  "inboundInProgress": "قيد التنفيذ",
+  "inboundCompleted": "مكتمل",
+  "inboundNoDocuments": "لا توجد مستندات وارد",
+  "inboundUseCreatePrompt": "استخدم إنشاء وارد للبدء",
+  "inboundCreateDialogTodo": "نافذة إنشاء وارد - قريبًا",
+  "inboundReceiveDialogTodo": "نافذة استلام الأصناف - قريبًا",
+  "inboundViewTodo": "عرض {documentNumber} - قريبًا",
+  "@inboundViewTodo": {
+    "placeholders": {
+      "documentNumber": {}
+    }
+  },
+  "inboundItemsProgress": "{received}/{total} صنف",
+  "@inboundItemsProgress": {
+    "placeholders": {
+      "received": {},
+      "total": {}
+    }
+  },
+  "inboundStart": "بدء",
+  "inboundReceive": "استلام",
+  "inboundComplete": "إكمال",
+  "inboundView": "عرض",
+  "inboundOverview": "نظرة عامة على الوارد",
+  "inboundTotal": "الإجمالي",
+  "inboundInProgressMetric": "قيد التنفيذ",
+  "inboundCreateInbound": "إنشاء وارد",
+  "inboundDocumentsCount": "{count} مستندات",
+  "@inboundDocumentsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "inboundDocumentSingular": "{count} مستند",
+  "@inboundDocumentSingular": {
+    "placeholders": {
+      "count": {}
+    }
+  }
+}

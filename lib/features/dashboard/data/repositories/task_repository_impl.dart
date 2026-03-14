@@ -131,13 +131,14 @@ class TaskRepositoryImpl implements TaskRepository {
     }
 
     final remoteTaskId = _remoteTaskIdFor(resolved);
-    final taskType = _workerTaskType(resolved.type);
+    final taskType = _workerTaskType(resolved);
     final targetQuantity = quantity == null || quantity <= 0 ? resolved.quantity : quantity;
     final targetLocation = (locationId ?? resolved.toLocation ?? '').trim();
+    final targetLocationId = (locationId ?? resolved.toLocationId ?? targetLocation).trim();
 
-    if (resolved.type == TaskType.receive ||
-        resolved.type == TaskType.returnTask ||
-        resolved.type == TaskType.cycleCount) {
+    if (taskType == 'receiving' ||
+        taskType == 'return' ||
+        taskType == 'cycle_count') {
       await _taskRemoteDataSource.completeTask(
         taskId: remoteTaskId,
         taskType: taskType,
@@ -147,7 +148,7 @@ class TaskRepositoryImpl implements TaskRepository {
         taskId: remoteTaskId,
         taskType: taskType,
         quantity: targetQuantity,
-        locationId: resolved.type == TaskType.refill ? '' : targetLocation,
+        locationId: resolved.type == TaskType.refill ? '' : targetLocationId,
         targetLocationCode: resolved.type == TaskType.refill ? targetLocation : null,
       );
     }
@@ -167,7 +168,7 @@ class TaskRepositoryImpl implements TaskRepository {
 
     await _taskRemoteDataSource.startTask(
       taskId: _remoteTaskIdFor(existing),
-      taskType: _workerTaskType(existing.type),
+      taskType: _workerTaskType(existing),
     );
     _claimedTasks[taskId] = workerId;
 
@@ -192,7 +193,7 @@ class TaskRepositoryImpl implements TaskRepository {
     }
     return <String, dynamic>{
       'locationCode': location,
-      'location_id': location,
+      'location_id': task.toLocationId ?? location,
       'toLocation': location,
     };
   }
@@ -209,7 +210,7 @@ class TaskRepositoryImpl implements TaskRepository {
       }
       return await _taskRemoteDataSource.scanTask(
         taskId: _remoteTaskIdFor(task),
-        taskType: _workerTaskType(task.type),
+        taskType: _workerTaskType(task),
         barcode: barcode,
       );
     } catch (error) {
@@ -321,6 +322,7 @@ class TaskRepositoryImpl implements TaskRepository {
         TaskEntity(
           id: id,
           remoteTaskId: _asString(_firstNonNull([data['taskId'], data['id'], data['task_id']])),
+          apiTaskType: rawType,
           type: _toTaskType(rawType),
           itemId: itemId,
           itemName: itemName,
@@ -343,6 +345,7 @@ class TaskRepositoryImpl implements TaskRepository {
           ]))),
           fromLocation: fromLocation,
           toLocation: toLocation,
+          toLocationId: null,
           quantity: quantity,
           assignedTo: null,
           status: _toTaskStatus(_asString(data['status'])),
@@ -428,6 +431,12 @@ class TaskRepositoryImpl implements TaskRepository {
       detail?['targetLocationCode'],
       detail?['location_code'],
       detail?['locationCode'],
+    ]));
+    final toLocationId = _asString(_firstNonNull([
+      detail?['to_location_id'],
+      detail?['toLocationId'],
+      detail?['target_location_id'],
+      detail?['targetLocationId'],
       detail?['location_id'],
       detail?['locationId'],
     ]));
@@ -467,12 +476,34 @@ class TaskRepositoryImpl implements TaskRepository {
     final itemBarcode = _asString(_firstNonNull([
       detail?['product_barcode'],
       detail?['productBarcode'],
+      detail?['item_barcode'],
+      detail?['itemBarcode'],
       detail?['barcode'],
+      detail?['sku'],
+      detail?['upc'],
+      detail?['ean'],
+      detail?['product_code'],
+      detail?['productCode'],
       detail?['receipt_number'],
       detail?['receiptNumber'],
       product?['product_barcode'],
       product?['productBarcode'],
+      product?['item_barcode'],
+      product?['itemBarcode'],
       product?['barcode'],
+      product?['sku'],
+      product?['upc'],
+      product?['ean'],
+      product?['product_code'],
+      product?['productCode'],
+      data['product_barcode'],
+      data['productBarcode'],
+      data['item_barcode'],
+      data['itemBarcode'],
+      data['barcode'],
+      data['sku'],
+      data['upc'],
+      data['ean'],
     ]));
     final quantity = _toInt(_firstNonNull([
           detail?['quantity'],
@@ -508,6 +539,7 @@ class TaskRepositoryImpl implements TaskRepository {
     return TaskEntity(
       id: id,
       remoteTaskId: rawId,
+      apiTaskType: rawType,
       type: _toUnifiedTaskType(rawType),
       itemId: itemId,
       itemName: itemName,
@@ -528,6 +560,7 @@ class TaskRepositoryImpl implements TaskRepository {
       ]))),
       fromLocation: fromLocation,
       toLocation: toLocation ?? _asString(data['subtitle']),
+      toLocationId: toLocationId,
       quantity: quantity,
       assignedTo: status == TaskStatus.pending ? null : '__worker__',
       status: status,
@@ -546,7 +579,12 @@ class TaskRepositoryImpl implements TaskRepository {
     return task.id.toString();
   }
 
-  String _workerTaskType(TaskType type) {
+  String _workerTaskType(TaskEntity task) {
+    final apiType = task.apiTaskType?.trim().toLowerCase();
+    if (apiType != null && apiType.isNotEmpty) {
+      return apiType;
+    }
+    final type = task.type;
     switch (type) {
       case TaskType.receive:
         return 'receiving';
@@ -570,7 +608,7 @@ class TaskRepositoryImpl implements TaskRepository {
       case 'receiving':
         return TaskType.receive;
       case 'putaway':
-        return TaskType.move;
+        return TaskType.receive;
       case 'restock':
         return TaskType.refill;
       case 'return':
@@ -663,6 +701,7 @@ class TaskRepositoryImpl implements TaskRepository {
     required TaskEntity task,
     int? id,
     String? remoteTaskId,
+    String? apiTaskType,
     TaskType? type,
     int? itemId,
     String? itemName,
@@ -670,6 +709,7 @@ class TaskRepositoryImpl implements TaskRepository {
     String? itemImageUrl,
     String? fromLocation,
     String? toLocation,
+    String? toLocationId,
     int? quantity,
     String? assignedTo,
     TaskStatus? status,
@@ -683,6 +723,7 @@ class TaskRepositoryImpl implements TaskRepository {
     return TaskEntity(
       id: id ?? task.id,
       remoteTaskId: remoteTaskId ?? task.remoteTaskId,
+      apiTaskType: apiTaskType ?? task.apiTaskType,
       type: type ?? task.type,
       itemId: itemId ?? task.itemId,
       itemName: itemName ?? task.itemName,
@@ -690,6 +731,7 @@ class TaskRepositoryImpl implements TaskRepository {
       itemImageUrl: itemImageUrl ?? task.itemImageUrl,
       fromLocation: fromLocation ?? task.fromLocation,
       toLocation: toLocation ?? task.toLocation,
+      toLocationId: toLocationId ?? task.toLocationId,
       quantity: quantity ?? task.quantity,
       assignedTo: assignedTo,
       status: status ?? task.status,

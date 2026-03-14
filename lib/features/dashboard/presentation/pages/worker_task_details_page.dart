@@ -1184,10 +1184,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     final lookup = widget.onLookupItem;
     final barcode = widget.task.itemBarcode?.trim() ?? '';
     if (lookup == null || barcode.isEmpty) {
-      setState(() {
-        _refillLookupLoading = false;
-        _refillLookupError = 'Could not load refill locations.';
-      });
+      _finishRefillLookupWithFallback();
       return;
     }
 
@@ -1212,10 +1209,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       final bulk = _firstBulkLocation(summary);
       final shelf = _firstShelfLocation(summary);
       if (bulk == null || shelf == null) {
-        setState(() {
-          _refillLookupLoading = false;
-          _refillLookupError = 'Could not load refill locations.';
-        });
+        _finishRefillLookupWithFallback(summary: summary);
         return;
       }
       setState(() {
@@ -1224,11 +1218,26 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         _bulkLocationController.text = bulk;
       });
     } catch (_) {
-      setState(() {
-        _refillLookupLoading = false;
-        _refillLookupError = 'Could not load refill locations.';
-      });
+      _finishRefillLookupWithFallback();
     }
+  }
+
+  void _finishRefillLookupWithFallback({ItemLocationSummaryEntity? summary}) {
+    final fallbackBulk = widget.task.fromLocation?.trim();
+    final fallbackShelf = widget.task.toLocation?.trim();
+    final hasFallbackBulk = fallbackBulk != null && fallbackBulk.isNotEmpty;
+    final hasFallbackShelf = fallbackShelf != null && fallbackShelf.isNotEmpty;
+
+    setState(() {
+      _refillLookupLoading = false;
+      _refillSummary = summary;
+      if (hasFallbackBulk) {
+        _bulkLocationController.text = fallbackBulk;
+      }
+      _refillLookupError = hasFallbackBulk && hasFallbackShelf
+          ? null
+          : 'Could not load refill locations.';
+    });
   }
 
   String? _resolvedRefillImageUrl(TaskEntity task) {
@@ -1248,13 +1257,21 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   String? get _refillShelfLocation => _firstShelfLocation(_refillSummary);
 
   String? _firstBulkLocation(ItemLocationSummaryEntity? summary) {
-    if (summary == null || summary.bulkLocations.isEmpty) return null;
-    return summary.bulkLocations.first.code;
+    if (summary != null && summary.bulkLocations.isNotEmpty) {
+      return summary.bulkLocations.first.code;
+    }
+    final fallback = widget.task.fromLocation?.trim();
+    if (fallback == null || fallback.isEmpty) return null;
+    return fallback;
   }
 
   String? _firstShelfLocation(ItemLocationSummaryEntity? summary) {
-    if (summary == null || summary.shelfLocations.isEmpty) return null;
-    return summary.shelfLocations.first.code;
+    if (summary != null && summary.shelfLocations.isNotEmpty) {
+      return summary.shelfLocations.first.code;
+    }
+    final fallback = widget.task.toLocation?.trim();
+    if (fallback == null || fallback.isEmpty) return null;
+    return fallback;
   }
 }
 

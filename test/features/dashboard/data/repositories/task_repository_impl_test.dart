@@ -8,7 +8,7 @@ import 'package:putaway_app/features/dashboard/domain/entities/exception_entity.
 import 'package:putaway_app/features/dashboard/domain/entities/task_entity.dart';
 
 void main() {
-  test('parses unified worker tasks and keeps the remote task id', () async {
+  test('parses unified putaway tasks as receive while keeping worker task type', () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
       _FakeTaskRemoteDataSource(
@@ -27,6 +27,7 @@ void main() {
                 'product_barcode': 'PUT-777',
                 'quantity': 2,
                 'to_location': 'Z02-BLK-C01-L01-P01',
+                'location_id': 'loc-uuid-z02',
                 'product_image': 'http://img.qeu.app/products/widget-green.jpg',
               },
             },
@@ -40,12 +41,14 @@ void main() {
 
     expect(task.id, lessThan(0));
     expect(task.remoteTaskId, 'putaway-uuid-1');
-    expect(task.type, TaskType.move);
+    expect(task.apiTaskType, 'putaway');
+    expect(task.type, TaskType.receive);
     expect(task.itemId, 777);
     expect(task.itemName, 'Widget Green');
     expect(task.itemBarcode, 'PUT-777');
     expect(task.itemImageUrl, 'https://img.qeu.app/products/widget-green.jpg');
     expect(task.toLocation, 'Z02-BLK-C01-L01-P01');
+    expect(task.toLocationId, 'loc-uuid-z02');
     expect(task.priority, TaskPriority.high);
     expect(task.status, TaskStatus.pending);
   });
@@ -81,7 +84,7 @@ void main() {
     expect(task.status, TaskStatus.pending);
   });
 
-  test('maps putaway tasks to receive and normalizes product image urls', () async {
+  test('maps legacy putaway tasks to receive and normalizes product image urls', () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
       _FakeTaskRemoteDataSource(
@@ -109,7 +112,7 @@ void main() {
 
     expect(task.type, TaskType.receive);
     expect(task.itemImageUrl, 'https://img.qeu.app/products/widget-green.jpg');
-    expect(task.status, TaskStatus.inProgress);
+    expect(task.status, TaskStatus.pending);
   });
 
   test('prefers product_barcode over legacy barcode fields when parsing tasks', () async {
@@ -179,6 +182,7 @@ void main() {
     );
 
     expect(claimed.remoteTaskId, 'putaway-uuid-1004');
+    expect(claimed.apiTaskType, 'putaway');
     expect(claimed.assignedTo, 'worker-42');
     expect(claimed.status, TaskStatus.inProgress);
     expect(remoteDataSource.startedTaskId, 'putaway-uuid-1004');
@@ -268,7 +272,7 @@ void main() {
     expect(remoteDataSource.scannedBarcode, 'ABC-1');
   });
 
-  test('submits putaway completion with worker task payload fields', () async {
+  test('submits putaway completion with worker task location id payload', () async {
     final remoteDataSource = _FakeTaskRemoteDataSource(
       const {
         'tasks': [
@@ -283,7 +287,8 @@ void main() {
               'product_name': 'Move Widget',
               'product_barcode': 'MOVE-808',
               'quantity': 7,
-              'to_location': 'loc-uuid-22',
+              'to_location': 'Z06-BLK-C01-L01-P01',
+              'location_id': 'loc-uuid-22',
             },
           },
         ],
@@ -295,10 +300,11 @@ void main() {
     );
 
     final task = (await repository.getTasksForZone('Z06')).single;
+    expect(task.type, TaskType.receive);
+    expect(task.apiTaskType, 'putaway');
     final completed = await repository.completeTask(
       task.id,
       quantity: 4,
-      locationId: 'loc-uuid-22',
     );
 
     expect(completed.status, TaskStatus.completed);
@@ -343,6 +349,42 @@ void main() {
     expect(remoteDataSource.completedTaskId, 'receiving-uuid-2');
     expect(remoteDataSource.completedTaskType, 'receiving');
     expect(remoteDataSource.submittedTaskId, isNull);
+  });
+
+  test('parses unified restock tasks with refill barcode and locations', () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'id': 'restock-uuid-1',
+              'task_type': 'restock',
+              'title': 'Refill Widget',
+              'subtitle': 'Aisle 3',
+              'status': 'pending',
+              'detail': {
+                'item_id': 333,
+                'item_name': 'Refill Widget',
+                'item_barcode': 'RESTOCK-333',
+                'quantity': 6,
+                'bulk_location': 'BULK-01-01',
+                'target_location_code': 'SHELF-01-01',
+              },
+            },
+          ],
+        },
+      ),
+    );
+
+    final tasks = await repository.getTasksForZone('');
+    final task = tasks.single;
+
+    expect(task.apiTaskType, 'restock');
+    expect(task.type, TaskType.refill);
+    expect(task.itemBarcode, 'RESTOCK-333');
+    expect(task.fromLocation, 'BULK-01-01');
+    expect(task.toLocation, 'SHELF-01-01');
   });
 }
 

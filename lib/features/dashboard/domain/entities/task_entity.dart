@@ -2,6 +2,7 @@ class TaskEntity {
   const TaskEntity({
     required this.id,
     this.remoteTaskId,
+    this.apiTaskType,
     required this.type,
     required this.itemId,
     required this.itemName,
@@ -9,6 +10,7 @@ class TaskEntity {
     this.itemImageUrl,
     required this.fromLocation,
     required this.toLocation,
+    this.toLocationId,
     required this.quantity,
     this.assignedTo,
     required this.status,
@@ -22,6 +24,7 @@ class TaskEntity {
 
   final int id;
   final String? remoteTaskId;
+  final String? apiTaskType;
   final TaskType type;
   final int itemId;
   final String itemName;
@@ -29,6 +32,7 @@ class TaskEntity {
   final String? itemImageUrl;
   final String? fromLocation;
   final String? toLocation;
+  final String? toLocationId;
   final int quantity;
   final String? assignedTo;
   final TaskStatus status;

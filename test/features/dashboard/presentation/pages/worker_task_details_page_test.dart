@@ -411,4 +411,39 @@ void main() {
     expect(completedQuantity, 4);
     expect(completedLocation, 'SHELF-01-01');
   });
+
+  testWidgets(
+      'refill task falls back to task locations when lookup fails',
+      (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            fromLocation: 'BULK-02-01',
+            toLocation: 'SHELF-02-09',
+          ),
+          onLookupItem: (_) async => throw Exception('lookup failed'),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Could not load refill locations.'), findsNothing);
+    expect(find.text('From Bulk Location'), findsOneWidget);
+    expect(find.text('BULK-02-01'), findsOneWidget);
+    expect(find.text('SHELF-02-09'), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const Key('product-validate-field')),
+      '123456789012',
+    );
+    await scrollTo(tester, find.byKey(const Key('validate-product-button')));
+    await tester.tap(find.byKey(const Key('validate-product-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('To Shelf Location'), findsOneWidget);
+    expect(find.text('SHELF-02-09'), findsOneWidget);
+  });
 }

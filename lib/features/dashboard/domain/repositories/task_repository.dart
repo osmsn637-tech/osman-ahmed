@@ -38,4 +38,42 @@ abstract class TaskRepository {
     required int actualQuantity,
     String? notes,
   });
+
+  Future<QuickAdjustmentResult> createQuickAdjustment({
+    required String warehouseId,
+    required int productId,
+    required String locationId,
+    required int systemQuantity,
+    required int actualQuantity,
+    String? reason,
+    String? notes,
+    String? batchNumber,
+    String? expiryDate,
+  });
+}
+
+class QuickAdjustmentResult {
+  final bool success;
+  final String message;
+  final String? adjustmentId;
+  final String? adjustmentNumber;
+  final String? status;
+
+  QuickAdjustmentResult({
+    required this.success,
+    required this.message,
+    this.adjustmentId,
+    this.adjustmentNumber,
+    this.status,
+  });
+
+  factory QuickAdjustmentResult.fromJson(Map<String, dynamic> json) {
+    return QuickAdjustmentResult(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      adjustmentId: json['adjustmentId']?.toString(),
+      adjustmentNumber: json['adjustmentNumber']?.toString(),
+      status: json['status']?.toString(),
+    );
+  }
 }

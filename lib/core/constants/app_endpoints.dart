@@ -31,6 +31,7 @@ class AppEndpoints {
       '/mobile/v1/adjustment-items/$adjustmentItemId/count';
   static String adjustmentFinish(String adjustmentId) =>
       '/mobile/v1/adjustments/$adjustmentId/finish';
+  static const quickAdjustment = '/mobile/v1/adjustments/quick';
   static String lookupProductByBarcode(String barcode) =>
       'https://api.qeu.app/mobile/v1/products/barcode/${Uri.encodeComponent(barcode)}';
   static String itemStock(String barcode) => '/inventory/items/$barcode/stock';

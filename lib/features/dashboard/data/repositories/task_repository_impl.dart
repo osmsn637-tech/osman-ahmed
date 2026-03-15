@@ -259,6 +259,36 @@ class TaskRepositoryImpl implements TaskRepository {
     );
   }
 
+  @override
+  Future<QuickAdjustmentResult> createQuickAdjustment({
+    required String warehouseId,
+    required int productId,
+    required String locationId,
+    required int systemQuantity,
+    required int actualQuantity,
+    String? reason,
+    String? notes,
+    String? batchNumber,
+    String? expiryDate,
+  }) async {
+    try {
+      final response = await _taskRemoteDataSource.createQuickAdjustment(
+        warehouseId: warehouseId,
+        productId: productId,
+        locationId: locationId,
+        systemQuantity: systemQuantity,
+        actualQuantity: actualQuantity,
+        reason: reason,
+        notes: notes,
+        batchNumber: batchNumber,
+        expiryDate: expiryDate,
+      );
+      return QuickAdjustmentResult.fromJson(response);
+    } catch (error) {
+      return Future.error(error);
+    }
+  }
+
   TaskEntity _withClaim(TaskEntity task) {
     final assignedWorker = _claimedTasks[task.id];
     if (assignedWorker == null) return task;
@@ -742,7 +772,7 @@ class TaskRepositoryImpl implements TaskRepository {
       case TaskType.returnTask:
         return 'return';
       case TaskType.adjustment:
-        return 'adjustment';
+        return 'cycle_count';
       case TaskType.cycleCount:
         return 'cycle_count';
       case TaskType.refill:

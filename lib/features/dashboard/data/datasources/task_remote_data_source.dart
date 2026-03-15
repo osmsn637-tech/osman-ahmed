@@ -164,6 +164,38 @@ class TaskRemoteDataSource {
     );
   }
 
+  Future<Map<String, dynamic>> createQuickAdjustment({
+    required String warehouseId,
+    required int productId,
+    required String locationId,
+    required int systemQuantity,
+    required int actualQuantity,
+    String? reason,
+    String? notes,
+    String? batchNumber,
+    String? expiryDate,
+  }) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      AppEndpoints.quickAdjustment,
+      data: {
+        'warehouseId': warehouseId,
+        'productId': productId,
+        'locationId': locationId,
+        'systemQuantity': systemQuantity,
+        'actualQuantity': actualQuantity,
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (batchNumber != null && batchNumber.trim().isNotEmpty) 'batchNumber': batchNumber.trim(),
+        if (expiryDate != null && expiryDate.trim().isNotEmpty) 'expiryDate': expiryDate.trim(),
+      },
+      parser: (data) => _asMap(data),
+    );
+    return response.when(
+      success: (data) => data,
+      failure: (error) => throw error,
+    );
+  }
+
   Future<Map<String, dynamic>> completeTask({
     required String taskId,
     required String taskType,

@@ -10,6 +10,7 @@ import '../../domain/usecases/scan_adjustment_location_usecase.dart';
 import '../../domain/usecases/save_cycle_count_progress_usecase.dart';
 import '../../domain/usecases/submit_adjustment_count_usecase.dart';
 import '../../domain/usecases/validate_task_location_usecase.dart';
+import '../../domain/usecases/create_quick_adjustment_usecase.dart';
 import '../../../auth/presentation/providers/session_provider.dart';
 
 class WorkerTasksState {
@@ -46,6 +47,7 @@ class WorkerTasksController extends ChangeNotifier {
     required SaveCycleCountProgressUseCase saveCycleCountProgress,
     required SubmitAdjustmentCountUseCase submitAdjustmentCount,
     required ValidateTaskLocationUseCase validateTaskLocation,
+    required CreateQuickAdjustmentUseCase createQuickAdjustment,
     required SessionController session,
   })
       : _getTasksForZone = getTasksForZone,
@@ -56,6 +58,7 @@ class WorkerTasksController extends ChangeNotifier {
         _saveCycleCountProgress = saveCycleCountProgress,
         _submitAdjustmentCount = submitAdjustmentCount,
         _validateTaskLocation = validateTaskLocation,
+        _createQuickAdjustment = createQuickAdjustment,
         _session = session,
         _state = const WorkerTasksState();
 
@@ -67,6 +70,7 @@ class WorkerTasksController extends ChangeNotifier {
   final SaveCycleCountProgressUseCase _saveCycleCountProgress;
   final SubmitAdjustmentCountUseCase _submitAdjustmentCount;
   final ValidateTaskLocationUseCase _validateTaskLocation;
+  final CreateQuickAdjustmentUseCase _createQuickAdjustment;
   final SessionController _session;
 
   WorkerTasksState _state;
@@ -160,6 +164,30 @@ class WorkerTasksController extends ChangeNotifier {
       adjustmentItemId: adjustmentItemId,
       actualQuantity: actualQuantity,
       notes: notes,
+    );
+  }
+
+  Future<QuickAdjustmentResult> reportVariance({
+    required String warehouseId,
+    required int productId,
+    required String locationId,
+    required int systemQuantity,
+    required int actualQuantity,
+    String? reason,
+    String? notes,
+    String? batchNumber,
+    String? expiryDate,
+  }) {
+    return _createQuickAdjustment.execute(
+      warehouseId: warehouseId,
+      productId: productId,
+      locationId: locationId,
+      systemQuantity: systemQuantity,
+      actualQuantity: actualQuantity,
+      reason: reason,
+      notes: notes,
+      batchNumber: batchNumber,
+      expiryDate: expiryDate,
     );
   }
 }

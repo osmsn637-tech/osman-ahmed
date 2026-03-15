@@ -22,6 +22,7 @@ import '../../features/dashboard/domain/usecases/save_cycle_count_progress_useca
 import '../../features/dashboard/domain/usecases/scan_adjustment_location_usecase.dart';
 import '../../features/dashboard/domain/usecases/submit_adjustment_count_usecase.dart';
 import '../../features/dashboard/domain/usecases/validate_task_location_usecase.dart';
+import '../../features/dashboard/domain/usecases/create_quick_adjustment_usecase.dart';
 import '../../features/dashboard/presentation/controllers/dashboard_controller.dart';
 import '../../features/dashboard/presentation/controllers/worker_tasks_controller.dart';
 import '../../features/dashboard/presentation/controllers/supervisor_tasks_controller.dart';
@@ -142,6 +143,9 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     ProxyProvider<TaskRepository, ValidateTaskLocationUseCase>(
       update: (_, repo, __) => ValidateTaskLocationUseCase(repo),
     ),
+    ProxyProvider<TaskRepository, CreateQuickAdjustmentUseCase>(
+      update: (_, repo, __) => CreateQuickAdjustmentUseCase(repo),
+    ),
     ProxyProvider<ApiClient, ItemRemoteDataSource>(
       update: (_, client, __) => ItemRemoteDataSourceImpl(client),
     ),
@@ -232,6 +236,7 @@ List<SingleChildWidget> appProviders(AppConfig config) {
         saveCycleCountProgress: context.read<SaveCycleCountProgressUseCase>(),
         submitAdjustmentCount: context.read<SubmitAdjustmentCountUseCase>(),
         validateTaskLocation: context.read<ValidateTaskLocationUseCase>(),
+        createQuickAdjustment: context.read<CreateQuickAdjustmentUseCase>(),
         session: context.read<SessionController>(),
       )..load(),
     ),

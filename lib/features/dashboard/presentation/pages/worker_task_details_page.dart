@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../shared/l10n/l10n.dart';
 import '../../../../shared/theme/app_theme.dart';
+import '../../domain/entities/adjustment_task_entities.dart';
 import '../../../move/domain/entities/item_location_summary_entity.dart';
+import '../../../move/presentation/pages/item_lookup_scan_dialog.dart';
 import '../../domain/entities/task_entity.dart';
 import '../shared/dashboard_common_widgets.dart';
 import '../shared/location_format.dart';
@@ -14,7 +18,10 @@ class WorkerTaskDetailsPage extends StatefulWidget {
     required this.task,
     this.onStartTask,
     this.onCompleteTask,
+    this.onSaveCycleCountProgress,
     this.onGetSuggestion,
+    this.onScanAdjustmentLocation,
+    this.onSubmitAdjustmentCount,
     this.onValidateLocation,
     this.onLookupItem,
   });
@@ -26,10 +33,22 @@ class WorkerTaskDetailsPage extends StatefulWidget {
     int? quantity,
     String? locationId,
   })? onCompleteTask;
+  final Future<void> Function(
+    int taskId, {
+    required Map<String, Object?> progress,
+  })? onSaveCycleCountProgress;
   final Future<String?> Function()? onGetSuggestion;
+  final Future<AdjustmentTaskLocationScan> Function(String barcode)?
+      onScanAdjustmentLocation;
+  final Future<void> Function({
+    required String adjustmentItemId,
+    required int actualQuantity,
+    String? notes,
+  })? onSubmitAdjustmentCount;
   final Future<Map<String, dynamic>> Function(String barcode)?
       onValidateLocation;
-  final Future<ItemLocationSummaryEntity> Function(String barcode)? onLookupItem;
+  final Future<ItemLocationSummaryEntity> Function(String barcode)?
+      onLookupItem;
 
   @override
   State<WorkerTaskDetailsPage> createState() => _WorkerTaskDetailsPageState();
@@ -40,6 +59,18 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   late final TextEditingController _locationController;
   late final TextEditingController _bulkLocationController;
   late final TextEditingController _quantityController;
+  late final TextEditingController _returnToteController;
+  late final TextEditingController _returnQuantityController;
+  late final TextEditingController _cycleCountScanController;
+  late final TextEditingController _cycleCountDetailQuantityController;
+  late final TextEditingController _cycleCountDetailBarcodeController;
+  late final TextEditingController _adjustmentNoteController;
+  late final TextEditingController _unexpectedItemNameController;
+  late final TextEditingController _unexpectedItemQuantityController;
+  late final FocusNode _cycleCountScanFocusNode;
+  late final FocusNode _cycleCountDetailBarcodeFocusNode;
+  final List<TextEditingController> _cycleCountLineControllers =
+      <TextEditingController>[];
 
   String? _productValidationMessage;
   String? _locationValidationMessage;
@@ -52,12 +83,36 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   bool _validating = false;
   bool _itemValidated = false;
   bool _locationValidated = false;
+  bool _startedLocally = false;
+  bool _returnToteValidated = false;
+  final bool _showUnexpectedItemFields = false;
   int _receivePage = 0;
   int _refillPage = 0;
+  int _returnPage = 0;
+  int _cycleCountPage = 0;
   int _refillQuantity = 0;
   bool _refillLookupLoading = false;
+  bool _scanningAdjustmentLocation = false;
+  bool _submittingAdjustment = false;
+  bool _savingCycleCountProgress = false;
+  bool _cycleCountDetailOpenedManually = false;
+  int _adjustmentDelta = 0;
   String? _refillLookupError;
+  String? _adjustmentErrorMessage;
+  String? _cycleCountScanError;
+  String? _selectedAdjustmentItemId;
+  String? _selectedCycleCountItemKey;
   ItemLocationSummaryEntity? _refillSummary;
+  AdjustmentTaskLocationScan? _adjustmentScan;
+  _AdjustmentMode _adjustmentMode = _AdjustmentMode.decrease;
+  late final List<_CycleCountItemState> _cycleCountItems;
+  Timer? _cycleCountScanDebounce;
+  final List<bool> _returnItemValidated = <bool>[];
+  final List<bool> _returnItemLocationValidated = <bool>[];
+  final List<TextEditingController> _returnItemLocationControllers =
+      <TextEditingController>[];
+  final List<TextEditingController> _returnItemQuantityControllers =
+      <TextEditingController>[];
 
   @override
   void initState() {
@@ -70,8 +125,30 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     _bulkLocationController =
         TextEditingController(text: task.fromLocation ?? '');
     _quantityController = TextEditingController(text: task.quantity.toString());
+    _returnToteController = TextEditingController();
+    _returnQuantityController = TextEditingController();
+    _cycleCountScanController = TextEditingController();
+    _cycleCountDetailQuantityController = TextEditingController();
+    _cycleCountDetailBarcodeController = TextEditingController();
+    _adjustmentNoteController = TextEditingController();
+    _unexpectedItemNameController = TextEditingController();
+    _unexpectedItemQuantityController = TextEditingController();
+    _cycleCountScanFocusNode = FocusNode(debugLabel: 'cycle-count-scan');
+    _cycleCountDetailBarcodeFocusNode =
+        FocusNode(debugLabel: 'cycle-count-detail-barcode');
     _refillQuantity = task.quantity;
     _quantityController.addListener(_updateRefillQuantity);
+    _cycleCountItems = _buildInitialCycleCountItems(task);
+    _restoreCycleCountProgress(task);
+    for (final _ in task.cycleCountExpectedLines) {
+      _cycleCountLineControllers.add(TextEditingController());
+    }
+    for (final _ in task.returnItems) {
+      _returnItemValidated.add(false);
+      _returnItemLocationValidated.add(false);
+      _returnItemLocationControllers.add(TextEditingController());
+      _returnItemQuantityControllers.add(TextEditingController());
+    }
     if (task.type == TaskType.refill) {
       _refillLookupLoading = true;
       _bulkLocationController.text = '';
@@ -80,6 +157,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       _refillQuantity = 0;
       Future<void>.microtask(_loadRefillLookup);
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreCycleCountScannerFocus();
+    });
   }
 
   @override
@@ -89,13 +169,33 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     _bulkLocationController.dispose();
     _quantityController.removeListener(_updateRefillQuantity);
     _quantityController.dispose();
+    _returnToteController.dispose();
+    _returnQuantityController.dispose();
+    _cycleCountScanDebounce?.cancel();
+    _cycleCountScanController.dispose();
+    _cycleCountDetailQuantityController.dispose();
+    _cycleCountDetailBarcodeController.dispose();
+    _adjustmentNoteController.dispose();
+    _unexpectedItemNameController.dispose();
+    _unexpectedItemQuantityController.dispose();
+    _cycleCountScanFocusNode.dispose();
+    _cycleCountDetailBarcodeFocusNode.dispose();
+    for (final controller in _cycleCountLineControllers) {
+      controller.dispose();
+    }
+    for (final controller in _returnItemLocationControllers) {
+      controller.dispose();
+    }
+    for (final controller in _returnItemQuantityControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final task = widget.task;
+    final task = _effectiveTask;
     final fromType = detectLocationType(task.fromLocation);
     final toType = detectLocationType(task.toLocation);
     final barcode = task.itemBarcode?.trim();
@@ -114,7 +214,24 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     final statusColor = taskStatusColor(task.status);
     final refillReady = _isRefillFlowComplete();
     final receiveReady = _isReceiveFlowComplete();
+    final returnValidationReady = _isReturnValidationComplete();
+    final returnReady = _isReturnFlowComplete();
+    final adjustmentReady = _isAdjustmentFlowComplete();
+    final cycleCountReady = _isCycleCountFlowComplete();
     final refillQuantityDisplay = '$_refillQuantity/${task.quantity}';
+    final showReturnAdvanceAction = showCompleteAction &&
+        task.type == TaskType.returnTask &&
+        _returnPage == 0;
+    final showReturnCompleteAction = showCompleteAction &&
+        task.type == TaskType.returnTask &&
+        _returnPage == 1;
+    final showsBottomActionBar = showStartAction ||
+        showReturnAdvanceAction ||
+        showReturnCompleteAction ||
+        (showCompleteAction &&
+            task.type != TaskType.receive &&
+            task.type != TaskType.refill &&
+            task.type != TaskType.returnTask);
 
     return Scaffold(
       appBar: AppBar(
@@ -141,11 +258,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           ),
         ],
       ),
-      bottomNavigationBar:
-          showStartAction ||
-                  (showCompleteAction &&
-                      task.type != TaskType.receive &&
-                      task.type != TaskType.refill)
+      bottomNavigationBar: showsBottomActionBar
           ? SafeArea(
               minimum: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
               child: SizedBox(
@@ -153,16 +266,28 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                 child: ElevatedButton.icon(
                   key: showStartAction
                       ? const Key('start-task-button')
-                      : const Key('complete-task-button'),
+                      : showReturnAdvanceAction
+                          ? const Key('return-page-next-button')
+                          : const Key('complete-task-button'),
                   onPressed: showStartAction
                       ? (_starting ? null : _startTask)
-                      : (task.type == TaskType.receive && _receivePage != 1)
-                          ? null
-                      : (_completing ||
-                              (task.type == TaskType.refill && !refillReady) ||
-                              (task.type == TaskType.receive && !receiveReady))
-                          ? null
-                          : _completeTask,
+                      : showReturnAdvanceAction
+                          ? (returnValidationReady ? _advanceReturnPage : null)
+                          : (task.type == TaskType.receive && _receivePage != 1)
+                              ? null
+                              : (_completing ||
+                                      (task.type == TaskType.refill &&
+                                          !refillReady) ||
+                                      (task.type == TaskType.receive &&
+                                          !receiveReady) ||
+                                      (task.type == TaskType.returnTask &&
+                                          !returnReady) ||
+                                      (task.type == TaskType.adjustment &&
+                                          !adjustmentReady) ||
+                                      (task.type == TaskType.cycleCount &&
+                                          !cycleCountReady))
+                                  ? null
+                                  : _completeTask,
                   icon: (showStartAction ? _starting : _completing)
                       ? const SizedBox(
                           width: 18,
@@ -171,11 +296,20 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                         )
                       : Icon(showStartAction
                           ? Icons.play_arrow_rounded
-                          : Icons.check_rounded),
-                  label: Text(showStartAction ? l10n.workerStartTask : l10n.workerComplete),
+                          : showReturnAdvanceAction
+                              ? Icons.keyboard_double_arrow_right_rounded
+                              : Icons.check_rounded),
+                  label: Text(
+                    showStartAction
+                        ? l10n.workerStartTask
+                        : showReturnAdvanceAction
+                            ? 'Return'
+                            : l10n.workerComplete,
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        showStartAction ? AppTheme.primary : AppTheme.success,
+                    backgroundColor: showStartAction || showReturnAdvanceAction
+                        ? AppTheme.primary
+                        : AppTheme.success,
                     foregroundColor: Colors.white,
                     elevation: 2,
                   ),
@@ -193,7 +327,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           ),
         ),
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            showsBottomActionBar ? 112 : 16,
+          ),
           children: [
             if (_startErrorMessage != null) ...[
               _ValidationMessage(
@@ -246,6 +385,44 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                                 barcode: barcode,
                               )
                             : _buildRefillPageTwo(context, task),
+              ),
+            ] else if (task.type == TaskType.returnTask) ...[
+              _SectionCard(
+                title: '',
+                icon: Icons.undo_rounded,
+                accentColor: typeColor,
+                showHeader: false,
+                child: _buildReturnTaskFlow(
+                  context,
+                  task,
+                  hasImage: hasImage,
+                  imageUrl: imageUrl,
+                  hasBarcode: hasBarcode,
+                  barcode: barcode,
+                ),
+              ),
+            ] else if (task.type == TaskType.cycleCount) ...[
+              _SectionCard(
+                title: '',
+                icon: Icons.fact_check_rounded,
+                accentColor: typeColor,
+                showHeader: false,
+                child: _buildCycleCountFlow(
+                  context,
+                  task,
+                  hasImage: hasImage,
+                  imageUrl: imageUrl,
+                  hasBarcode: hasBarcode,
+                  barcode: barcode,
+                ),
+              ),
+            ] else if (task.type == TaskType.adjustment) ...[
+              _SectionCard(
+                title: '',
+                icon: Icons.tune_rounded,
+                accentColor: typeColor,
+                showHeader: false,
+                child: _buildAdjustmentTaskFlow(context, task),
               ),
             ] else ...[
               _TaskHeroCard(
@@ -314,8 +491,8 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                       const SizedBox(height: 10),
                       _ValidationMessage(
                         message: _productValidationMessage!,
-                        isPositive:
-                            _productValidationMessage == l10n.workerProductValidated,
+                        isPositive: _productValidationMessage ==
+                            l10n.workerProductValidated,
                       ),
                     ],
                   ],
@@ -347,7 +524,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                     const SizedBox(height: 12),
                     _InfoRow(
                       label: l10n.workerTaskType,
-                      value: task.type.name.toUpperCase(),
+                      value: taskTypeLabel(task.type),
                     ),
                     _InfoRow(
                       label: l10n.workerQuantity,
@@ -647,9 +824,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
               });
             }
           },
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             labelText: 'Validate barcode',
-            prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
+            prefixIcon: Icon(Icons.qr_code_scanner_rounded),
             filled: true,
             fillColor: Colors.white,
           ),
@@ -761,7 +938,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             width: double.infinity,
             child: ElevatedButton.icon(
               key: const Key('complete-task-button'),
-              onPressed: _completing || !_isReceiveFlowComplete() ? null : _completeTask,
+              onPressed: _completing || !_isReceiveFlowComplete()
+                  ? null
+                  : _completeTask,
               icon: _completing
                   ? const SizedBox(
                       width: 18,
@@ -780,6 +959,934 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     );
   }
 
+  Widget _buildReturnTaskFlow(
+    BuildContext context,
+    TaskEntity task, {
+    required bool hasImage,
+    required String? imageUrl,
+    required bool hasBarcode,
+    required String? barcode,
+  }) {
+    return _returnPage == 0
+        ? _buildReturnValidationPage(context, task)
+        : _buildReturnExecutionPage(context, task);
+  }
+
+  Widget _buildReturnValidationPage(BuildContext context, TaskEntity task) {
+    final items = task.returnItems;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          task.itemName,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textPrimary,
+              ),
+        ),
+        const SizedBox(height: 12),
+        _LocationRow(
+          label: 'Return Tote',
+          value: task.returnContainerId,
+          icon: Icons.inventory_rounded,
+        ),
+        const SizedBox(height: 16),
+        for (var index = 0; index < items.length; index++) ...[
+          _buildReturnValidationLine(
+            context,
+            item: items[index],
+            index: index,
+          ),
+          const SizedBox(height: 10),
+        ],
+        if (_completionMessage != null) ...[
+          const SizedBox(height: 8),
+          _ValidationMessage(message: _completionMessage!, isPositive: false),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildReturnExecutionPage(BuildContext context, TaskEntity task) {
+    final items = task.returnItems;
+    final typeColor = taskTypeColor(task.type);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Return Items',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textPrimary,
+              ),
+        ),
+        const SizedBox(height: 12),
+        for (var index = 0; index < items.length; index++) ...[
+          _buildReturnExecutionLine(
+            context,
+            item: items[index],
+            index: index,
+            typeColor: typeColor,
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (_completionMessage != null) ...[
+          const SizedBox(height: 8),
+          _ValidationMessage(message: _completionMessage!, isPositive: false),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildReturnValidationLine(
+    BuildContext context, {
+    required ReturnTaskItem item,
+    required int index,
+  }) {
+    final validated =
+        index < _returnItemValidated.length && _returnItemValidated[index];
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: validated
+              ? AppTheme.success.withValues(alpha: 0.45)
+              : AppTheme.surfaceAlt,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          IconButton(
+            key: Key('return-validate-line-$index-button'),
+            onPressed: () => _scanReturnItem(index),
+            icon: Icon(
+              validated
+                  ? Icons.check_circle_rounded
+                  : Icons.qr_code_scanner_rounded,
+              color: validated ? AppTheme.success : AppTheme.primary,
+            ),
+          ),
+          SizedBox(
+            width: 36,
+            child: Text(
+              '${item.quantity}',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.itemName,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                if (item.barcode != null && item.barcode!.isNotEmpty)
+                  Text(
+                    item.barcode!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textMuted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _ReturnItemThumb(imageUrl: item.imageUrl),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReturnExecutionLine(
+    BuildContext context, {
+    required ReturnTaskItem item,
+    required int index,
+    required Color typeColor,
+  }) {
+    final validated = index < _returnItemLocationValidated.length &&
+        _returnItemLocationValidated[index];
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.surfaceAlt),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.itemName,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    if (item.barcode != null && item.barcode!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        item.barcode!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textMuted,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(
+                      item.location ?? '-',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              _ReturnItemThumb(imageUrl: item.imageUrl),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceAlt.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: validated
+                          ? AppTheme.success.withValues(alpha: 0.35)
+                          : AppTheme.surfaceAlt,
+                    ),
+                  ),
+                  child: Text(
+                    _returnItemLocationControllers[index].text.trim().isEmpty
+                        ? 'Scan return location'
+                        : _returnItemLocationControllers[index].text.trim(),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: _returnItemLocationControllers[index]
+                                  .text
+                                  .trim()
+                                  .isEmpty
+                              ? AppTheme.textMuted
+                              : AppTheme.textPrimary,
+                        ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                key: Key('return-line-$index-scan-location-button'),
+                onPressed: () => _scanReturnItemLocation(index),
+                style: IconButton.styleFrom(
+                  backgroundColor: typeColor.withValues(alpha: 0.10),
+                  side: BorderSide(color: typeColor.withValues(alpha: 0.25)),
+                ),
+                icon: Icon(
+                  validated
+                      ? Icons.check_circle_rounded
+                      : Icons.qr_code_scanner_rounded,
+                  color: validated ? AppTheme.success : typeColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            key: Key('return-line-$index-quantity-field'),
+            controller: _returnItemQuantityControllers[index],
+            keyboardType: TextInputType.number,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: 'Returned Quantity',
+              suffixText: 'max ${item.quantity}',
+              prefixIcon: const Icon(Icons.format_list_numbered_rounded),
+              filled: true,
+              fillColor: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (validated)
+            const _ValidationMessage(
+              message: 'Location validated',
+              isPositive: true,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCycleCountFlow(
+    BuildContext context,
+    TaskEntity task, {
+    required bool hasImage,
+    required String? imageUrl,
+    required bool hasBarcode,
+    required String? barcode,
+  }) {
+    return _cycleCountPage == 1 && _selectedCycleCountItem != null
+        ? _buildCycleCountDetailPage(context, task, _selectedCycleCountItem!)
+        : _buildCycleCountListPage(context, task);
+  }
+
+  Widget _buildAdjustmentTaskFlow(BuildContext context, TaskEntity task) {
+    final scan = _adjustmentScan;
+    final selected = _selectedAdjustmentProduct;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Adjustment',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textPrimary,
+              ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                key: const Key('adjustment-location-code'),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceAlt.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.surfaceAlt),
+                ),
+                child: Text(
+                  scan?.locationCode.isNotEmpty == true
+                      ? scan!.locationCode
+                      : 'Scan a location to load products',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: scan == null
+                            ? AppTheme.textMuted
+                            : AppTheme.textPrimary,
+                      ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              key: const Key('adjustment-scan-location-button'),
+              onPressed:
+                  _scanningAdjustmentLocation ? null : _scanAdjustmentLocation,
+              style: IconButton.styleFrom(
+                backgroundColor:
+                    taskTypeColor(task.type).withValues(alpha: 0.10),
+                side: BorderSide(
+                  color: taskTypeColor(task.type).withValues(alpha: 0.25),
+                ),
+              ),
+              icon: _scanningAdjustmentLocation
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.qr_code_scanner_rounded),
+            ),
+          ],
+        ),
+        if (_adjustmentErrorMessage != null) ...[
+          const SizedBox(height: 10),
+          _ValidationMessage(
+            message: _adjustmentErrorMessage!,
+            isPositive: false,
+          ),
+        ],
+        if (scan != null) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Products at ${scan.locationCode}',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 10),
+          for (final product in scan.products) ...[
+            _buildAdjustmentProductCard(
+              context,
+              product: product,
+              selected: product.adjustmentItemId == _selectedAdjustmentItemId,
+            ),
+            const SizedBox(height: 10),
+          ],
+        ],
+        if (selected != null) ...[
+          const SizedBox(height: 6),
+          _buildAdjustmentEditor(context, selected),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAdjustmentProductCard(
+    BuildContext context, {
+    required AdjustmentTaskProduct product,
+    required bool selected,
+  }) {
+    final previewActive = selected && _adjustmentDelta > 0;
+    final previewQuantity =
+        previewActive ? _adjustmentPreviewQuantity : product.systemQuantity;
+    final modeLabel =
+        _adjustmentMode == _AdjustmentMode.decrease ? 'Decrease' : 'Increase';
+
+    return InkWell(
+      key: Key('adjustment-product-${product.adjustmentItemId}'),
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => _selectAdjustmentProduct(product),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? AppTheme.primary : AppTheme.surfaceAlt,
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    product.productName,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: product.counted
+                        ? AppTheme.success.withValues(alpha: 0.12)
+                        : AppTheme.surfaceAlt.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    product.counted ? 'Counted' : 'Pending',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: product.counted
+                          ? AppTheme.success
+                          : AppTheme.textMuted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Current: ${product.systemQuantity}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            if (previewActive) ...[
+              const SizedBox(height: 4),
+              Text(
+                '$modeLabel by $_adjustmentDelta -> $previewQuantity',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: _adjustmentMode == _AdjustmentMode.decrease
+                          ? AppTheme.warning
+                          : AppTheme.success,
+                    ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdjustmentEditor(
+    BuildContext context,
+    AdjustmentTaskProduct product,
+  ) {
+    final previewQuantity = _adjustmentPreviewQuantity;
+    final canIncreaseDelta = _adjustmentMode == _AdjustmentMode.increase ||
+        _adjustmentDelta < product.systemQuantity;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.surfaceAlt),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Adjust ${product.productName}',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            children: [
+              ChoiceChip(
+                key: const Key('adjustment-mode-decrease'),
+                label: const Text('Decrease'),
+                selected: _adjustmentMode == _AdjustmentMode.decrease,
+                onSelected: (_) => _setAdjustmentMode(_AdjustmentMode.decrease),
+              ),
+              ChoiceChip(
+                key: const Key('adjustment-mode-increase'),
+                label: const Text('Increase'),
+                selected: _adjustmentMode == _AdjustmentMode.increase,
+                onSelected: (_) => _setAdjustmentMode(_AdjustmentMode.increase),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              IconButton(
+                key: const Key('adjustment-delta-decrement'),
+                onPressed:
+                    _adjustmentDelta > 0 ? _decrementAdjustmentDelta : null,
+                icon: const Icon(Icons.remove_circle_outline),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    '$_adjustmentDelta',
+                    key: const Key('adjustment-delta-value'),
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                key: const Key('adjustment-delta-increment'),
+                onPressed: canIncreaseDelta ? _incrementAdjustmentDelta : null,
+                icon: const Icon(Icons.add_circle_outline),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Current: ${product.systemQuantity}',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Change: ${_adjustmentMode == _AdjustmentMode.decrease ? '-' : '+'}$_adjustmentDelta',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'New: $previewQuantity',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            key: const Key('adjustment-note-field'),
+            controller: _adjustmentNoteController,
+            minLines: 2,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Note',
+              hintText: 'Add note for this adjustment',
+            ),
+            onChanged: (_) {
+              if (_adjustmentErrorMessage != null) {
+                setState(() => _adjustmentErrorMessage = null);
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              key: const Key('adjustment-submit-button'),
+              onPressed: _submittingAdjustment || _adjustmentDelta <= 0
+                  ? null
+                  : _submitAdjustmentChange,
+              child: Text(
+                _submittingAdjustment ? 'Submitting...' : 'Submit Adjustment',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCycleCountHiddenScanField() {
+    return SizedBox(
+      width: 1,
+      height: 1,
+      child: Opacity(
+        opacity: 0,
+        child: TextField(
+          key: const Key('cycle-count-hidden-scan-field'),
+          controller: _cycleCountScanController,
+          focusNode: _cycleCountScanFocusNode,
+          keyboardType: TextInputType.none,
+          showCursor: false,
+          enableSuggestions: false,
+          autocorrect: false,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            isCollapsed: true,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+          ),
+          onChanged: _handleCycleCountScanChanged,
+          onSubmitted: (_) => _submitCycleCountScan(
+            _normalizeCycleCountBarcode(_cycleCountScanController.text),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCycleCountListPage(BuildContext context, TaskEntity task) {
+    final typeColor = taskTypeColor(task.type);
+    final counted = _cycleCountItems.where((item) => item.completed).length;
+    final total = _cycleCountItems.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cycle Count',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textPrimary,
+              ),
+        ),
+        const SizedBox(height: 8),
+        _LocationRow(
+          label: 'Count Location',
+          value: task.toLocation,
+          icon: Icons.grid_view_rounded,
+        ),
+        _buildCycleCountHiddenScanField(),
+        const SizedBox(height: 12),
+        TextField(
+          key: const Key('location-validate-field'),
+          controller: _locationController,
+          onChanged: (_) {
+            if (_locationValidated || _locationValidationMessage != null) {
+              setState(() {
+                _locationValidated = false;
+                _locationValidationMessage = null;
+              });
+            }
+          },
+          decoration: const InputDecoration(
+            labelText: 'Scan count location',
+            prefixIcon: Icon(Icons.location_on_outlined),
+            filled: true,
+            fillColor: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton(
+            key: const Key('validate-location-button'),
+            onPressed: _validating ? null : _validateLocation,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: typeColor,
+              side: BorderSide(color: typeColor),
+            ),
+            child: const Text('Validate Location'),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Counted Items',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ),
+            Text(
+              '$counted of $total counted',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textMuted,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                key: const Key('cycle-count-continue-later-button'),
+                onPressed:
+                    _savingCycleCountProgress ? null : _continueCycleCountLater,
+                child: _savingCycleCountProgress
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Continue later'),
+              ),
+            ),
+          ],
+        ),
+        if (_cycleCountScanError != null) ...[
+          const SizedBox(height: 8),
+          _ValidationMessage(message: _cycleCountScanError!, isPositive: false),
+        ],
+        if (_locationValidationMessage != null) ...[
+          const SizedBox(height: 8),
+          _ValidationMessage(
+            message: _locationValidationMessage!,
+            isPositive: _locationValidated,
+          ),
+        ],
+        const SizedBox(height: 12),
+        for (final item in _cycleCountItems) ...[
+          _buildCycleCountListItem(context, item),
+          const SizedBox(height: 10),
+        ],
+        if (_completionMessage != null) ...[
+          const SizedBox(height: 8),
+          _ValidationMessage(message: _completionMessage!, isPositive: false),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCycleCountListItem(
+    BuildContext context,
+    _CycleCountItemState item,
+  ) {
+    final statusColor = item.completed ? AppTheme.success : AppTheme.textMuted;
+    return InkWell(
+      onTap: () => _openCycleCountItem(item.key, openedManually: true),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: item.completed
+                ? AppTheme.success.withValues(alpha: 0.35)
+                : AppTheme.surfaceAlt,
+          ),
+        ),
+        child: Row(
+          children: [
+            _ReturnItemThumb(imageUrl: item.imageUrl),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.itemName,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  if (item.barcode.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      item.barcode,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textMuted,
+                          ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Icon(
+                  item.completed
+                      ? Icons.check_circle_rounded
+                      : Icons.pending_outlined,
+                  color: statusColor,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  item.completed
+                      ? '${item.countedQuantity} counted'
+                      : 'Pending',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: statusColor,
+                      ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCycleCountDetailPage(
+    BuildContext context,
+    TaskEntity task,
+    _CycleCountItemState item,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              onPressed: _returnToCycleCountList,
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            Expanded(
+              child: Text(
+                'Count Item',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textPrimary,
+                    ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _LocationRow(
+          label: 'Shelf Location',
+          value: task.toLocation,
+          icon: Icons.grid_view_rounded,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ReturnItemThumb(imageUrl: item.imageUrl),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.itemName,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  if (item.barcode.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      item.barcode,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textMuted,
+                          ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_cycleCountDetailOpenedManually) ...[
+          TextField(
+            key: const Key('cycle-count-detail-barcode-field'),
+            controller: _cycleCountDetailBarcodeController,
+            focusNode: _cycleCountDetailBarcodeFocusNode,
+            keyboardType: TextInputType.text,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+              labelText: 'Type barcode manually',
+              prefixIcon: Icon(Icons.qr_code_rounded),
+              filled: true,
+              fillColor: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        TextField(
+          key: const Key('cycle-count-detail-quantity-field'),
+          controller: _cycleCountDetailQuantityController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Shelf Quantity',
+            prefixIcon: Icon(Icons.fact_check_outlined),
+            filled: true,
+            fillColor: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            key: const Key('cycle-count-detail-confirm-button'),
+            onPressed:
+                _savingCycleCountProgress ? null : _confirmCycleCountItem,
+            child: _savingCycleCountProgress
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Confirm quantity'),
+          ),
+        ),
+        if (_completionMessage != null) ...[
+          const SizedBox(height: 8),
+          _ValidationMessage(message: _completionMessage!, isPositive: false),
+        ],
+      ],
+    );
+  }
+
   Future<void> _startTask() async {
     if (widget.onStartTask == null) return;
     setState(() {
@@ -788,7 +1895,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     });
     try {
       await widget.onStartTask!();
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        setState(() {
+          _startedLocally = true;
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -797,6 +1908,461 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       }
     } finally {
       if (mounted) setState(() => _starting = false);
+    }
+  }
+
+  TaskEntity get _effectiveTask {
+    if (!_startedLocally || widget.task.status != TaskStatus.pending) {
+      return widget.task;
+    }
+
+    return TaskEntity(
+      id: widget.task.id,
+      remoteTaskId: widget.task.remoteTaskId,
+      apiTaskType: widget.task.apiTaskType,
+      type: widget.task.type,
+      itemId: widget.task.itemId,
+      itemName: widget.task.itemName,
+      itemBarcode: widget.task.itemBarcode,
+      itemImageUrl: widget.task.itemImageUrl,
+      fromLocation: widget.task.fromLocation,
+      toLocation: widget.task.toLocation,
+      toLocationId: widget.task.toLocationId,
+      quantity: widget.task.quantity,
+      assignedTo: widget.task.assignedTo ?? '__local_worker__',
+      status: TaskStatus.inProgress,
+      createdBy: widget.task.createdBy,
+      zone: widget.task.zone,
+      createdAt: widget.task.createdAt,
+      source: widget.task.source,
+      priority: widget.task.priority,
+      sourceEventId: widget.task.sourceEventId,
+      workflowData: widget.task.workflowData,
+    );
+  }
+
+  List<_CycleCountItemState> _buildInitialCycleCountItems(TaskEntity task) {
+    return task.cycleCountItems
+        .map(
+          (item) => _CycleCountItemState(
+            key: item.key,
+            itemName: item.itemName,
+            barcode: item.barcode,
+            expectedQuantity: item.expectedQuantity,
+            imageUrl: item.imageUrl,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  void _restoreCycleCountProgress(TaskEntity task) {
+    if (task.type != TaskType.cycleCount) return;
+    final progressByKey = task.cycleCountProgressByKey;
+    if (progressByKey.isNotEmpty) {
+      for (var index = 0; index < _cycleCountItems.length; index++) {
+        final saved = progressByKey[_cycleCountItems[index].key];
+        if (saved == null) continue;
+        _cycleCountItems[index] = _cycleCountItems[index].copyWith(
+          countedQuantity: saved.countedQuantity,
+          completed: saved.completed,
+        );
+      }
+    }
+
+    final raw = task.workflowData['cycleCountProgress'];
+    if (raw is! Map) return;
+    final savedLocation = raw['location']?.toString().trim();
+    if (savedLocation != null && savedLocation.isNotEmpty) {
+      _locationController.text = savedLocation;
+    }
+    if (raw['locationValidated'] == true) {
+      _locationValidated = true;
+      _locationValidationMessage = 'Location validated';
+    }
+  }
+
+  void _restoreCycleCountScannerFocus() {
+    if (!mounted ||
+        widget.task.type != TaskType.cycleCount ||
+        !_locationValidated ||
+        _cycleCountPage != 0) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_locationValidated ||
+          _cycleCountPage != 0 ||
+          _cycleCountScanFocusNode.hasFocus) {
+        return;
+      }
+      _cycleCountScanFocusNode.requestFocus();
+    });
+  }
+
+  _CycleCountItemState? get _selectedCycleCountItem {
+    final key = _selectedCycleCountItemKey;
+    if (key == null) return null;
+    for (final item in _cycleCountItems) {
+      if (item.key == key) return item;
+    }
+    return null;
+  }
+
+  void _openCycleCountItem(String key, {bool openedManually = false}) {
+    _CycleCountItemState? item;
+    for (final entry in _cycleCountItems) {
+      if (entry.key == key) {
+        item = entry;
+        break;
+      }
+    }
+    if (item == null) return;
+    final selectedItem = item;
+    _cycleCountDetailQuantityController.text = selectedItem.countedQuantity > 0
+        ? selectedItem.countedQuantity.toString()
+        : '';
+    _cycleCountDetailBarcodeController.clear();
+    _cycleCountScanDebounce?.cancel();
+    _cycleCountScanController.clear();
+    setState(() {
+      _selectedCycleCountItemKey = selectedItem.key;
+      _cycleCountPage = 1;
+      _cycleCountDetailOpenedManually = openedManually;
+      _cycleCountScanError = null;
+      _completionMessage = null;
+    });
+    if (openedManually) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            _cycleCountPage != 1 ||
+            !_cycleCountDetailOpenedManually) {
+          return;
+        }
+        _cycleCountDetailBarcodeFocusNode.requestFocus();
+      });
+    }
+  }
+
+  void _returnToCycleCountList() {
+    setState(() {
+      _cycleCountPage = 0;
+      _selectedCycleCountItemKey = null;
+      _cycleCountDetailOpenedManually = false;
+      _cycleCountDetailBarcodeController.clear();
+      _completionMessage = null;
+    });
+    _restoreCycleCountScannerFocus();
+  }
+
+  void _handleCycleCountScanChanged(String value) {
+    if (!_locationValidated || _cycleCountPage != 0) return;
+    final normalized = _normalizeCycleCountBarcode(value);
+    if (normalized.isEmpty) return;
+
+    _cycleCountScanDebounce?.cancel();
+    if (value.contains('\n') || value.contains('\r')) {
+      _submitCycleCountScan(normalized);
+      return;
+    }
+
+    _cycleCountScanDebounce = Timer(
+      const Duration(milliseconds: 160),
+      () => _submitCycleCountScan(
+        _normalizeCycleCountBarcode(_cycleCountScanController.text),
+      ),
+    );
+  }
+
+  String _normalizeCycleCountBarcode(String value) {
+    return value.replaceAll(RegExp(r'[\r\n]+'), '').trim().toUpperCase();
+  }
+
+  void _submitCycleCountScan(String normalized) {
+    if (!mounted) return;
+    _cycleCountScanDebounce?.cancel();
+    _cycleCountScanController.clear();
+    if (!_locationValidated || normalized.isEmpty || _cycleCountPage != 0) {
+      return;
+    }
+
+    for (final item in _cycleCountItems) {
+      if (item.barcode.trim().toUpperCase() == normalized) {
+        _openCycleCountItem(item.key);
+        return;
+      }
+    }
+
+    setState(() {
+      _cycleCountScanError = 'Scanned item is not in this cycle count list.';
+    });
+    _restoreCycleCountScannerFocus();
+  }
+
+  Map<String, Object?> _buildCycleCountProgressPayload() {
+    return <String, Object?>{
+      'items': _cycleCountItems
+          .map(
+            (item) => <String, Object?>{
+              'key': item.key,
+              'itemName': item.itemName,
+              'barcode': item.barcode,
+              'countedQuantity': item.countedQuantity,
+              'completed': item.completed,
+            },
+          )
+          .toList(growable: false),
+      'location': _locationController.text.trim(),
+      'locationValidated': _locationValidated,
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+  }
+
+  Future<void> _saveCycleCountProgress() async {
+    if (widget.onSaveCycleCountProgress == null ||
+        widget.task.type != TaskType.cycleCount) {
+      return;
+    }
+    await widget.onSaveCycleCountProgress!(
+      widget.task.id,
+      progress: _buildCycleCountProgressPayload(),
+    );
+  }
+
+  Future<void> _confirmCycleCountItem() async {
+    final item = _selectedCycleCountItem;
+    if (item == null) return;
+    final manualBarcode = _normalizeCycleCountBarcode(
+      _cycleCountDetailBarcodeController.text,
+    );
+    final expectedBarcode = _normalizeCycleCountBarcode(item.barcode);
+    if (manualBarcode.isNotEmpty &&
+        expectedBarcode.isNotEmpty &&
+        manualBarcode != expectedBarcode) {
+      setState(() {
+        _completionMessage = 'Typed barcode does not match this item.';
+      });
+      return;
+    }
+    final quantity =
+        _parsePositiveInt(_cycleCountDetailQuantityController.text);
+    if (quantity == null) {
+      setState(() {
+        _completionMessage = 'Enter a valid counted quantity.';
+      });
+      return;
+    }
+
+    setState(() {
+      _savingCycleCountProgress = true;
+      _completionMessage = null;
+    });
+    try {
+      final index =
+          _cycleCountItems.indexWhere((entry) => entry.key == item.key);
+      if (index == -1) return;
+      _cycleCountItems[index] = _cycleCountItems[index].copyWith(
+        countedQuantity: quantity,
+        completed: true,
+      );
+      await _saveCycleCountProgress();
+      if (!mounted) return;
+      setState(() {
+        _cycleCountPage = 0;
+        _selectedCycleCountItemKey = null;
+        _cycleCountDetailOpenedManually = false;
+        _cycleCountDetailBarcodeController.clear();
+      });
+      _restoreCycleCountScannerFocus();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _completionMessage = 'Failed to save cycle count progress.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingCycleCountProgress = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _continueCycleCountLater() async {
+    setState(() {
+      _savingCycleCountProgress = true;
+      _completionMessage = null;
+    });
+    try {
+      await _saveCycleCountProgress();
+      if (!mounted) return;
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        navigator.pop();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _completionMessage = 'Failed to save cycle count progress.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingCycleCountProgress = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _scanAdjustmentLocation() async {
+    final scanner = widget.onScanAdjustmentLocation;
+    if (scanner == null || _scanningAdjustmentLocation) return;
+
+    final scanned = await showItemLookupScanDialog(
+      context,
+      title: 'Scan adjustment location',
+      hintText: 'Scan or enter location barcode',
+      showKeyboard: false,
+    );
+    if (!mounted || scanned == null) return;
+
+    setState(() {
+      _scanningAdjustmentLocation = true;
+      _adjustmentErrorMessage = null;
+    });
+    try {
+      final result = await scanner(scanned.trim());
+      if (!mounted) return;
+      setState(() {
+        _adjustmentScan = result;
+        _selectedAdjustmentItemId = null;
+        _adjustmentDelta = 0;
+        _adjustmentMode = _AdjustmentMode.decrease;
+        _adjustmentNoteController.clear();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _adjustmentErrorMessage =
+            'Could not load adjustment products for this location.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _scanningAdjustmentLocation = false);
+      }
+    }
+  }
+
+  void _selectAdjustmentProduct(AdjustmentTaskProduct product) {
+    setState(() {
+      _selectedAdjustmentItemId = product.adjustmentItemId;
+      _adjustmentDelta = 0;
+      _adjustmentMode = _AdjustmentMode.decrease;
+      _adjustmentNoteController.clear();
+      _adjustmentErrorMessage = null;
+    });
+  }
+
+  void _setAdjustmentMode(_AdjustmentMode mode) {
+    final selected = _selectedAdjustmentProduct;
+    setState(() {
+      _adjustmentMode = mode;
+      if (selected != null &&
+          _adjustmentMode == _AdjustmentMode.decrease &&
+          _adjustmentDelta > selected.systemQuantity) {
+        _adjustmentDelta = selected.systemQuantity;
+      }
+      _adjustmentErrorMessage = null;
+    });
+  }
+
+  void _incrementAdjustmentDelta() {
+    final selected = _selectedAdjustmentProduct;
+    if (selected == null) return;
+    if (_adjustmentMode == _AdjustmentMode.decrease &&
+        _adjustmentDelta >= selected.systemQuantity) {
+      return;
+    }
+    setState(() {
+      _adjustmentDelta += 1;
+      _adjustmentErrorMessage = null;
+    });
+  }
+
+  void _decrementAdjustmentDelta() {
+    if (_adjustmentDelta <= 0) return;
+    setState(() {
+      _adjustmentDelta -= 1;
+      _adjustmentErrorMessage = null;
+    });
+  }
+
+  Future<void> _submitAdjustmentChange() async {
+    final submitter = widget.onSubmitAdjustmentCount;
+    final selected = _selectedAdjustmentProduct;
+    if (submitter == null || selected == null || _submittingAdjustment) return;
+
+    if (_adjustmentDelta <= 0) {
+      setState(() {
+        _adjustmentErrorMessage = 'Enter an adjustment quantity.';
+      });
+      return;
+    }
+
+    final actualQuantity = _adjustmentPreviewQuantity;
+    if (actualQuantity < 0) {
+      setState(() {
+        _adjustmentErrorMessage =
+            'Decrease amount cannot make quantity negative.';
+      });
+      return;
+    }
+
+    setState(() {
+      _submittingAdjustment = true;
+      _adjustmentErrorMessage = null;
+    });
+
+    try {
+      await submitter(
+        adjustmentItemId: selected.adjustmentItemId,
+        actualQuantity: actualQuantity,
+        notes: _adjustmentNoteController.text.trim().isEmpty
+            ? null
+            : _adjustmentNoteController.text.trim(),
+      );
+      if (!mounted) return;
+      final scan = _adjustmentScan;
+      if (scan == null) return;
+      final updatedProducts = scan.products
+          .map(
+            (product) => product.adjustmentItemId == selected.adjustmentItemId
+                ? product.copyWith(
+                    counted: true,
+                    systemQuantity: actualQuantity,
+                  )
+                : product,
+          )
+          .toList(growable: false);
+      setState(() {
+        _adjustmentScan = AdjustmentTaskLocationScan(
+          locationId: scan.locationId,
+          locationCode: scan.locationCode,
+          products: updatedProducts,
+        );
+        _adjustmentDelta = 0;
+        _adjustmentNoteController.clear();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _adjustmentErrorMessage =
+            'Failed to submit adjustment. Please try again.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _submittingAdjustment = false);
+      }
     }
   }
 
@@ -820,6 +2386,29 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           task.id,
           quantity: _refillQuantity,
           locationId: shelfLocation,
+        );
+      } else if (task.type == TaskType.returnTask) {
+        if (!_isReturnFlowComplete()) {
+          setState(() => _completionMessage =
+              'Process every return item before completing.');
+          return;
+        }
+        await widget.onCompleteTask!(
+          task.id,
+          quantity: _returnProcessedQuantity,
+          locationId: _lastReturnLocation,
+        );
+      } else if (task.type == TaskType.cycleCount) {
+        final location = _locationController.text.trim();
+        if (!_isCycleCountFlowComplete()) {
+          setState(() => _completionMessage =
+              'Finish the cycle count inputs before completing.');
+          return;
+        }
+        await widget.onCompleteTask!(
+          task.id,
+          quantity: _cycleCountTotalCountedQuantity,
+          locationId: location,
         );
       } else {
         await widget.onCompleteTask!(task.id);
@@ -1033,6 +2622,99 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     return _receivePage == 1 && _itemValidated && _locationValidated;
   }
 
+  bool _isReturnValidationComplete() {
+    if (widget.task.type != TaskType.returnTask) return true;
+    return _returnItemValidated.isNotEmpty &&
+        _returnItemValidated.every((validated) => validated);
+  }
+
+  bool _isReturnFlowComplete() {
+    if (widget.task.type != TaskType.returnTask) return true;
+    if (_returnPage != 1) return false;
+    if (_returnItemLocationValidated.any((validated) => !validated)) {
+      return false;
+    }
+    for (var index = 0; index < widget.task.returnItems.length; index++) {
+      final expected = widget.task.returnItems[index].quantity;
+      final quantity =
+          _parsePositiveInt(_returnItemQuantityControllers[index].text);
+      if (quantity == null || quantity > expected) return false;
+    }
+    return true;
+  }
+
+  bool _isAdjustmentFlowComplete() {
+    if (widget.task.type != TaskType.adjustment) return true;
+    final scan = _adjustmentScan;
+    if (scan == null || scan.products.isEmpty) return false;
+    return scan.products.every((product) => product.counted);
+  }
+
+  AdjustmentTaskProduct? get _selectedAdjustmentProduct {
+    final selectedId = _selectedAdjustmentItemId;
+    final products = _adjustmentScan?.products;
+    if (selectedId == null || products == null) return null;
+    for (final product in products) {
+      if (product.adjustmentItemId == selectedId) return product;
+    }
+    return null;
+  }
+
+  int get _adjustmentPreviewQuantity {
+    final product = _selectedAdjustmentProduct;
+    if (product == null) return 0;
+    if (_adjustmentMode == _AdjustmentMode.increase) {
+      return product.systemQuantity + _adjustmentDelta;
+    }
+    return product.systemQuantity - _adjustmentDelta;
+  }
+
+  bool _isCycleCountFlowComplete() {
+    final task = widget.task;
+    if (task.type != TaskType.cycleCount) return true;
+    if (!_locationValidated) return false;
+    if (_cycleCountPage != 0) return false;
+    if (_cycleCountItems.isEmpty) return false;
+    return _cycleCountItems
+        .every((item) => item.completed && item.countedQuantity > 0);
+  }
+
+  int get _returnProcessedQuantity {
+    var total = 0;
+    for (final controller in _returnItemQuantityControllers) {
+      total += _parsePositiveInt(controller.text) ?? 0;
+    }
+    return total;
+  }
+
+  String? get _lastReturnLocation {
+    if (_returnItemLocationControllers.isEmpty) return null;
+    return _returnItemLocationControllers.last.text.trim();
+  }
+
+  int get _fullShelfCountedQuantity {
+    var total = 0;
+    for (final controller in _cycleCountLineControllers) {
+      total += _parsePositiveInt(controller.text) ?? 0;
+    }
+    total += _parsePositiveInt(_unexpectedItemQuantityController.text) ?? 0;
+    return total;
+  }
+
+  int get _cycleCountTotalCountedQuantity {
+    var total = 0;
+    for (final item in _cycleCountItems) {
+      total += item.countedQuantity;
+    }
+    return total;
+  }
+
+  int? _parsePositiveInt(String value) {
+    final parsed = int.tryParse(value.trim());
+    if (parsed == null || parsed <= 0) return null;
+    return parsed;
+  }
+
   void _updateRefillQuantity() {
     final parsed = int.tryParse(_quantityController.text.trim());
     final next = parsed == null || parsed <= 0 ? 0 : parsed;
@@ -1061,7 +2743,61 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         _completionMessage = null;
         _locationController.clear();
         _refillPage = isValid ? 1 : 0;
+      } else if (widget.task.type == TaskType.returnTask ||
+          widget.task.isSingleItemCycleCount) {
+        _itemValidated = isValid;
       }
+    });
+  }
+
+  void _validateReturnTote() {
+    final expected = widget.task.returnContainerId?.trim().toUpperCase() ?? '';
+    final scanned = _returnToteController.text.trim().toUpperCase();
+    setState(() {
+      _returnToteValidated = scanned.isNotEmpty && scanned == expected;
+      _completionMessage = _returnToteValidated ? null : _completionMessage;
+    });
+  }
+
+  Future<void> _scanReturnItem(int index) async {
+    if (index < 0 || index >= _returnItemValidated.length) return;
+    final expected =
+        widget.task.returnItems[index].barcode?.trim().toUpperCase() ?? '';
+    final scanned = await showItemLookupScanDialog(
+      context,
+      title: 'Scan item barcode',
+      hintText: 'Scan or enter item barcode',
+      showKeyboard: false,
+    );
+    if (!mounted || scanned == null) return;
+    setState(() {
+      _returnItemValidated[index] = scanned.trim().toUpperCase() == expected;
+    });
+  }
+
+  void _advanceReturnPage() {
+    if (!_isReturnValidationComplete()) return;
+    setState(() {
+      _returnPage = 1;
+      _completionMessage = null;
+    });
+  }
+
+  Future<void> _scanReturnItemLocation(int index) async {
+    if (index < 0 || index >= widget.task.returnItems.length) return;
+    final scanned = await showItemLookupScanDialog(
+      context,
+      title: 'Scan return location',
+      hintText: 'Scan or enter return location',
+      showKeyboard: false,
+    );
+    if (!mounted || scanned == null) return;
+    final expected =
+        (widget.task.returnItems[index].location ?? '').trim().toUpperCase();
+    setState(() {
+      _returnItemLocationControllers[index].text = scanned.trim();
+      _returnItemLocationValidated[index] =
+          scanned.trim().isNotEmpty && scanned.trim().toUpperCase() == expected;
     });
   }
 
@@ -1109,26 +2845,34 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         .trim()
         .toUpperCase();
     if (widget.task.type == TaskType.refill) {
+      final isValid = scanned == expected;
       setState(() {
-        final isValid = scanned == expected;
         _locationValidated = isValid;
         _locationValidationMessage = isValid
             ? l10n.workerLocationValidated
             : l10n.workerLocationMismatch;
       });
+      if (isValid) {
+        _restoreCycleCountScannerFocus();
+      }
       return;
     }
     if (widget.onValidateLocation == null) {
+      final isValid = scanned == expected;
       setState(() {
-        final isValid = scanned == expected;
         _locationValidationMessage = isValid
             ? l10n.workerLocationValidated
             : l10n.workerLocationMismatch;
         if (widget.task.type == TaskType.receive ||
-            widget.task.type == TaskType.refill) {
+            widget.task.type == TaskType.refill ||
+            widget.task.type == TaskType.returnTask ||
+            widget.task.type == TaskType.cycleCount) {
           _locationValidated = isValid;
         }
       });
+      if (isValid) {
+        _restoreCycleCountScannerFocus();
+      }
       return;
     }
 
@@ -1143,22 +2887,32 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             ? l10n.workerLocationValidated
             : l10n.workerLocationMismatch;
         if (widget.task.type == TaskType.receive ||
-            widget.task.type == TaskType.refill) {
+            widget.task.type == TaskType.refill ||
+            widget.task.type == TaskType.returnTask ||
+            widget.task.type == TaskType.cycleCount) {
           _locationValidated = isValid;
         }
       });
+      if (isValid) {
+        _restoreCycleCountScannerFocus();
+      }
     } catch (_) {
       if (!mounted) return;
+      final isValid = scanned == expected;
       setState(() {
-        final isValid = scanned == expected;
         _locationValidationMessage = isValid
             ? l10n.workerLocationValidated
             : l10n.workerLocationMismatch;
         if (widget.task.type == TaskType.receive ||
-            widget.task.type == TaskType.refill) {
+            widget.task.type == TaskType.refill ||
+            widget.task.type == TaskType.returnTask ||
+            widget.task.type == TaskType.cycleCount) {
           _locationValidated = isValid;
         }
       });
+      if (isValid) {
+        _restoreCycleCountScannerFocus();
+      }
     } finally {
       if (mounted) setState(() => _validating = false);
     }
@@ -1292,6 +3046,7 @@ class _TaskHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1352,7 +3107,7 @@ class _TaskHeroCard extends StatelessWidget {
             children: [
               _MiniBadge(
                 icon: Icons.category_outlined,
-                label: task.type.name.toUpperCase(),
+                label: taskTypeLabel(task.type),
                 color: typeColor,
               ),
               _MiniBadge(
@@ -1370,17 +3125,48 @@ class _TaskHeroCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Icon(
-                Icons.numbers_rounded,
-                size: 14,
-                color: AppTheme.textMuted,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                task.quantity.toString(),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+              Container(
+                key: const Key('task-hero-quantity-summary'),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceAlt.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.surfaceAlt.withValues(alpha: 0.95),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.numbers_rounded,
+                      size: 14,
+                      color: AppTheme.textMuted,
                     ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.workerQuantity,
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: AppTheme.textMuted,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                        Text(
+                          task.quantity.toString(),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               const Spacer(),
               Text(
@@ -1441,7 +3227,8 @@ class _ReceiveHeroCard extends StatelessWidget {
             children: [
               _ImagePanel(
                 key: const Key('receive-item-image'),
-                hasImage: itemImageUrl != null && itemImageUrl!.trim().isNotEmpty,
+                hasImage:
+                    itemImageUrl != null && itemImageUrl!.trim().isNotEmpty,
                 imageUrl: itemImageUrl,
                 height: 116,
                 fit: BoxFit.contain,
@@ -1629,6 +3416,81 @@ class _ImagePanel extends StatelessWidget {
         width: double.infinity,
         fit: fit,
         errorBuilder: (context, _, __) => placeholder,
+      ),
+    );
+  }
+}
+
+class _CycleCountItemState {
+  const _CycleCountItemState({
+    required this.key,
+    required this.itemName,
+    required this.barcode,
+    required this.expectedQuantity,
+    this.countedQuantity = 0,
+    this.completed = false,
+    this.imageUrl,
+  });
+
+  final String key;
+  final String itemName;
+  final String barcode;
+  final int expectedQuantity;
+  final int countedQuantity;
+  final bool completed;
+  final String? imageUrl;
+
+  _CycleCountItemState copyWith({
+    int? countedQuantity,
+    bool? completed,
+  }) {
+    return _CycleCountItemState(
+      key: key,
+      itemName: itemName,
+      barcode: barcode,
+      expectedQuantity: expectedQuantity,
+      countedQuantity: countedQuantity ?? this.countedQuantity,
+      completed: completed ?? this.completed,
+      imageUrl: imageUrl,
+    );
+  }
+}
+
+enum _AdjustmentMode { decrease, increase }
+
+class _ReturnItemThumb extends StatelessWidget {
+  const _ReturnItemThumb({this.imageUrl});
+
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceAlt.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.surfaceAlt),
+      ),
+      child: const Icon(
+        Icons.image_not_supported_outlined,
+        size: 20,
+        color: AppTheme.textMuted,
+      ),
+    );
+
+    final trimmed = imageUrl?.trim();
+    if (trimmed == null || trimmed.isEmpty) return placeholder;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        trimmed,
+        width: 56,
+        height: 56,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => placeholder,
       ),
     );
   }

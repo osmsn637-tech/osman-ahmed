@@ -85,6 +85,8 @@ class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
         'new_quantity': params.newQuantity,
         'reason': params.reason,
         'worker_id': params.workerId,
+        if (params.note != null && params.note!.trim().isNotEmpty)
+          'note': params.note!.trim(),
       },
     );
   }

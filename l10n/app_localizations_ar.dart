@@ -232,6 +232,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get workerLookup => 'بحث';
 
   @override
+  String get workerAdjust => 'تعديل';
+
+  @override
   String get workerAvailableTasks => 'المهام المتاحة';
 
   @override

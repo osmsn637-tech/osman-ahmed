@@ -4,12 +4,20 @@ import 'package:provider/provider.dart';
 
 import '../../../../shared/ui/location_row.dart';
 import '../../domain/entities/item_location_entity.dart';
+import '../controllers/item_adjustment_controller.dart';
 import '../controllers/item_lookup_controller.dart';
 
+enum ItemLookupPageMode { lookup, adjust }
+
 class ItemLookupResultPage extends StatefulWidget {
-  const ItemLookupResultPage({super.key, required this.barcode});
+  const ItemLookupResultPage({
+    super.key,
+    required this.barcode,
+    this.mode = ItemLookupPageMode.lookup,
+  });
 
   final String barcode;
+  final ItemLookupPageMode mode;
 
   @override
   State<ItemLookupResultPage> createState() => _ItemLookupResultPageState();
@@ -29,9 +37,24 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
   Widget build(BuildContext context) {
     final controller = context.watch<ItemLookupController>();
     final state = controller.state;
+    final isAdjustMode = widget.mode == ItemLookupPageMode.adjust;
+    final adjustmentController =
+        isAdjustMode ? context.watch<ItemAdjustmentController>() : null;
+    final adjustmentState = adjustmentController?.state;
     final theme = Theme.of(context);
     final summary = state.summary;
     final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+
+    if (isAdjustMode && adjustmentState?.success == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+          return;
+        }
+        context.go('/home');
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -44,7 +67,11 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
             context.go('/home');
           },
         ),
-        title: Text(isArabic ? 'نتيجة البحث عن الصنف' : 'Item Lookup Result'),
+        title: Text(
+          isAdjustMode
+              ? (isArabic ? 'تعديل الصنف' : 'Adjust Item')
+              : (isArabic ? 'نتيجة البحث عن الصنف' : 'Item Lookup Result'),
+        ),
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -124,6 +151,10 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                     locations: summary.shelfLocations,
                     isArabic: isArabic,
                     isShelf: true,
+                    selectedLocationId: adjustmentState?.selectedLocationId,
+                    onLocationTap: isAdjustMode
+                        ? adjustmentController!.selectLocation
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   _LocationSection(
@@ -133,7 +164,29 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                     locations: summary.bulkLocations,
                     isArabic: isArabic,
                     isShelf: false,
+                    selectedLocationId: adjustmentState?.selectedLocationId,
+                    onLocationTap: isAdjustMode
+                        ? adjustmentController!.selectLocation
+                        : null,
                   ),
+                  if (isAdjustMode) ...[
+                    const SizedBox(height: 12),
+                    _AdjustmentPanel(
+                      state: adjustmentState!,
+                      reasons: adjustmentController!.reasons,
+                      onIncrement: adjustmentController.increment,
+                      onDecrement: adjustmentController.decrement,
+                      onReasonChanged: (value) {
+                        if (value != null) {
+                          adjustmentController.setReason(value);
+                        }
+                      },
+                      onNoteChanged: adjustmentController.setNote,
+                      onConfirm: adjustmentState.canSubmit
+                          ? () => adjustmentController.submitForItem(summary)
+                          : null,
+                    ),
+                  ],
                 ],
               );
             },
@@ -398,6 +451,8 @@ class _LocationSection extends StatelessWidget {
     required this.locations,
     required this.isArabic,
     required this.isShelf,
+    this.selectedLocationId,
+    this.onLocationTap,
   });
 
   final String title;
@@ -406,6 +461,8 @@ class _LocationSection extends StatelessWidget {
   final List<ItemLocationEntity> locations;
   final bool isArabic;
   final bool isShelf;
+  final int? selectedLocationId;
+  final ValueChanged<ItemLocationEntity>? onLocationTap;
 
   @override
   Widget build(BuildContext context) {
@@ -443,15 +500,142 @@ class _LocationSection extends StatelessWidget {
             if (locations.isEmpty)
               Text(isArabic ? 'لا توجد مواقع' : 'No locations')
             else
-              for (final item in locations) ...[
+              for (var index = 0; index < locations.length; index++) ...[
                 LocationRow(
-                  code: item.code.isEmpty ? '-' : item.code,
+                  key: Key('location-row-${locations[index].locationId}-$index'),
+                  code: locations[index].code.isEmpty ? '-' : locations[index].code,
                   typeLabel: label,
-                  quantity: '${item.quantity}',
+                  quantity: '${locations[index].quantity}',
                   isShelfOverride: isShelf,
+                  selected: locations[index].locationId == selectedLocationId,
+                  trailing: locations[index].locationId == selectedLocationId
+                      ? Icon(
+                          Icons.check_circle_rounded,
+                          color: theme.colorScheme.primary,
+                        )
+                      : null,
+                  onTap: onLocationTap == null
+                      ? null
+                      : () => onLocationTap!(locations[index]),
                 ),
                 const SizedBox(height: 8),
               ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdjustmentPanel extends StatelessWidget {
+  const _AdjustmentPanel({
+    required this.state,
+    required this.reasons,
+    required this.onIncrement,
+    required this.onDecrement,
+    required this.onReasonChanged,
+    required this.onNoteChanged,
+    required this.onConfirm,
+  });
+
+  final ItemAdjustmentState state;
+  final List<String> reasons;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+  final ValueChanged<String?> onReasonChanged;
+  final ValueChanged<String> onNoteChanged;
+  final VoidCallback? onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Adjustment',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              state.selectedLocationCode == null
+                  ? 'Select a location to adjust.'
+                  : 'Selected location: ${state.selectedLocationCode}',
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                IconButton(
+                  key: const Key('adjust_quantity_decrement'),
+                  onPressed: onDecrement,
+                  icon: const Icon(Icons.remove_circle_outline),
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '${state.quantity}',
+                      key: const Key('adjust_quantity_value'),
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  key: const Key('adjust_quantity_increment'),
+                  onPressed: onIncrement,
+                  icon: const Icon(Icons.add_circle_outline),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: const Key('adjust_reason_field'),
+              initialValue: state.reason,
+              decoration: const InputDecoration(labelText: 'Reason'),
+              items: reasons
+                  .map(
+                    (reason) => DropdownMenuItem<String>(
+                      value: reason,
+                      child: Text(reason),
+                    ),
+                  )
+                  .toList(),
+              onChanged: onReasonChanged,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('adjust_note_field'),
+              onChanged: onNoteChanged,
+              minLines: 2,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Note',
+                hintText: 'Why are you adjusting this location?',
+              ),
+            ),
+            if (state.errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                state.errorMessage!,
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+            ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                key: const Key('adjust_confirm_button'),
+                onPressed: onConfirm,
+                child: Text(state.isSubmitting ? 'Confirming...' : 'Confirm'),
+              ),
+            ),
           ],
         ),
       ),

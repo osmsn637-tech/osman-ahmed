@@ -234,6 +234,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workerLookup => 'Lookup';
 
   @override
+  String get workerAdjust => 'Adjust';
+
+  @override
   String get workerAvailableTasks => 'Available Tasks';
 
   @override

@@ -52,29 +52,28 @@ class _ScanBarcodeDialog extends StatefulWidget {
 }
 
 class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
-  static const _scannerKeystrokeWindow = Duration(milliseconds: 50);
   static const _scanEndDebounceDelay = Duration(milliseconds: 120);
-  static const _scannerMinLength = 4;
 
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   Timer? _scanEndDebounce;
 
-  DateTime? _lastKeystroke;
   String _value = '';
   String? _error;
-  int _consecutiveFastKeystrokes = 0;
-  bool _isLikelyScanner = false;
-  bool _manualKeyboardEnabled = false;
+  late bool _manualKeyboardEnabled;
 
   @override
   void initState() {
     super.initState();
+    _manualKeyboardEnabled = widget.showKeyboard;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // Keep focus on the field so hardware scanners can type even when keyboard is hidden.
-      _focusNode.requestFocus();
-      _hideKeyboardIfNeeded();
+      if (_manualKeyboardEnabled) {
+        _focusNode.requestFocus();
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+      } else {
+        _focusForScannerInput();
+      }
     });
   }
 
@@ -90,12 +89,24 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
     SystemChannels.textInput.invokeMethod('TextInput.hide');
   }
 
-  void _enableManualKeyboard() {
-    // User explicitly tapped the field. Open soft keyboard and treat incoming input as manual.
-    _manualKeyboardEnabled = true;
-    if (!mounted) return;
+  void _focusForScannerInput() {
     _focusNode.requestFocus();
-    SystemChannels.textInput.invokeMethod('TextInput.show');
+    // Keep the editable field focused for wedge scanners without opening IME.
+    _focusNode.consumeKeyboardToken();
+    _hideKeyboardIfNeeded();
+  }
+
+  void _enableManualKeyboard() {
+    // Manual mode explicitly opts into soft keyboard input.
+    if (!mounted) return;
+    setState(() {
+      _manualKeyboardEnabled = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _focusNode.requestFocus();
+      SystemChannels.textInput.invokeMethod('TextInput.show');
+    });
   }
 
   void _clearField() {
@@ -104,9 +115,6 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
     setState(() {
       _value = '';
       _error = null;
-      _consecutiveFastKeystrokes = 0;
-      _isLikelyScanner = false;
-      _lastKeystroke = null;
       _controller.clear();
     });
   }
@@ -128,10 +136,10 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
       setState(() => _error = null);
     }
 
-    final hasScannerTerminator = rawValue.contains('\n') || rawValue.contains('\r');
+    final hasScannerTerminator =
+        rawValue.contains('\n') || rawValue.contains('\r');
     final normalized = _normalizeBarcode(rawValue);
 
-    _trackTypingSpeed(normalized);
     _syncFromText(normalized);
 
     if (hasScannerTerminator) {
@@ -139,7 +147,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
       return;
     }
 
-    if (_isLikelyScanner && !_manualKeyboardEnabled) {
+    if (!_manualKeyboardEnabled) {
       _scheduleAutoSearch();
       return;
     }
@@ -149,46 +157,12 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
     _scanEndDebounce = null;
   }
 
-  void _trackTypingSpeed(String normalizedValue) {
-    final previous = _value;
-    if (normalizedValue.length <= previous.length) {
-      // Backspace/replace/clear resets scanner detection state.
-      _consecutiveFastKeystrokes = 0;
-      _isLikelyScanner = false;
-      _lastKeystroke = null;
-      return;
-    }
-
-    final now = DateTime.now();
-    final addedChars = normalizedValue.length - previous.length;
-    final wasFast = _lastKeystroke != null &&
-        now.difference(_lastKeystroke!) <= _scannerKeystrokeWindow;
-    _lastKeystroke = now;
-
-    if (_manualKeyboardEnabled) {
-      _isLikelyScanner = false;
-      _consecutiveFastKeystrokes = 0;
-      return;
-    }
-
-    _consecutiveFastKeystrokes =
-        wasFast ? (_consecutiveFastKeystrokes + addedChars) : addedChars;
-    _isLikelyScanner =
-        _consecutiveFastKeystrokes >= _scannerMinLength &&
-        normalizedValue.length >= _scannerMinLength;
-
-    // If typing slows down, stop treating as a scanner burst.
-    if (!wasFast) {
-      _isLikelyScanner = false;
-    }
-  }
-
   void _scheduleAutoSearch() {
     _scanEndDebounce?.cancel();
     _scanEndDebounce = Timer(_scanEndDebounceDelay, () {
       if (!mounted) return;
 
-      if (_isLikelyScanner && !_manualKeyboardEnabled && _value.length >= _scannerMinLength) {
+      if (!_manualKeyboardEnabled && _value.isNotEmpty) {
         _searchProduct();
       }
     });
@@ -214,70 +188,169 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
   }
 
   String _normalizeBarcode(String value) {
-    return value
-        .replaceAll(RegExp(r'[^\x20-\x7E]'), '')
-        .trim();
+    return value.replaceAll(RegExp(r'[^\x20-\x7E]'), '').trim();
   }
 
   @override
   Widget build(BuildContext context) {
     final dialogTitle =
         widget.title ?? (widget.isArabic ? '??? ????????' : 'Scan barcode');
-    final dialogHint =
-        widget.hintText ?? (widget.isArabic ? '???? ?? ???? ????????' : 'Scan or enter barcode');
-    final dialogContinueLabel =
-        widget.continueLabel ?? (widget.isArabic ? '??????' : 'Continue');
+    final dialogHint = widget.hintText ??
+        (widget.isArabic ? '???? ?? ???? ????????' : 'Scan or enter barcode');
+    final manualEntryLabel = widget.isArabic ? '???? ?????' : 'Enter manually';
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-    return AlertDialog(
-      title: Row(
-        children: [
-          Expanded(child: Text(dialogTitle)),
-          IconButton(
-            icon: const Icon(Icons.close),
-            tooltip: 'Close',
-            onPressed: () => Navigator.of(context).pop(),
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x220F172A),
+                blurRadius: 30,
+                offset: Offset(0, 16),
+              ),
+            ],
           ),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            key: const Key('scan_barcode_field'),
-            controller: _controller,
-            focusNode: _focusNode,
-            autofocus: false,
-            showCursor: true,
-            readOnly: false,
-            keyboardType:
-                _manualKeyboardEnabled ? TextInputType.text : TextInputType.none,
-            textInputAction: TextInputAction.done,
-            decoration: InputDecoration(
-              hintText: dialogHint,
-              prefixIcon: const Icon(Icons.qr_code_scanner),
-              errorText: _error,
-              suffixIcon: _value.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      tooltip: 'Clear',
-                      onPressed: _clearField,
-                    )
-                  : null,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.qr_code_scanner_rounded,
+                        color: colorScheme.onPrimaryContainer,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        dialogTitle,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Close',
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 36,
+                        height: 36,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('scan_barcode_field'),
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  autofocus: false,
+                  showCursor: _manualKeyboardEnabled,
+                  readOnly: false,
+                  keyboardType: _manualKeyboardEnabled
+                      ? TextInputType.number
+                      : TextInputType.visiblePassword,
+                  textInputAction: TextInputAction.search,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  decoration: InputDecoration(
+                    hintText: dialogHint,
+                    errorText: _error,
+                    prefixIcon: const Icon(Icons.qr_code_2_rounded),
+                    suffixIcon: _manualKeyboardEnabled
+                        ? IconButton(
+                            key: const Key('lookup_manual_submit_button'),
+                            icon: const Icon(Icons.search_rounded),
+                            tooltip: 'Search',
+                            onPressed: _searchProduct,
+                          )
+                        : _value.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded),
+                                tooltip: 'Clear',
+                                onPressed: _clearField,
+                              )
+                            : null,
+                    filled: true,
+                    fillColor: colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.35,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 16,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: colorScheme.outlineVariant,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: colorScheme.outlineVariant,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: colorScheme.primary,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  onTap: () {
+                    if (_manualKeyboardEnabled) {
+                      _focusNode.requestFocus();
+                      SystemChannels.textInput.invokeMethod('TextInput.show');
+                    } else {
+                      _focusForScannerInput();
+                    }
+                  },
+                  onChanged: _onTextChanged,
+                  onSubmitted: (_) => _searchProduct(),
+                ),
+                const SizedBox(height: 6),
+                TextButton.icon(
+                  key: const Key('lookup_manual_entry_button'),
+                  onPressed: _enableManualKeyboard,
+                  icon: const Icon(Icons.keyboard_alt_rounded),
+                  label: Text(manualEntryLabel),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 2,
+                      vertical: 6,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            onTap: () {
-              _enableManualKeyboard();
-            },
-            onChanged: _onTextChanged,
-            onSubmitted: (_) => _searchProduct(),
           ),
-        ],
-      ),
-      actions: [
-        ElevatedButton(
-          onPressed: _searchProduct,
-          child: Text(dialogContinueLabel),
         ),
-      ],
+      ),
     );
   }
 }

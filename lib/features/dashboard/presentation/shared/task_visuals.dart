@@ -33,6 +33,25 @@ IconData taskTypeIcon(TaskType type) {
   }
 }
 
+String taskTypeLabel(TaskType type) {
+  switch (type) {
+    case TaskType.receive:
+      return 'RECEIVE';
+    case TaskType.move:
+      return 'MOVE';
+    case TaskType.returnTask:
+      return 'RETURN';
+    case TaskType.adjustment:
+      return 'ADJUSTMENT';
+    case TaskType.refill:
+      return 'REFILL';
+    case TaskType.exception:
+      return 'EXCEPTION';
+    case TaskType.cycleCount:
+      return 'CYCLE COUNT';
+  }
+}
+
 Color taskTypeColor(TaskType type) {
   switch (type) {
     case TaskType.receive:

@@ -91,6 +91,7 @@ class AppLocalizations {
       'exceptionsExpected': 'Expected: {location}',
       'workerRefreshTasks': 'Refresh tasks',
       'workerLookup': 'Lookup',
+      'workerAdjust': 'Adjust',
       'workerAvailableTasks': 'Available Tasks',
       'workerMyActiveTasks': 'My Active Tasks',
       'workerNoAvailableTasks': 'No available tasks right now',
@@ -234,6 +235,7 @@ class AppLocalizations {
       'exceptionsExpected': 'المتوقع: {location}',
       'workerRefreshTasks': 'تحديث المهام',
       'workerLookup': 'بحث',
+      'workerAdjust': 'تعديل',
       'workerAvailableTasks': 'المهام المتاحة',
       'workerMyActiveTasks': 'مهامي النشطة',
       'workerNoAvailableTasks': 'لا توجد مهام متاحة الآن',
@@ -398,6 +400,7 @@ class AppLocalizations {
       _f('exceptionsExpected', {'location': location});
   String get workerRefreshTasks => _v('workerRefreshTasks');
   String get workerLookup => _v('workerLookup');
+  String get workerAdjust => _v('workerAdjust');
   String get workerAvailableTasks => _v('workerAvailableTasks');
   String get workerMyActiveTasks => _v('workerMyActiveTasks');
   String get workerNoAvailableTasks => _v('workerNoAvailableTasks');

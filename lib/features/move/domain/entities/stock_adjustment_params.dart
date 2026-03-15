@@ -5,6 +5,7 @@ class StockAdjustmentParams {
     required this.newQuantity,
     required this.reason,
     required this.workerId,
+    this.note,
   });
 
   final int itemId;
@@ -12,4 +13,5 @@ class StockAdjustmentParams {
   final int newQuantity;
   final String reason;
   final String workerId;
+  final String? note;
 }

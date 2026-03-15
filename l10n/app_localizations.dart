@@ -518,6 +518,12 @@ abstract class AppLocalizations {
   /// **'Lookup'**
   String get workerLookup;
 
+  /// No description provided for @workerAdjust.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust'**
+  String get workerAdjust;
+
   /// No description provided for @workerAvailableTasks.
   ///
   /// In en, this message translates to:

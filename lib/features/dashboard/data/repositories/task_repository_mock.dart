@@ -1,6 +1,7 @@
 import '../../domain/entities/dashboard_summary_entity.dart';
 import '../../domain/entities/exception_entity.dart';
 import '../../domain/entities/ai_alert_entity.dart';
+import '../../domain/entities/adjustment_task_entities.dart';
 import '../../domain/repositories/task_repository.dart';
 import '../../domain/entities/task_entity.dart';
 
@@ -19,20 +20,24 @@ class TaskRepositoryMock implements TaskRepository {
     if (_store.containsKey(zone)) return _store[zone]!;
     _store[zone] = [
       _mockTask(
-          id: 1,
-          type: TaskType.receive,
-          zone: zone,
-          status: TaskStatus.pending),
+        id: 1,
+        type: TaskType.receive,
+        zone: zone,
+        status: TaskStatus.pending,
+        itemName: 'Demo Receive Task',
+        itemBarcode: '123456789011',
+        toLocation: 'BULK-01-02',
+      ),
       _mockTask(
-          id: 2,
-          type: TaskType.move,
-          zone: zone,
-          status: TaskStatus.inProgress),
-      _mockTask(
-          id: 3,
-          type: TaskType.returnTask,
-          zone: zone,
-          status: TaskStatus.pending),
+        id: 2,
+        type: TaskType.move,
+        zone: zone,
+        status: TaskStatus.inProgress,
+        itemName: 'Demo Move Task',
+        itemBarcode: '123456789022',
+        fromLocation: 'Z01-C01-L01-P01',
+        toLocation: 'Z01-C02-L02-P03',
+      ),
     ];
     return _store[zone]!;
   }
@@ -86,19 +91,28 @@ class TaskRepositoryMock implements TaskRepository {
       {required int id,
       required TaskType type,
       required String zone,
-      required TaskStatus status}) {
+      required TaskStatus status,
+      String? itemName,
+      String? itemBarcode,
+      String? itemImageUrl,
+      String? fromLocation,
+      String? toLocation,
+      int? quantity,
+      Map<String, Object?> workflowData = const <String, Object?>{}}) {
     return TaskEntity(
       id: id,
       type: type,
       itemId: 1000 + id,
-      itemName: 'Demo Item $id',
-      itemBarcode: '1234567890$id',
-      itemImageUrl: null,
-      fromLocation: type == TaskType.receive ? null : 'Z01-C01-L01-P01',
-      toLocation: type == TaskType.returnTask
-          ? 'Z01-BLK-C01-L01-P01'
-          : 'Z01-C02-L02-P03',
-      quantity: 5 + id,
+      itemName: itemName ?? 'Demo Item $id',
+      itemBarcode: itemBarcode ?? '1234567890$id',
+      itemImageUrl: itemImageUrl,
+      fromLocation:
+          fromLocation ?? (type == TaskType.receive ? null : 'Z01-C01-L01-P01'),
+      toLocation: toLocation ??
+          (type == TaskType.returnTask
+              ? 'Z01-BLK-C01-L01-P01'
+              : 'Z01-C02-L02-P03'),
+      quantity: quantity ?? (5 + id),
       assignedTo: null,
       status: status,
       createdBy: '99',
@@ -106,6 +120,7 @@ class TaskRepositoryMock implements TaskRepository {
       createdAt: DateTime.now(),
       source: TaskSource.manual,
       priority: TaskPriority.medium,
+      workflowData: workflowData,
     );
   }
 
@@ -129,28 +144,6 @@ class TaskRepositoryMock implements TaskRepository {
       }
     }
     return null;
-  }
-
-  @override
-  Future<TaskEntity> createTask(TaskEntity task) async {
-    final zone = task.zone.isEmpty ? 'Z01' : task.zone;
-    return addAutoReceiveTask(
-      itemId: task.itemId,
-      itemName: task.itemName,
-      quantity: task.quantity,
-      toLocation: task.toLocation,
-      createdBy: task.createdBy,
-      zone: zone,
-      assignedTo: task.assignedTo,
-      type: task.type,
-      fromLocation: task.fromLocation,
-      createdAt: task.createdAt,
-      source: task.source,
-      priority: task.priority,
-      sourceEventId: task.sourceEventId,
-      itemBarcode: task.itemBarcode,
-      itemImageUrl: task.itemImageUrl,
-    );
   }
 
   @override
@@ -185,6 +178,7 @@ class TaskRepositoryMock implements TaskRepository {
           sourceEventId: existing.sourceEventId,
           itemBarcode: existing.itemBarcode,
           itemImageUrl: existing.itemImageUrl,
+          workflowData: existing.workflowData,
         );
         entry.value[idx] = updated;
         return updated;
@@ -196,6 +190,50 @@ class TaskRepositoryMock implements TaskRepository {
         type: TaskType.move,
         zone: 'Z01',
         status: TaskStatus.completed);
+  }
+
+  @override
+  Future<TaskEntity> saveCycleCountProgress(
+    int taskId, {
+    required Map<String, Object?> progress,
+  }) async {
+    for (final entry in _store.entries) {
+      final idx = entry.value.indexWhere((t) => t.id == taskId);
+      if (idx == -1) continue;
+      final existing = entry.value[idx];
+      final workflowData = Map<String, Object?>.from(existing.workflowData)
+        ..['cycleCountProgress'] = progress;
+      final updated = TaskEntity(
+        id: existing.id,
+        type: existing.type,
+        itemId: existing.itemId,
+        itemName: existing.itemName,
+        fromLocation: existing.fromLocation,
+        toLocation: existing.toLocation,
+        quantity: existing.quantity,
+        assignedTo: existing.assignedTo,
+        status: existing.status,
+        createdBy: existing.createdBy,
+        zone: existing.zone,
+        createdAt: existing.createdAt,
+        source: existing.source,
+        priority: existing.priority,
+        sourceEventId: existing.sourceEventId,
+        itemBarcode: existing.itemBarcode,
+        itemImageUrl: existing.itemImageUrl,
+        workflowData: workflowData,
+      );
+      entry.value[idx] = updated;
+      return updated;
+    }
+
+    return _mockTask(
+      id: taskId,
+      type: TaskType.cycleCount,
+      zone: 'Z01',
+      status: TaskStatus.inProgress,
+      workflowData: <String, Object?>{'cycleCountProgress': progress},
+    );
   }
 
   @override
@@ -223,6 +261,7 @@ class TaskRepositoryMock implements TaskRepository {
           sourceEventId: existing.sourceEventId,
           itemBarcode: existing.itemBarcode,
           itemImageUrl: existing.itemImageUrl,
+          workflowData: existing.workflowData,
         );
         entry.value[idx] = updated;
         return updated;
@@ -257,6 +296,34 @@ class TaskRepositoryMock implements TaskRepository {
     return {'valid': barcode.trim().toUpperCase() == expected};
   }
 
+  @override
+  Future<AdjustmentTaskLocationScan> scanAdjustmentLocation({
+    required int taskId,
+    required String barcode,
+  }) async {
+    return const AdjustmentTaskLocationScan(
+      locationId: 'loc-1',
+      locationCode: 'Z01-A01',
+      products: [
+        AdjustmentTaskProduct(
+          adjustmentItemId: 'adj-item-1',
+          productId: 'prod-1',
+          productName: 'Demo Adjust Product',
+          systemQuantity: 10,
+          counted: false,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<void> submitAdjustmentCount({
+    required int taskId,
+    required String adjustmentItemId,
+    required int actualQuantity,
+    String? notes,
+  }) async {}
+
   static TaskEntity addAutoReceiveTask({
     required int itemId,
     required String itemName,
@@ -273,6 +340,7 @@ class TaskRepositoryMock implements TaskRepository {
     String? sourceEventId,
     String? itemBarcode,
     String? itemImageUrl,
+    Map<String, Object?> workflowData = const <String, Object?>{},
   }) {
     final resolvedZone =
         (zone == null || zone.isEmpty) ? _zoneFromLocation(toLocation) : zone;
@@ -295,6 +363,7 @@ class TaskRepositoryMock implements TaskRepository {
       sourceEventId: sourceEventId,
       itemBarcode: itemBarcode,
       itemImageUrl: itemImageUrl,
+      workflowData: workflowData,
     );
     list.add(newTask);
     return newTask;

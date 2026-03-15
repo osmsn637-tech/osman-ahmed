@@ -1,11 +1,8 @@
-import '../../../dashboard/domain/usecases/route_task_from_event_usecase.dart';
 import '../../domain/entities/inbound_entities.dart';
 import '../../domain/repositories/inbound_repository.dart';
 
 class InboundRepositoryMock implements InboundRepository {
-  InboundRepositoryMock(this._routeTaskFromEventUseCase);
-
-  final RouteTaskFromEventUseCase _routeTaskFromEventUseCase;
+  InboundRepositoryMock();
 
   static final Map<int, InboundDocument> _store = {};
   static int _nextId = 100;
@@ -147,7 +144,6 @@ class InboundRepositoryMock implements InboundRepository {
     if (itemIndex == -1) {
       throw Exception('Inbound item not found');
     }
-    final targetItem = doc.items[itemIndex];
 
     final updatedItems = doc.items.map((item) {
       if (item.itemId == params.itemId) {
@@ -158,28 +154,6 @@ class InboundRepositoryMock implements InboundRepository {
       }
       return item;
     }).toList();
-
-    final isReturn = params.isReturn ||
-        ((params.notes ?? '').toLowerCase().contains('return'));
-    final sourceEventId = 'inbound:${params.inboundId}:item:${params.itemId}:qty:${params.receivedQuantity}:return:$isReturn';
-    final event = isReturn
-        ? TaskTriggerEvent.inboundReturn(
-            sourceEventId: sourceEventId,
-            itemId: targetItem.itemId,
-            itemName: targetItem.itemName,
-            quantity: params.receivedQuantity,
-            toLocation: targetItem.toLocation,
-            createdBy: doc.createdBy.toString(),
-          )
-        : TaskTriggerEvent.inboundReceive(
-            sourceEventId: sourceEventId,
-            itemId: targetItem.itemId,
-            itemName: targetItem.itemName,
-            quantity: params.receivedQuantity,
-            toLocation: targetItem.toLocation,
-            createdBy: doc.createdBy.toString(),
-          );
-    await _routeTaskFromEventUseCase.execute(event);
 
     final updated = doc.copyWith(items: updatedItems);
     _store[params.inboundId] = updated;

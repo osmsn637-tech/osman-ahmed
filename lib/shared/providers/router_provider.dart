@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/providers/session_provider.dart';
 import '../../features/dashboard/presentation/pages/exceptions_page.dart';
+import '../../features/move/domain/usecases/adjust_stock_usecase.dart';
+import '../../features/move/presentation/controllers/item_adjustment_controller.dart';
 import '../../features/move/domain/usecases/lookup_item_by_barcode_usecase.dart';
 import '../../features/move/presentation/controllers/item_lookup_controller.dart';
 import '../../features/move/presentation/pages/item_lookup_result_page.dart';
@@ -75,11 +77,29 @@ GoRouter buildRouter(
           final barcode = Uri.decodeComponent(
             state.pathParameters['barcode'] ?? '',
           );
-          return ChangeNotifierProvider<ItemLookupController>(
-            create: (_) => ItemLookupController(
-              lookupItemByBarcode: context.read<LookupItemByBarcodeUseCase>(),
+          final mode = switch (state.uri.queryParameters['mode']) {
+            'adjust' => ItemLookupPageMode.adjust,
+            _ => ItemLookupPageMode.lookup,
+          };
+          return MultiProvider(
+            providers: [
+              ChangeNotifierProvider<ItemLookupController>(
+                create: (_) => ItemLookupController(
+                  lookupItemByBarcode:
+                      context.read<LookupItemByBarcodeUseCase>(),
+                ),
+              ),
+              ChangeNotifierProvider<ItemAdjustmentController>(
+                create: (_) => ItemAdjustmentController(
+                  adjustStock: context.read<AdjustStockUseCase>().call,
+                  session: context.read<SessionController>(),
+                ),
+              ),
+            ],
+            child: ItemLookupResultPage(
+              barcode: barcode,
+              mode: mode,
             ),
-            child: ItemLookupResultPage(barcode: barcode),
           );
         },
       ),

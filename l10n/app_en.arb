@@ -100,6 +100,7 @@
   },
   "workerRefreshTasks": "Refresh tasks",
   "workerLookup": "Lookup",
+  "workerAdjust": "Adjust",
   "workerAvailableTasks": "Available Tasks",
   "workerMyActiveTasks": "My Active Tasks",
   "workerNoAvailableTasks": "No available tasks right now",

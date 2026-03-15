@@ -6,6 +6,7 @@ import '../../../../shared/l10n/l10n.dart';
 import '../../../../shared/theme/app_theme.dart';
 import '../../../auth/presentation/providers/session_provider.dart';
 import '../../../move/domain/usecases/lookup_item_by_barcode_usecase.dart';
+import '../../../move/presentation/pages/item_lookup_result_page.dart';
 import '../../../move/presentation/pages/item_lookup_scan_dialog.dart';
 import '../../domain/entities/task_entity.dart';
 import '../controllers/worker_tasks_controller.dart';
@@ -21,6 +22,46 @@ class WorkerHomePage extends StatefulWidget {
 }
 
 class _WorkerHomePageState extends State<WorkerHomePage> {
+  bool _requestedInitialLoad = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _requestedInitialLoad) return;
+      final controller = context.read<WorkerTasksController>();
+      if (controller.state.loading ||
+          controller.state.current.isNotEmpty ||
+          controller.state.completed.isNotEmpty) {
+        return;
+      }
+      _requestedInitialLoad = true;
+      controller.load();
+    });
+  }
+
+  Future<void> _openItemLookup(
+    BuildContext context, {
+    required ItemLookupPageMode mode,
+  }) async {
+    final barcode = await showItemLookupScanDialog(
+      context,
+      showKeyboard: false,
+    );
+    final normalized = barcode?.trim() ?? '';
+    if (!context.mounted || normalized.isEmpty) {
+      return;
+    }
+
+    final route = StringBuffer(
+      '/item-lookup/result/${Uri.encodeComponent(normalized)}',
+    );
+    if (mode == ItemLookupPageMode.adjust) {
+      route.write('?mode=adjust');
+    }
+    context.push(route.toString());
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -32,10 +73,12 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
         final currentTasks = ctrl.state.current;
         final completedTasks = ctrl.state.completed;
         final loading = ctrl.state.loading;
-        final availableCount =
-            currentTasks.where((t) => t.assignedTo == null && t.isPending).length;
-        final activeCount =
-            currentTasks.where((t) => t.assignedTo != null && !t.isCompleted).length;
+        final availableCount = currentTasks
+            .where((t) => t.assignedTo == null && t.isPending)
+            .length;
+        final activeCount = currentTasks
+            .where((t) => t.assignedTo != null && !t.isCompleted)
+            .length;
         final completedCount = completedTasks.length;
 
         return Scaffold(
@@ -100,34 +143,26 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                           sliver: SliverToBoxAdapter(
-                            child: SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: ElevatedButton.icon(
-                                onPressed: () async {
-                                  final barcode =
-                                      await showItemLookupScanDialog(
+                            child: Column(
+                              children: [
+                                _WorkerQuickActionButton(
+                                  icon: Icons.search_rounded,
+                                  label: l10n.workerLookup,
+                                  onPressed: () => _openItemLookup(
                                     context,
-                                    showKeyboard: false,
-                                  );
-                                  final normalized = barcode?.trim() ?? '';
-                                  if (!context.mounted ||
-                                      normalized.isEmpty) {
-                                    return;
-                                  }
-                                  context.push(
-                                    '/item-lookup/result/${Uri.encodeComponent(normalized)}',
-                                  );
-                                },
-                                icon: const Icon(Icons.search_rounded),
-                                label: Text(l10n.workerLookup),
-                                style: ElevatedButton.styleFrom(
-                                  textStyle: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 16,
+                                    mode: ItemLookupPageMode.lookup,
                                   ),
                                 ),
-                              ),
+                                const SizedBox(height: 12),
+                                _WorkerQuickActionButton(
+                                  icon: Icons.tune_rounded,
+                                  label: l10n.workerAdjust,
+                                  onPressed: () => _openItemLookup(
+                                    context,
+                                    mode: ItemLookupPageMode.adjust,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -162,12 +197,14 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                                 final task = currentTasks[index];
                                 final canStart =
                                     task.status == TaskStatus.pending &&
-                                    task.assignedTo == null;
+                                        task.assignedTo == null;
                                 return _TaskCard(
                                   task: task,
-                                  actionLabel: canStart ? l10n.workerStart : 'Open',
-                                  actionColor:
-                                      canStart ? AppTheme.accent : AppTheme.primary,
+                                  actionLabel:
+                                      canStart ? l10n.workerStart : 'Open',
+                                  actionColor: canStart
+                                      ? AppTheme.accent
+                                      : AppTheme.primary,
                                   actionIcon: canStart
                                       ? Icons.play_arrow_rounded
                                       : null,
@@ -248,11 +285,30 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
           onStartTask: onStartTask,
           onCompleteTask: (taskId, {int? quantity, String? locationId}) =>
               controller.complete(
-                taskId,
-                quantity: quantity,
-                locationId: locationId,
-              ),
+            taskId,
+            quantity: quantity,
+            locationId: locationId,
+          ),
+          onSaveCycleCountProgress: (taskId, {required progress}) async {
+            await controller.saveCycleCountProgress(
+              taskId,
+              progress: progress,
+            );
+          },
           onGetSuggestion: () => controller.getSuggestion(task.id),
+          onScanAdjustmentLocation: (barcode) =>
+              controller.scanAdjustmentLocation(task.id, barcode),
+          onSubmitAdjustmentCount: ({
+            required adjustmentItemId,
+            required actualQuantity,
+            String? notes,
+          }) =>
+              controller.submitAdjustmentCount(
+            task.id,
+            adjustmentItemId: adjustmentItemId,
+            actualQuantity: actualQuantity,
+            notes: notes,
+          ),
           onValidateLocation: (barcode) =>
               controller.validateLocation(task.id, barcode),
           onLookupItem: (barcode) async {
@@ -272,6 +328,37 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
     final claimedTask = await controller.claim(task.id);
     if (!mounted || claimedTask == null) return;
     await _openTaskDetails(context, claimedTask);
+  }
+}
+
+class _WorkerQuickActionButton extends StatelessWidget {
+  const _WorkerQuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+          ),
+        ),
+      ),
+    );
   }
 }
 

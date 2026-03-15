@@ -25,6 +25,12 @@ class AppEndpoints {
       '/mobile/v1/worker/tasks/$taskId/complete';
   static String workerTaskSkip(String taskId) =>
       '/mobile/v1/worker/tasks/$taskId/skip';
+  static String adjustmentScanLocation(String adjustmentId) =>
+      '/mobile/v1/adjustments/$adjustmentId/scan-location';
+  static String adjustmentItemCount(String adjustmentItemId) =>
+      '/mobile/v1/adjustment-items/$adjustmentItemId/count';
+  static String adjustmentFinish(String adjustmentId) =>
+      '/mobile/v1/adjustments/$adjustmentId/finish';
   static String lookupProductByBarcode(String barcode) =>
       'https://api.qeu.app/mobile/v1/products/barcode/${Uri.encodeComponent(barcode)}';
   static String itemStock(String barcode) => '/inventory/items/$barcode/stock';

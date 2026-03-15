@@ -5,8 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:putaway_app/features/auth/domain/entities/user.dart';
 import 'package:putaway_app/features/auth/presentation/providers/session_provider.dart';
-import 'package:putaway_app/features/dashboard/data/repositories/task_repository_mock.dart';
-import 'package:putaway_app/features/dashboard/domain/usecases/route_task_from_event_usecase.dart';
 import 'package:putaway_app/features/inbound/data/repositories/inbound_repository_mock.dart';
 import 'package:putaway_app/features/inbound/presentation/controllers/inbound_controller.dart';
 import 'package:putaway_app/features/inbound/presentation/pages/inbound_home_page.dart';
@@ -41,7 +39,7 @@ void main() {
       ),
     );
     final inboundController = InboundController(
-      InboundRepositoryMock(RouteTaskFromEventUseCase(TaskRepositoryMock())),
+      InboundRepositoryMock(),
     );
 
     final router = GoRouter(
@@ -95,7 +93,7 @@ void main() {
       ),
     );
     final inboundController = InboundController(
-      InboundRepositoryMock(RouteTaskFromEventUseCase(TaskRepositoryMock())),
+      InboundRepositoryMock(),
     );
 
     final router = GoRouter(

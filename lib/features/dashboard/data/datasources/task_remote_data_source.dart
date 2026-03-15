@@ -9,7 +9,7 @@ class TaskRemoteDataSource {
   Future<Map<String, dynamic>> fetchMyTasks({
     String? taskType,
     String? cursor,
-    int limit = 100,
+    int limit = 400,
   }) async {
     final response = await _client.get<Map<String, dynamic>>(
       AppEndpoints.workerTasks,
@@ -114,6 +114,52 @@ class TaskRemoteDataSource {
     );
     return response.when(
       success: (data) => data,
+      failure: (error) => throw error,
+    );
+  }
+
+  Future<Map<String, dynamic>> scanAdjustmentLocation({
+    required String adjustmentId,
+    required String barcode,
+  }) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      AppEndpoints.adjustmentScanLocation(adjustmentId),
+      data: {'barcode': barcode},
+      parser: (data) => _asMap(data),
+    );
+    return response.when(
+      success: (data) => data,
+      failure: (error) => throw error,
+    );
+  }
+
+  Future<void> submitAdjustmentCount({
+    required String adjustmentItemId,
+    required int actualQuantity,
+    String? notes,
+  }) async {
+    final response = await _client.post<void>(
+      AppEndpoints.adjustmentItemCount(adjustmentItemId),
+      data: {
+        'actualQuantity': actualQuantity,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      },
+    );
+    return response.when(
+      success: (_) => null,
+      failure: (error) => throw error,
+    );
+  }
+
+  Future<void> finishAdjustment({
+    required String adjustmentId,
+  }) async {
+    final response = await _client.post<void>(
+      AppEndpoints.adjustmentFinish(adjustmentId),
+      data: const <String, Object?>{},
+    );
+    return response.when(
+      success: (_) => null,
       failure: (error) => throw error,
     );
   }

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import '../../../../shared/controllers/scan_debounce_controller.dart';
 import '../../../auth/presentation/providers/session_provider.dart';
 import '../../domain/entities/item_location_entity.dart';
@@ -7,7 +5,6 @@ import '../../domain/entities/item_location_summary_entity.dart';
 import '../../domain/entities/move_item_params.dart';
 import '../../domain/usecases/get_item_locations_usecase.dart';
 import '../../domain/usecases/move_item_usecase.dart';
-import '../../../dashboard/domain/usecases/route_task_from_event_usecase.dart';
 
 class MoveState {
   const MoveState({
@@ -54,16 +51,13 @@ class MoveController extends ScanDebounceController {
     required GetItemLocationsUseCase getItemLocationsUseCase,
     required MoveItemUseCase moveItemUseCase,
     required SessionController session,
-    required RouteTaskFromEventUseCase routeTaskFromEventUseCase,
   })  : _getItemLocationsUseCase = getItemLocationsUseCase,
         _moveItemUseCase = moveItemUseCase,
-        _session = session,
-        _routeTaskFromEventUseCase = routeTaskFromEventUseCase;
+        _session = session;
 
   final GetItemLocationsUseCase _getItemLocationsUseCase;
   final MoveItemUseCase _moveItemUseCase;
   final SessionController _session;
-  final RouteTaskFromEventUseCase _routeTaskFromEventUseCase;
 
   MoveState _state = const MoveState();
   MoveState get state => _state;
@@ -193,18 +187,6 @@ class MoveController extends ScanDebounceController {
         notifyListeners();
       },
       failure: (error) {
-        unawaited(_routeTaskFromEventUseCase.execute(
-          TaskTriggerEvent.systemMoveException(
-            sourceEventId:
-                'move-ex:${summary.itemId}:${fromLocation.locationId}:$toLocationId:$qty',
-            itemId: summary.itemId,
-            itemName: summary.itemName,
-            quantity: qty,
-            fromLocation: fromLocation.code,
-            toLocation: _state.destinationCode,
-            createdBy: workerId,
-          ),
-        ));
         _state = _state.copyWith(
           isSubmitting: false,
           errorMessage: error.toString(),

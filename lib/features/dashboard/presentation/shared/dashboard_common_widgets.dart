@@ -113,7 +113,7 @@ class DashboardTypeBadge extends StatelessWidget {
           Icon(taskTypeIcon(type), size: 14, color: color),
           const SizedBox(width: 4),
           Text(
-            type.name.toUpperCase(),
+            taskTypeLabel(type),
             style: TextStyle(
                 fontSize: 11, fontWeight: FontWeight.w800, color: color),
           ),

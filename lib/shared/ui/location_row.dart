@@ -9,6 +9,8 @@ class LocationRow extends StatelessWidget {
     required this.quantity,
     this.trailing,
     this.isShelfOverride,
+    this.selected = false,
+    this.onTap,
   });
 
   final String code;
@@ -16,45 +18,61 @@ class LocationRow extends StatelessWidget {
   final String quantity;
   final Widget? trailing;
   final bool? isShelfOverride;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final isShelf =
         isShelfOverride ?? typeLabel.toLowerCase().contains('shelf');
     final badgeColor = isShelf ? Colors.blue.shade700 : Colors.orange.shade700;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
+    final borderColor =
+        selected ? Theme.of(context).colorScheme.primary : Colors.grey.shade300;
+    final backgroundColor = selected
+        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+        : Colors.white;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              code,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                letterSpacing: 0.1,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            border: Border.all(color: borderColor),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  code,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    letterSpacing: 0.1,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              StatusBadge(label: typeLabel, color: badgeColor),
+              const SizedBox(width: 10),
+              Text(
+                quantity,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                trailing!,
+              ],
+            ],
           ),
-          const SizedBox(width: 12),
-          StatusBadge(label: typeLabel, color: badgeColor),
-          const SizedBox(width: 10),
-          Text(
-            quantity,
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-          ),
-          if (trailing != null) ...[
-            const SizedBox(width: 8),
-            trailing!,
-          ],
-        ],
+        ),
       ),
     );
   }

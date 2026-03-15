@@ -100,6 +100,7 @@
   },
   "workerRefreshTasks": "تحديث المهام",
   "workerLookup": "بحث",
+  "workerAdjust": "تعديل",
   "workerAvailableTasks": "المهام المتاحة",
   "workerMyActiveTasks": "مهامي النشطة",
   "workerNoAvailableTasks": "لا توجد مهام متاحة الآن",

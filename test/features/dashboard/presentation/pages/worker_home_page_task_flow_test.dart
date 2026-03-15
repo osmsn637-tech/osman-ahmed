@@ -12,9 +12,14 @@ import 'package:putaway_app/features/dashboard/domain/usecases/claim_task_usecas
 import 'package:putaway_app/features/dashboard/domain/usecases/complete_task_usecase.dart';
 import 'package:putaway_app/features/dashboard/domain/usecases/get_task_suggestion_usecase.dart';
 import 'package:putaway_app/features/dashboard/domain/usecases/get_tasks_for_zone_usecase.dart';
+import 'package:putaway_app/features/dashboard/domain/usecases/scan_adjustment_location_usecase.dart';
+import 'package:putaway_app/features/dashboard/domain/usecases/save_cycle_count_progress_usecase.dart';
+import 'package:putaway_app/features/dashboard/domain/usecases/submit_adjustment_count_usecase.dart';
 import 'package:putaway_app/features/dashboard/domain/usecases/validate_task_location_usecase.dart';
 import 'package:putaway_app/features/dashboard/presentation/controllers/worker_tasks_controller.dart';
 import 'package:putaway_app/features/dashboard/presentation/pages/worker_home_page.dart';
+import 'package:putaway_app/features/move/data/repositories/item_repository_mock.dart';
+import 'package:putaway_app/features/move/domain/usecases/lookup_item_by_barcode_usecase.dart';
 
 void main() {
   setUp(TaskRepositoryMock.reset);
@@ -24,6 +29,7 @@ void main() {
     required SessionController session,
     required WorkerTasksController workerController,
   }) async {
+    await workerController.load();
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
@@ -34,6 +40,10 @@ void main() {
               ChangeNotifierProvider<SessionController>.value(value: session),
               ChangeNotifierProvider<WorkerTasksController>.value(
                 value: workerController,
+              ),
+              Provider<LookupItemByBarcodeUseCase>(
+                create: (_) =>
+                    LookupItemByBarcodeUseCase(const ItemRepositoryMock()),
               ),
             ],
             child: const WorkerHomePage(),
@@ -89,6 +99,9 @@ void main() {
       claimTask: ClaimTaskUseCase(taskRepo),
       completeTask: CompleteTaskUseCase(taskRepo),
       getTaskSuggestion: GetTaskSuggestionUseCase(taskRepo),
+      scanAdjustmentLocation: ScanAdjustmentLocationUseCase(taskRepo),
+      saveCycleCountProgress: SaveCycleCountProgressUseCase(taskRepo),
+      submitAdjustmentCount: SubmitAdjustmentCountUseCase(taskRepo),
       validateTaskLocation: ValidateTaskLocationUseCase(taskRepo),
       session: session,
     );
@@ -98,12 +111,19 @@ void main() {
       session: session,
       workerController: workerController,
     );
+    await tester.scrollUntilVisible(
+      find.text('Flow Task'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('My Active Tasks'), findsNothing);
     expect(find.text('Flow Task'), findsOneWidget);
 
-    final flowTaskCard =
-        find.ancestor(of: find.text('Flow Task'), matching: find.byType(Card)).first;
+    final flowTaskCard = find
+        .ancestor(of: find.text('Flow Task'), matching: find.byType(Card))
+        .first;
     final startButton = find.descendant(
       of: flowTaskCard,
       matching: find.widgetWithText(ElevatedButton, 'Start'),
@@ -117,12 +137,19 @@ void main() {
 
     await tester.pageBack();
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Flow Task'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('My Active Tasks'), findsNothing);
     expect(find.text('Flow Task'), findsOneWidget);
 
-    final reopenedFlowTaskCard =
-        find.ancestor(of: find.text('Flow Task'), matching: find.byType(Card)).first;
+    final reopenedFlowTaskCard = find
+        .ancestor(of: find.text('Flow Task'), matching: find.byType(Card))
+        .first;
     expect(
       find.descendant(
         of: reopenedFlowTaskCard,
@@ -146,11 +173,18 @@ void main() {
 
     await tester.tap(find.byKey(const Key('complete-task-button')));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Flow Task'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('Completed Tasks'), findsOneWidget);
 
-    final completedFlowTaskCard =
-        find.ancestor(of: find.text('Flow Task'), matching: find.byType(Card)).first;
+    final completedFlowTaskCard = find
+        .ancestor(of: find.text('Flow Task'), matching: find.byType(Card))
+        .first;
     expect(
       find.descendant(
         of: completedFlowTaskCard,
@@ -165,5 +199,43 @@ void main() {
       ),
       findsNothing,
     );
+  });
+
+  testWidgets(
+      'worker queue does not include auto-seeded return or cycle count tasks',
+      (tester) async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+
+    final taskRepo = TaskRepositoryMock();
+    final workerController = WorkerTasksController(
+      getTasksForZone: GetTasksForZoneUseCase(taskRepo),
+      claimTask: ClaimTaskUseCase(taskRepo),
+      completeTask: CompleteTaskUseCase(taskRepo),
+      getTaskSuggestion: GetTaskSuggestionUseCase(taskRepo),
+      scanAdjustmentLocation: ScanAdjustmentLocationUseCase(taskRepo),
+      saveCycleCountProgress: SaveCycleCountProgressUseCase(taskRepo),
+      submitAdjustmentCount: SubmitAdjustmentCountUseCase(taskRepo),
+      validateTaskLocation: ValidateTaskLocationUseCase(taskRepo),
+      session: session,
+    );
+
+    await pumpWorkerHome(
+      tester,
+      session: session,
+      workerController: workerController,
+    );
+
+    expect(find.text('Return Tote RT-204'), findsNothing);
+    expect(find.text('Count SKU in SHELF-01-01'), findsNothing);
+    expect(find.text('Full Shelf Count - SHELF-09-03'), findsNothing);
   });
 }

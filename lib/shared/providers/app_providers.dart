@@ -18,8 +18,10 @@ import '../../features/dashboard/domain/usecases/get_tasks_for_worker_usecase.da
 import '../../features/dashboard/domain/usecases/complete_task_usecase.dart';
 import '../../features/dashboard/domain/usecases/claim_task_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_task_suggestion_usecase.dart';
+import '../../features/dashboard/domain/usecases/save_cycle_count_progress_usecase.dart';
+import '../../features/dashboard/domain/usecases/scan_adjustment_location_usecase.dart';
+import '../../features/dashboard/domain/usecases/submit_adjustment_count_usecase.dart';
 import '../../features/dashboard/domain/usecases/validate_task_location_usecase.dart';
-import '../../features/dashboard/domain/usecases/route_task_from_event_usecase.dart';
 import '../../features/dashboard/presentation/controllers/dashboard_controller.dart';
 import '../../features/dashboard/presentation/controllers/worker_tasks_controller.dart';
 import '../../features/dashboard/presentation/controllers/supervisor_tasks_controller.dart';
@@ -128,11 +130,17 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     ProxyProvider<TaskRepository, GetTaskSuggestionUseCase>(
       update: (_, repo, __) => GetTaskSuggestionUseCase(repo),
     ),
+    ProxyProvider<TaskRepository, SaveCycleCountProgressUseCase>(
+      update: (_, repo, __) => SaveCycleCountProgressUseCase(repo),
+    ),
+    ProxyProvider<TaskRepository, ScanAdjustmentLocationUseCase>(
+      update: (_, repo, __) => ScanAdjustmentLocationUseCase(repo),
+    ),
+    ProxyProvider<TaskRepository, SubmitAdjustmentCountUseCase>(
+      update: (_, repo, __) => SubmitAdjustmentCountUseCase(repo),
+    ),
     ProxyProvider<TaskRepository, ValidateTaskLocationUseCase>(
       update: (_, repo, __) => ValidateTaskLocationUseCase(repo),
-    ),
-    ProxyProvider<TaskRepository, RouteTaskFromEventUseCase>(
-      update: (_, repo, __) => RouteTaskFromEventUseCase(repo),
     ),
     ProxyProvider<ApiClient, ItemRemoteDataSource>(
       update: (_, client, __) => ItemRemoteDataSourceImpl(client),
@@ -181,7 +189,6 @@ List<SingleChildWidget> appProviders(AppConfig config) {
         getItemLocationsUseCase: context.read<GetItemLocationsUseCase>(),
         moveItemUseCase: context.read<MoveItemUseCase>(),
         session: context.read<SessionController>(),
-        routeTaskFromEventUseCase: context.read<RouteTaskFromEventUseCase>(),
       ),
     ),
     ChangeNotifierProvider<StockAdjustmentController>(
@@ -213,7 +220,6 @@ List<SingleChildWidget> appProviders(AppConfig config) {
       create: (context) => DashboardController(
         getTasksUseCase: context.read<GetDashboardTasksUseCase>(),
         taskRepository: context.read<TaskRepository>(),
-        routeTaskFromEventUseCase: context.read<RouteTaskFromEventUseCase>(),
       )..load(),
     ),
     ChangeNotifierProvider<WorkerTasksController>(
@@ -222,6 +228,9 @@ List<SingleChildWidget> appProviders(AppConfig config) {
         claimTask: context.read<ClaimTaskUseCase>(),
         completeTask: context.read<CompleteTaskUseCase>(),
         getTaskSuggestion: context.read<GetTaskSuggestionUseCase>(),
+        scanAdjustmentLocation: context.read<ScanAdjustmentLocationUseCase>(),
+        saveCycleCountProgress: context.read<SaveCycleCountProgressUseCase>(),
+        submitAdjustmentCount: context.read<SubmitAdjustmentCountUseCase>(),
         validateTaskLocation: context.read<ValidateTaskLocationUseCase>(),
         session: context.read<SessionController>(),
       )..load(),
@@ -233,8 +242,7 @@ List<SingleChildWidget> appProviders(AppConfig config) {
       )..load(),
     ),
     Provider<InboundRepository>(
-      create: (context) =>
-          InboundRepositoryMock(context.read<RouteTaskFromEventUseCase>()),
+      create: (_) => InboundRepositoryMock(),
     ),
     ChangeNotifierProvider<InboundController>(
       create: (context) => InboundController(context.read<InboundRepository>()),

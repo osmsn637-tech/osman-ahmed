@@ -1,6 +1,7 @@
 import '../../domain/entities/dashboard_summary_entity.dart';
 import '../../domain/entities/exception_entity.dart';
 import '../../domain/entities/ai_alert_entity.dart';
+import '../../domain/entities/adjustment_task_entities.dart';
 import '../../domain/repositories/task_repository.dart';
 import '../datasources/dashboard_remote_data_source.dart';
 import '../datasources/task_remote_data_source.dart';
@@ -61,26 +62,15 @@ class TaskRepositoryImpl implements TaskRepository {
       final remoteTasks = _parseTaskCollection(remote);
       _cacheRemoteTasks(remoteTasks);
       final normalizedZone = _normalizeZone(zone);
-
-      final merged = <TaskEntity>[];
-      final seenIds = <int>{};
       for (final task in remoteTasks) {
-        final assigned = _withClaim(task);
-        if (normalizedZone == null || _normalizeZone(assigned.zone) == normalizedZone) {
-          merged.add(assigned);
-        }
-        seenIds.add(assigned.id);
+        final cached = _localTasks[task.id] ?? task;
+        _localTasks[task.id] = cached;
       }
 
-      for (final task in _localTasks.values) {
-        final assigned = _withClaim(task);
-        if (!seenIds.contains(assigned.id) &&
-            (normalizedZone == null || _normalizeZone(assigned.zone) == normalizedZone)) {
-          merged.add(assigned);
-        }
-      }
-
-      return merged;
+      return remoteTasks
+          .map((task) => _withClaim(_localTasks[task.id] ?? task))
+          .where((task) => _matchesRequestedZone(task, normalizedZone))
+          .toList();
     } catch (error) {
       return Future.error(error);
     }
@@ -109,17 +99,6 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
-  Future<TaskEntity> createTask(TaskEntity task) async {
-    final id = task.id > 0 ? task.id : _nextLocalTaskId--;
-    final created = _cloneTask(task: task, id: id);
-    _localTasks[created.id] = created;
-    if (created.sourceEventId != null) {
-      _tasksBySourceEventId[created.sourceEventId!] = created.id;
-    }
-    return created;
-  }
-
-  @override
   Future<TaskEntity> completeTask(
     int taskId, {
     int? quantity,
@@ -136,7 +115,11 @@ class TaskRepositoryImpl implements TaskRepository {
     final targetLocation = (locationId ?? resolved.toLocation ?? '').trim();
     final targetLocationId = (locationId ?? resolved.toLocationId ?? targetLocation).trim();
 
-    if (taskType == 'receiving' ||
+    if (resolved.type == TaskType.adjustment) {
+      await _taskRemoteDataSource.finishAdjustment(
+        adjustmentId: remoteTaskId,
+      );
+    } else if (taskType == 'receiving' ||
         taskType == 'return' ||
         taskType == 'cycle_count') {
       await _taskRemoteDataSource.completeTask(
@@ -158,6 +141,23 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
+  Future<TaskEntity> saveCycleCountProgress(
+    int taskId, {
+    required Map<String, Object?> progress,
+  }) async {
+    final existing = await _resolveTask(taskId);
+    if (existing == null) {
+      throw ValidationException('Task $taskId not found');
+    }
+
+    final workflowData = Map<String, Object?>.from(existing.workflowData)
+      ..['cycleCountProgress'] = progress;
+    final updated = _cloneTask(task: existing, workflowData: workflowData);
+    _localTasks[updated.id] = updated;
+    return updated;
+  }
+
+  @override
   Future<TaskEntity> claimTask({required int taskId, required String workerId}) async {
     final existing = await _resolveTask(taskId);
     if (existing == null) {
@@ -165,7 +165,6 @@ class TaskRepositoryImpl implements TaskRepository {
         'Task $taskId cannot be claimed because it was not found.',
       );
     }
-
     await _taskRemoteDataSource.startTask(
       taskId: _remoteTaskIdFor(existing),
       taskType: _workerTaskType(existing),
@@ -216,6 +215,48 @@ class TaskRepositoryImpl implements TaskRepository {
     } catch (error) {
       return Future.error(error);
     }
+  }
+
+  @override
+  Future<AdjustmentTaskLocationScan> scanAdjustmentLocation({
+    required int taskId,
+    required String barcode,
+  }) async {
+    final task = await _resolveTask(taskId);
+    if (task == null) {
+      throw ValidationException('Task $taskId not found');
+    }
+    if (task.type != TaskType.adjustment) {
+      throw ValidationException('Task $taskId is not an adjustment task');
+    }
+
+    final response = await _taskRemoteDataSource.scanAdjustmentLocation(
+      adjustmentId: _remoteTaskIdFor(task),
+      barcode: barcode,
+    );
+    return AdjustmentTaskLocationScan.fromMap(response);
+  }
+
+  @override
+  Future<void> submitAdjustmentCount({
+    required int taskId,
+    required String adjustmentItemId,
+    required int actualQuantity,
+    String? notes,
+  }) async {
+    final task = await _resolveTask(taskId);
+    if (task == null) {
+      throw ValidationException('Task $taskId not found');
+    }
+    if (task.type != TaskType.adjustment) {
+      throw ValidationException('Task $taskId is not an adjustment task');
+    }
+
+    await _taskRemoteDataSource.submitAdjustmentCount(
+      adjustmentItemId: adjustmentItemId,
+      actualQuantity: actualQuantity,
+      notes: notes,
+    );
   }
 
   TaskEntity _withClaim(TaskEntity task) {
@@ -424,6 +465,10 @@ class TaskRepositoryImpl implements TaskRepository {
 
     final detail = _asMap(data['detail']);
     final product = _asMap(detail?['product']) ?? _asMap(detail?['item']);
+    final subtitleLocation = _resolveUnifiedSubtitleLocation(
+      rawType: rawType,
+      subtitle: _asString(data['subtitle']),
+    );
     final toLocation = _asString(_firstNonNull([
       detail?['to_location'],
       detail?['toLocation'],
@@ -462,6 +507,8 @@ class TaskRepositoryImpl implements TaskRepository {
         ])) ??
         0;
     final itemName = _asString(_firstNonNull([
+          data['product_name'],
+          data['productName'],
           detail?['product_name'],
           detail?['productName'],
           detail?['item_name'],
@@ -510,6 +557,10 @@ class TaskRepositoryImpl implements TaskRepository {
           detail?['qty'],
           detail?['expected_quantity'],
           detail?['expectedQuantity'],
+          data['quantity'],
+          data['qty'],
+          data['expected_quantity'],
+          data['expectedQuantity'],
         ])) ??
         0;
     final sourceEventId = _asString(_firstNonNull([
@@ -518,6 +569,9 @@ class TaskRepositoryImpl implements TaskRepository {
       detail?['source_event_id'],
       detail?['sourceEventId'],
     ]));
+    final workflowData = rawType == 'cycle_count'
+        ? _buildCycleCountWorkflowData(data)
+        : const <String, Object?>{};
     final id = int.tryParse(rawId) ??
         _stableLocalIdForRemoteTask(
           remoteTaskId: rawId,
@@ -531,10 +585,12 @@ class TaskRepositoryImpl implements TaskRepository {
           quantity: quantity,
         );
     final status = _toTaskStatus(_asString(data['status']));
-    final zone = _normalizeZone(toLocation) ??
-        _normalizeZone(fromLocation) ??
-        _normalizeZone(_asString(data['subtitle'])) ??
-        'Z01';
+    final zone = _deriveUnifiedTaskZone(
+          toLocation: toLocation,
+          fromLocation: fromLocation,
+          subtitleLocation: subtitleLocation,
+        ) ??
+        '';
 
     return TaskEntity(
       id: id,
@@ -545,6 +601,8 @@ class TaskRepositoryImpl implements TaskRepository {
       itemName: itemName,
       itemBarcode: itemBarcode,
       itemImageUrl: _normalizeImageUrl(_asString(_firstNonNull([
+        data['product_image'],
+        data['productImage'],
         detail?['product_image'],
         detail?['productImage'],
         detail?['item_image'],
@@ -559,7 +617,7 @@ class TaskRepositoryImpl implements TaskRepository {
         product?['itemImageUrl'],
       ]))),
       fromLocation: fromLocation,
-      toLocation: toLocation ?? _asString(data['subtitle']),
+      toLocation: toLocation ?? subtitleLocation,
       toLocationId: toLocationId,
       quantity: quantity,
       assignedTo: status == TaskStatus.pending ? null : '__worker__',
@@ -570,7 +628,98 @@ class TaskRepositoryImpl implements TaskRepository {
       source: TaskSource.manual,
       priority: _toTaskPriority(_asString(data['priority'])),
       sourceEventId: sourceEventId,
+      workflowData: workflowData,
     );
+  }
+
+  bool _matchesRequestedZone(TaskEntity task, String? normalizedZone) {
+    if (normalizedZone == null) return true;
+
+    final taskZone = _normalizeZone(task.zone);
+    if (taskZone == null) {
+      return true;
+    }
+
+    if (taskZone == normalizedZone) {
+      return true;
+    }
+
+    return false;
+  }
+
+  String? _deriveUnifiedTaskZone({
+    required String? toLocation,
+    required String? fromLocation,
+    required String? subtitleLocation,
+  }) {
+    return _zoneFromLocationText(toLocation) ??
+        _zoneFromLocationText(fromLocation) ??
+        _zoneFromExplicitZoneText(subtitleLocation);
+  }
+
+  Map<String, Object?> _buildCycleCountWorkflowData(Map<String, dynamic> data) {
+    final products = data['products'];
+    if (products is List) {
+      final parsedProducts = products
+          .whereType<Map>()
+          .map((entry) => Map<String, Object?>.from(entry))
+          .where((entry) {
+            final quantity = _toInt(entry['quantity']) ?? 0;
+            return quantity > 0;
+          })
+          .toList(growable: false);
+      if (parsedProducts.isNotEmpty) {
+        return <String, Object?>{
+          'cycleCountMode': 'full_shelf',
+          'products': parsedProducts,
+        };
+      }
+    }
+
+    return const <String, Object?>{};
+  }
+
+  String? _resolveUnifiedSubtitleLocation({
+    required String rawType,
+    required String? subtitle,
+  }) {
+    final trimmed = subtitle?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+
+    final normalizedSubtitle = trimmed.toLowerCase().replaceAll(RegExp(r'[\s-]+'), '_');
+    final normalizedType = rawType.trim().toLowerCase();
+    if (normalizedSubtitle == normalizedType) {
+      return null;
+    }
+
+    return trimmed;
+  }
+
+  String? _zoneFromLocationText(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+
+    final upper = value.trim().toUpperCase();
+    final explicitZone = RegExp(r'\bZ(\d{1,3})\b').firstMatch(upper);
+    if (explicitZone != null) {
+      return 'Z${explicitZone.group(1)!.padLeft(2, '0')}';
+    }
+
+    final structuredLocation =
+        RegExp(r'^[A-Z_]+-(\d{1,3})(?:-\d{1,3})+').firstMatch(upper);
+    if (structuredLocation != null) {
+      return 'Z${structuredLocation.group(1)!.padLeft(2, '0')}';
+    }
+
+    return null;
+  }
+
+  String? _zoneFromExplicitZoneText(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+
+    final match = RegExp(r'\bZ(\d{1,3})\b').firstMatch(value.trim().toUpperCase());
+    if (match == null) return null;
+
+    return 'Z${match.group(1)!.padLeft(2, '0')}';
   }
 
   String _remoteTaskIdFor(TaskEntity task) {
@@ -593,6 +742,7 @@ class TaskRepositoryImpl implements TaskRepository {
       case TaskType.returnTask:
         return 'return';
       case TaskType.adjustment:
+        return 'adjustment';
       case TaskType.cycleCount:
         return 'cycle_count';
       case TaskType.refill:
@@ -719,6 +869,7 @@ class TaskRepositoryImpl implements TaskRepository {
     TaskSource? source,
     TaskPriority? priority,
     String? sourceEventId,
+    Map<String, Object?>? workflowData,
   }) {
     return TaskEntity(
       id: id ?? task.id,
@@ -741,6 +892,7 @@ class TaskRepositoryImpl implements TaskRepository {
       source: source ?? task.source,
       priority: priority ?? task.priority,
       sourceEventId: sourceEventId ?? task.sourceEventId,
+      workflowData: workflowData ?? task.workflowData,
     );
   }
 

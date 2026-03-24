@@ -20,5 +20,6 @@ abstract class InboundRepository {
     required String receiptId,
     required String itemId,
     required int quantity,
+    required DateTime expirationDate,
   });
 }

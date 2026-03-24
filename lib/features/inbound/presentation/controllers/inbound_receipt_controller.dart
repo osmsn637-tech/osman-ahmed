@@ -141,9 +141,12 @@ class InboundReceiptController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> confirmSelectedItemQuantity(int quantity) async {
+  Future<bool> confirmSelectedItemQuantity(
+    int quantity, {
+    required DateTime? expirationDate,
+  }) async {
     final item = selectedItem;
-    if (item == null || quantity <= 0) return false;
+    if (item == null || quantity <= 0 || expirationDate == null) return false;
 
     _isSubmitting = true;
     notifyListeners();
@@ -152,6 +155,7 @@ class InboundReceiptController extends ChangeNotifier {
       receiptId: receiptId,
       itemId: item.id,
       quantity: quantity,
+      expirationDate: expirationDate,
     );
 
     var succeeded = false;

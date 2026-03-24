@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../shared/l10n/l10n.dart';
@@ -31,11 +32,14 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
   late final TextEditingController _listScanController;
   late final TextEditingController _detailBarcodeController;
   late final TextEditingController _quantityController;
+  late final TextEditingController _expirationDateController;
   late final FocusNode _listScanFocusNode;
   late final FocusNode _detailScanFocusNode;
   Timer? _listScanDebounce;
   Timer? _detailScanDebounce;
   Timer? _focusRetryTimer;
+  DateTime? _selectedExpirationDate;
+  String? _activeDetailItemId;
 
   @override
   void initState() {
@@ -44,6 +48,7 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
     _listScanController = TextEditingController();
     _detailBarcodeController = TextEditingController();
     _quantityController = TextEditingController();
+    _expirationDateController = TextEditingController();
     _listScanFocusNode = FocusNode();
     _detailScanFocusNode = FocusNode();
   }
@@ -57,6 +62,7 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
     _listScanController.dispose();
     _detailBarcodeController.dispose();
     _quantityController.dispose();
+    _expirationDateController.dispose();
     _listScanFocusNode.dispose();
     _detailScanFocusNode.dispose();
     super.dispose();
@@ -110,6 +116,17 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
     final controller = context.watch<InboundReceiptController>();
     final receipt = controller.receipt;
     final selectedItem = controller.selectedItem;
+
+    if (_activeDetailItemId != selectedItem?.id) {
+      _activeDetailItemId = selectedItem?.id;
+      if (selectedItem == null) {
+        _setExpirationDate(context, null);
+      } else {
+        _detailBarcodeController.clear();
+        _quantityController.clear();
+        _setExpirationDate(context, selectedItem.expirationDate);
+      }
+    }
 
     if (selectedItem == null &&
         controller.canReceiveItems &&
@@ -192,6 +209,34 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
       controller.quantityLabel(item),
       'الكمية المتوقعة: ${item.expectedQuantity}',
     );
+  }
+
+  String _formatDate(BuildContext context, DateTime date) {
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    return DateFormat('yyyy-MM-dd', locale).format(date);
+  }
+
+  void _setExpirationDate(BuildContext context, DateTime? date) {
+    _selectedExpirationDate = date;
+    _expirationDateController.text =
+        date == null ? '' : _formatDate(context, date);
+  }
+
+  Future<void> _pickExpirationDate(BuildContext context) async {
+    final now = DateTime.now();
+    final initialDate = _selectedExpirationDate ??
+        DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 10),
+      locale: Localizations.localeOf(context),
+    );
+    if (!mounted || picked == null) return;
+    setState(() {
+      _setExpirationDate(context, picked);
+    });
   }
 
   Widget _buildListPage(
@@ -291,6 +336,7 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
             onTap: () {
               _detailBarcodeController.clear();
               _quantityController.clear();
+              _setExpirationDate(context, null);
               controller.openItem(item.id, openedByScan: false);
             },
           ),
@@ -346,8 +392,16 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
         _tr(context, 'Scan or type barcode', 'امسح أو اكتب الباركود');
     final receivedQuantityLabel =
         _tr(context, 'Received quantity', 'الكمية المستلمة');
+    final expirationDateLabel =
+        _tr(context, 'Expiration date', 'تاريخ الانتهاء');
     final confirmQuantityLabel =
         _tr(context, 'Confirm quantity', 'تأكيد الكمية');
+    final quantityValue = int.tryParse(_quantityController.text);
+    final canConfirm = quantityEnabled &&
+        !controller.isSubmitting &&
+        quantityValue != null &&
+        quantityValue > 0 &&
+        _selectedExpirationDate != null;
 
     return ListView(
       key: const Key('inbound-receipt-detail-page'),
@@ -359,6 +413,7 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
               onPressed: () {
                 _detailBarcodeController.clear();
                 _quantityController.clear();
+                _setExpirationDate(context, null);
                 controller.closeDetail();
               },
               icon: const Icon(Icons.arrow_back_rounded),
@@ -458,6 +513,7 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
           controller: _quantityController,
           enabled: quantityEnabled,
           keyboardType: TextInputType.number,
+          onChanged: (_) => setState(() {}),
           decoration: const InputDecoration(
             labelText: 'Received quantity',
             prefixIcon: Icon(Icons.inventory_2_outlined),
@@ -466,20 +522,44 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
           ).copyWith(labelText: receivedQuantityLabel),
         ),
         const SizedBox(height: 12),
+        TextField(
+          key: const Key('inbound-receipt-detail-expiration-field'),
+          controller: _expirationDateController,
+          readOnly: true,
+          enabled: quantityEnabled,
+          onTap: () {
+            if (!quantityEnabled) return;
+            _pickExpirationDate(context);
+          },
+          decoration: InputDecoration(
+            labelText: expirationDateLabel,
+            prefixIcon: const Icon(Icons.event_outlined),
+            suffixIcon: const Icon(Icons.calendar_today_rounded),
+            filled: true,
+            fillColor: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
             key: const Key('inbound-receipt-detail-confirm-button'),
-            onPressed: !quantityEnabled || controller.isSubmitting
+            onPressed: !canConfirm
                 ? null
                 : () async {
-                    final quantity =
-                        int.tryParse(_quantityController.text) ?? 0;
+                    final expirationDate = _selectedExpirationDate;
+                    if (quantityValue == null || expirationDate == null) return;
                     final succeeded =
-                        await controller.confirmSelectedItemQuantity(quantity);
+                        await controller.confirmSelectedItemQuantity(
+                      quantityValue,
+                      expirationDate: expirationDate,
+                    );
                     if (!mounted || !succeeded) return;
                     _detailBarcodeController.clear();
                     _quantityController.clear();
+                    setState(() {
+                      _setExpirationDate(context, null);
+                    });
                   },
             child: controller.isSubmitting
                 ? const SizedBox(

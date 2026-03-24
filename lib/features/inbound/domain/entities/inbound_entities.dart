@@ -184,6 +184,7 @@ class ReceiveInboundItemParams {
     required this.itemId,
     required this.receivedQuantity,
     required this.locationId,
+    required this.expirationDate,
     this.isReturn = false,
     this.notes,
   });
@@ -192,6 +193,7 @@ class ReceiveInboundItemParams {
   final int itemId;
   final int receivedQuantity;
   final int locationId;
+  final DateTime expirationDate;
   final bool isReturn;
   final String? notes;
 }
@@ -263,6 +265,7 @@ class InboundReceiptItem extends Equatable {
     required this.expectedQuantity,
     this.imageUrl,
     this.receivedQuantity = 0,
+    this.expirationDate,
   });
 
   final String id;
@@ -271,6 +274,7 @@ class InboundReceiptItem extends Equatable {
   final int expectedQuantity;
   final String? imageUrl;
   final int receivedQuantity;
+  final DateTime? expirationDate;
 
   InboundReceiptItem copyWith({
     String? id,
@@ -279,6 +283,7 @@ class InboundReceiptItem extends Equatable {
     int? expectedQuantity,
     Object? imageUrl = _sentinel,
     int? receivedQuantity,
+    Object? expirationDate = _sentinel,
   }) {
     return InboundReceiptItem(
       id: id ?? this.id,
@@ -287,6 +292,9 @@ class InboundReceiptItem extends Equatable {
       expectedQuantity: expectedQuantity ?? this.expectedQuantity,
       imageUrl: imageUrl == _sentinel ? this.imageUrl : imageUrl as String?,
       receivedQuantity: receivedQuantity ?? this.receivedQuantity,
+      expirationDate: expirationDate == _sentinel
+          ? this.expirationDate
+          : expirationDate as DateTime?,
     );
   }
 
@@ -298,6 +306,7 @@ class InboundReceiptItem extends Equatable {
         expectedQuantity,
         imageUrl,
         receivedQuantity,
+        expirationDate,
       ];
 }
 

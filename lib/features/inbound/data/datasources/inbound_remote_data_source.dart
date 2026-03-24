@@ -51,12 +51,14 @@ class InboundRemoteDataSource {
     required String receiptId,
     required String itemId,
     required int quantity,
+    required DateTime expirationDate,
   }) {
     return _client.post<InboundReceipt>(
       AppEndpoints.inboundReceiptItemConfirm(itemId),
       data: {
         'receiptId': receiptId,
         'quantity': quantity,
+        'expiration_date': expirationDate.toIso8601String(),
       },
       parser: _parseReceipt,
     );
@@ -184,6 +186,21 @@ class InboundRemoteDataSource {
         map['receivedQuantity'],
         map['received_quantity'],
       ]),
+      expirationDate: _parseDateTime(
+        map['expirationDate'] ??
+            map['expiration_date'] ??
+            map['expiryDate'] ??
+            map['expiry_date'],
+      ),
     );
+  }
+
+  DateTime? _parseDateTime(Object? value) {
+    final raw = switch (value) {
+      final String stringValue => stringValue.trim(),
+      _ => '',
+    };
+    if (raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
   }
 }

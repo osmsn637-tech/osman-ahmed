@@ -138,11 +138,13 @@ class InboundRepositoryImpl implements InboundRepository {
     required String receiptId,
     required String itemId,
     required int quantity,
+    required DateTime expirationDate,
   }) {
     return _remoteDataSource.confirmReceiptItem(
       receiptId: receiptId,
       itemId: itemId,
       quantity: quantity,
+      expirationDate: expirationDate,
     );
   }
 

@@ -570,6 +570,7 @@ class FakeInboundRepository implements InboundRepository {
     required String receiptId,
     required String itemId,
     required int quantity,
+    required DateTime expirationDate,
   }) async {
     final receipt = _receipts[receiptId];
     if (receipt == null) {
@@ -580,7 +581,10 @@ class FakeInboundRepository implements InboundRepository {
           .map(
             (item) => item.id != itemId
                 ? item
-                : item.copyWith(receivedQuantity: quantity),
+                : item.copyWith(
+                    receivedQuantity: quantity,
+                    expirationDate: expirationDate,
+                  ),
           )
           .toList(growable: false),
     );

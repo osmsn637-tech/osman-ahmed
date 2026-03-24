@@ -183,6 +183,33 @@ void main() {
     expect(find.text('4'), findsOneWidget);
   });
 
+  testWidgets('receipt detail shows a required expiration date field',
+      (tester) async {
+    await tester.pumpWidget(
+      buildReceiptPage(
+        repository: buildRepository(),
+        receiptId: 'receipt-1001',
+        initialScanResult: buildScanResult(),
+      ),
+    );
+    await pumpUi(tester);
+
+    await tester.tap(find.byKey(const Key('inbound-receipt-start-button')));
+    await pumpUi(tester);
+
+    await tester.enterText(
+      find.byKey(const Key('inbound-receipt-hidden-scan-field')),
+      'SKU-002',
+    );
+    await pumpUi(tester);
+
+    expect(
+      find.byKey(const Key('inbound-receipt-detail-expiration-field')),
+      findsOneWidget,
+    );
+    expect(find.text('Expiration date'), findsOneWidget);
+  });
+
   testWidgets('receipt page shows start receiving before items are active',
       (tester) async {
     await tester.pumpWidget(
@@ -350,7 +377,7 @@ void main() {
     expect(quantityField.enabled, isTrue);
   });
 
-  testWidgets('receipt detail confirms quantity and updates the list',
+  testWidgets('receipt detail requires expiration date before confirming',
       (tester) async {
     await tester.pumpWidget(
       buildReceiptPage(
@@ -374,6 +401,44 @@ void main() {
       find.byKey(const Key('inbound-receipt-detail-quantity-field')),
       '5',
     );
+    await pumpUi(tester);
+
+    final confirmButton = tester.widget<ElevatedButton>(
+      find.byKey(const Key('inbound-receipt-detail-confirm-button')),
+    );
+    expect(confirmButton.onPressed, isNull);
+  });
+
+  testWidgets('receipt detail confirms quantity with expiration date and updates the list',
+      (tester) async {
+    await tester.pumpWidget(
+      buildReceiptPage(
+        repository: buildRepository(),
+        receiptId: 'receipt-1001',
+        initialScanResult: buildScanResult(),
+      ),
+    );
+    await pumpUi(tester);
+
+    await tester.tap(find.byKey(const Key('inbound-receipt-start-button')));
+    await pumpUi(tester);
+
+    await tester.enterText(
+      find.byKey(const Key('inbound-receipt-hidden-scan-field')),
+      'SKU-002',
+    );
+    await pumpUi(tester);
+
+    await tester.enterText(
+      find.byKey(const Key('inbound-receipt-detail-quantity-field')),
+      '5',
+    );
+    await tester.tap(
+      find.byKey(const Key('inbound-receipt-detail-expiration-field')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK').last);
+    await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const Key('inbound-receipt-detail-confirm-button')),
     );
@@ -406,6 +471,12 @@ void main() {
       find.byKey(const Key('inbound-receipt-detail-quantity-field')),
       '4',
     );
+    await tester.tap(
+      find.byKey(const Key('inbound-receipt-detail-expiration-field')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK').last);
+    await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const Key('inbound-receipt-detail-confirm-button')),
     );
@@ -442,6 +513,12 @@ void main() {
       find.byKey(const Key('inbound-receipt-detail-quantity-field')),
       '5',
     );
+    await tester.tap(
+      find.byKey(const Key('inbound-receipt-detail-expiration-field')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK').last);
+    await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const Key('inbound-receipt-detail-confirm-button')),
     );

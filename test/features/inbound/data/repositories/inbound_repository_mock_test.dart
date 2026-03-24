@@ -84,6 +84,7 @@ void main() {
       receiptId: 'receipt-1001',
       itemId: 'item-2',
       quantity: 5,
+      expirationDate: DateTime(2026, 4, 1),
     );
 
     expect(loaded, isA<Success<InboundReceipt>>());
@@ -94,6 +95,10 @@ void main() {
     expect(
       receipt.items.firstWhere((item) => item.id == 'item-2').receivedQuantity,
       5,
+    );
+    expect(
+      receipt.items.firstWhere((item) => item.id == 'item-2').expirationDate,
+      DateTime(2026, 4, 1),
     );
   });
 

@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../shared/l10n/l10n.dart';
 import '../../../../shared/theme/app_theme.dart';
+import '../../../../shared/widgets/app_logo.dart';
 import '../../../auth/presentation/providers/session_provider.dart';
 import '../../../move/domain/usecases/lookup_item_by_barcode_usecase.dart';
 import '../../../move/presentation/pages/item_lookup_result_page.dart';
@@ -12,6 +16,7 @@ import '../../domain/entities/task_entity.dart';
 import '../controllers/worker_tasks_controller.dart';
 import 'worker_task_details_page.dart';
 import '../shared/dashboard_common_widgets.dart';
+import '../shared/task_report_photo_attachment.dart';
 import '../shared/task_visuals.dart';
 
 class WorkerHomePage extends StatefulWidget {
@@ -22,6 +27,7 @@ class WorkerHomePage extends StatefulWidget {
 }
 
 class _WorkerHomePageState extends State<WorkerHomePage> {
+  final ImagePicker _imagePicker = ImagePicker();
   bool _requestedInitialLoad = false;
 
   @override
@@ -38,6 +44,22 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       _requestedInitialLoad = true;
       controller.load();
     });
+  }
+
+  Future<TaskReportPhotoAttachment?> _captureReportPhoto() async {
+    final file = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+    );
+    if (file == null) {
+      return null;
+    }
+
+    final bytes = await file.readAsBytes();
+    return TaskReportPhotoAttachment(
+      path: file.path,
+      bytes: Uint8List.fromList(bytes),
+    );
   }
 
   Future<void> _openItemLookup(
@@ -65,12 +87,23 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final isArabic = context.isArabicLocale;
     final disableAnimations =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Consumer2<WorkerTasksController, SessionController>(
       builder: (context, ctrl, session, _) {
         final user = session.state.user;
         final currentTasks = ctrl.state.current;
+        final currentWorkerId = user?.id;
+        final orderedCurrentTasks = currentTasks.indexed.toList()
+          ..sort((a, b) {
+            final aPriority = _taskSortPriority(a.$2, currentWorkerId);
+            final bPriority = _taskSortPriority(b.$2, currentWorkerId);
+            if (aPriority != bPriority) {
+              return aPriority.compareTo(bPriority);
+            }
+            return a.$1.compareTo(b.$1);
+          });
         final completedTasks = ctrl.state.completed;
         final loading = ctrl.state.loading;
         final availableCount = currentTasks
@@ -86,7 +119,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
             title: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.warehouse_outlined, size: 20),
+                const AppLogo(size: 24),
                 const SizedBox(width: 8),
                 Text(l10n.zoneWithCode(user?.zone ?? '--')),
               ],
@@ -133,7 +166,8 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                           sliver: SliverToBoxAdapter(
                             child: _OverviewPanel(
-                              workerName: user?.name ?? 'Worker',
+                              workerName:
+                                  user?.name ?? (isArabic ? 'عامل' : 'Worker'),
                               availableCount: availableCount,
                               activeCount: activeCount,
                               completedCount: completedCount,
@@ -172,14 +206,14 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                           sliver: SliverToBoxAdapter(
                             child: DashboardSectionHeader(
                               icon: Icons.inbox_rounded,
-                              title: 'Tasks',
-                              count: currentTasks.length,
+                              title: isArabic ? 'المهام' : 'Tasks',
+                              count: orderedCurrentTasks.length,
                               color: AppTheme.accent,
                             ),
                           ),
                         ),
                         const SliverToBoxAdapter(child: SizedBox(height: 10)),
-                        if (currentTasks.isEmpty)
+                        if (orderedCurrentTasks.isEmpty)
                           SliverPadding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             sliver: SliverToBoxAdapter(
@@ -194,14 +228,15 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             sliver: SliverList.separated(
                               itemBuilder: (context, index) {
-                                final task = currentTasks[index];
+                                final task = orderedCurrentTasks[index].$2;
                                 final canStart =
                                     task.status == TaskStatus.pending &&
                                         task.assignedTo == null;
                                 return _TaskCard(
                                   task: task,
-                                  actionLabel:
-                                      canStart ? l10n.workerStart : 'Open',
+                                  actionLabel: canStart
+                                      ? l10n.workerStart
+                                      : (isArabic ? 'فتح' : 'Open'),
                                   actionColor: canStart
                                       ? AppTheme.accent
                                       : AppTheme.primary,
@@ -224,7 +259,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                               },
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 10),
-                              itemCount: currentTasks.length,
+                              itemCount: orderedCurrentTasks.length,
                             ),
                           ),
                         if (completedTasks.isNotEmpty) ...[
@@ -234,7 +269,9 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                             sliver: SliverToBoxAdapter(
                               child: DashboardSectionHeader(
                                 icon: Icons.check_circle_rounded,
-                                title: 'Completed Tasks',
+                                title: isArabic
+                                    ? 'المهام المكتملة'
+                                    : 'Completed Tasks',
                                 count: completedTasks.length,
                                 color: AppTheme.success,
                               ),
@@ -271,6 +308,18 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
     );
   }
 
+  int _taskSortPriority(TaskEntity task, String? currentWorkerId) {
+    if (currentWorkerId != null &&
+        task.assignedTo == currentWorkerId &&
+        task.status == TaskStatus.inProgress) {
+      return 0;
+    }
+    if (task.assignedTo == null && task.status == TaskStatus.pending) {
+      return 1;
+    }
+    return 2;
+  }
+
   Future<void> _openTaskDetails(
     BuildContext context,
     TaskEntity task, {
@@ -283,14 +332,22 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
         builder: (_) => WorkerTaskDetailsPage(
           task: task,
           onStartTask: onStartTask,
-          onCompleteTask: (taskId, {int? quantity, String? locationId}) =>
-              controller.complete(
+          onCompleteTask:
+              (taskId, {int? quantity, String? locationId, List<Map<String, Object?>>? cycleCountItems}) =>
+                  controller.complete(
             taskId,
             quantity: quantity,
             locationId: locationId,
+            cycleCountItems: cycleCountItems,
           ),
           onSaveCycleCountProgress: (taskId, {required progress}) async {
             await controller.saveCycleCountProgress(
+              taskId,
+              progress: progress,
+            );
+          },
+          onContinueCycleCountLater: (taskId, {required progress}) async {
+            await controller.continueCycleCountLater(
               taskId,
               progress: progress,
             );
@@ -300,15 +357,25 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
               controller.scanAdjustmentLocation(task.id, barcode),
           onSubmitAdjustmentCount: ({
             required adjustmentItemId,
-            required actualQuantity,
+            required quantity,
             String? notes,
           }) =>
               controller.submitAdjustmentCount(
             task.id,
             adjustmentItemId: adjustmentItemId,
-            actualQuantity: actualQuantity,
+            quantity: quantity,
             notes: notes,
           ),
+          onReportTaskIssue: ({
+            required note,
+            String? photoPath,
+          }) =>
+              controller.reportTaskIssue(
+            task.id,
+            note: note,
+            photoPath: photoPath,
+          ),
+          onCaptureReportPhoto: _captureReportPhoto,
           onValidateLocation: (barcode) =>
               controller.validateLocation(task.id, barcode),
           onLookupItem: (barcode) async {
@@ -512,7 +579,10 @@ class _TaskCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      DashboardTypeBadge(task.type),
+                      DashboardTypeBadge(
+                        task.type,
+                        isPutaway: task.isPutawayTask,
+                      ),
                       const Spacer(),
                       if (completed)
                         Row(
@@ -554,7 +624,7 @@ class _TaskCard extends StatelessWidget {
                       Icon(Icons.numbers,
                           size: 14, color: Colors.grey.shade500),
                       const SizedBox(width: 4),
-                      Text(l10n.workerQty(task.quantity.toString()),
+                      Text(l10n.workerQty(task.formatQuantity(task.quantity)),
                           style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey.shade700,

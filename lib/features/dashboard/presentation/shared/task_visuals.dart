@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/l10n/l10n.dart';
 import '../../../../shared/theme/app_theme.dart';
 import '../../domain/entities/task_entity.dart';
 
@@ -33,10 +34,10 @@ IconData taskTypeIcon(TaskType type) {
   }
 }
 
-String taskTypeLabel(TaskType type) {
+String taskTypeLabel(TaskType type, {bool isPutaway = false}) {
   switch (type) {
     case TaskType.receive:
-      return 'RECEIVE';
+      return isPutaway ? 'PUTAWAY' : 'RECEIVE';
     case TaskType.move:
       return 'MOVE';
     case TaskType.returnTask:
@@ -49,6 +50,42 @@ String taskTypeLabel(TaskType type) {
       return 'EXCEPTION';
     case TaskType.cycleCount:
       return 'CYCLE COUNT';
+  }
+}
+
+String taskTypeLabelForContext(
+  BuildContext context,
+  TaskType type, {
+  bool isPutaway = false,
+}) {
+  final isArabic = context.isArabicLocale;
+  switch (type) {
+    case TaskType.receive:
+      return isArabic ? '??????' : (isPutaway ? 'PUTAWAY' : 'RECEIVE');
+    case TaskType.move:
+      return isArabic ? 'نقل' : 'MOVE';
+    case TaskType.returnTask:
+      return isArabic ? 'مرتجع' : 'RETURN';
+    case TaskType.adjustment:
+      return isArabic ? 'تعديل' : 'ADJUSTMENT';
+    case TaskType.refill:
+      return isArabic ? 'إعادة تعبئة' : 'REFILL';
+    case TaskType.exception:
+      return isArabic ? 'استثناء' : 'EXCEPTION';
+    case TaskType.cycleCount:
+      return isArabic ? 'جرد دوري' : 'CYCLE COUNT';
+  }
+}
+
+String taskStatusLabelForContext(BuildContext context, TaskStatus status) {
+  final isArabic = context.isArabicLocale;
+  switch (status) {
+    case TaskStatus.pending:
+      return isArabic ? 'قيد الانتظار' : 'PENDING';
+    case TaskStatus.inProgress:
+      return isArabic ? 'قيد التنفيذ' : 'INPROGRESS';
+    case TaskStatus.completed:
+      return isArabic ? 'مكتملة' : 'COMPLETED';
   }
 }
 
@@ -70,3 +107,5 @@ Color taskTypeColor(TaskType type) {
       return const Color(0xFF0D9488);
   }
 }
+
+

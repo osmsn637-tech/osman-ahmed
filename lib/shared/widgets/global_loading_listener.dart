@@ -17,11 +17,16 @@ class GlobalLoadingListener extends StatelessWidget {
         children: [
           child,
           if (isLoading)
-            const ColoredBox(
-              color: Color(0x44000000),
-              child: Center(
-                child: CircularProgressIndicator(),
-              ),
+            const Stack(
+              children: [
+                ModalBarrier(
+                  dismissible: false,
+                  color: Color(0x44000000),
+                ),
+                Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ],
             ),
         ],
       ),

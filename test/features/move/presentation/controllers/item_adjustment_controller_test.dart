@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:putaway_app/core/utils/result.dart';
-import 'package:putaway_app/features/auth/domain/entities/user.dart';
-import 'package:putaway_app/features/auth/presentation/providers/session_provider.dart';
-import 'package:putaway_app/features/move/domain/entities/item_location_entity.dart';
-import 'package:putaway_app/features/move/domain/entities/item_location_summary_entity.dart';
-import 'package:putaway_app/features/move/domain/entities/stock_adjustment_params.dart';
-import 'package:putaway_app/features/move/presentation/controllers/item_adjustment_controller.dart';
+import 'package:wherehouse/core/utils/result.dart';
+import 'package:wherehouse/features/auth/domain/entities/user.dart';
+import 'package:wherehouse/features/auth/presentation/providers/session_provider.dart';
+import 'package:wherehouse/features/move/domain/entities/item_location_entity.dart';
+import 'package:wherehouse/features/move/domain/entities/item_location_summary_entity.dart';
+import 'package:wherehouse/features/move/domain/entities/stock_adjustment_params.dart';
+import 'package:wherehouse/features/move/presentation/controllers/item_adjustment_controller.dart';
 
 void main() {
   ItemLocationSummaryEntity buildSummary() {

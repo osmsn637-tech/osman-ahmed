@@ -10,11 +10,13 @@ class CompleteTaskUseCase {
     int taskId, {
     int? quantity,
     String? locationId,
+    List<Map<String, Object?>>? cycleCountItems,
   }) {
     return _repo.completeTask(
       taskId,
       quantity: quantity,
       locationId: locationId,
+      cycleCountItems: cycleCountItems,
     );
   }
 }

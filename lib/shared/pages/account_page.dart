@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:putaway_app/flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 
+import '../../features/auth/domain/entities/user.dart';
 import '../../features/auth/presentation/providers/session_provider.dart';
 import '../l10n/l10n.dart';
 import '../providers/locale_controller.dart';
@@ -17,8 +18,7 @@ class AccountPage extends StatelessWidget {
     final user = sessionState.user;
     final locale = context.watch<LocaleController>().locale.languageCode;
     final name = user?.name ?? 'User';
-    final role = user?.role ?? 'worker';
-    final zone = (user?.zone ?? '').isEmpty ? '-' : (user?.zone ?? '');
+    final role = user?.canonicalRole ?? 'worker';
     final phone = user?.phone ?? '966533333333';
     final direction = locale == 'ar' ? TextDirection.rtl : TextDirection.ltr;
 
@@ -42,12 +42,11 @@ class AccountPage extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               child: Column(
                 children: [
-                  _HeroPanel(name: name, role: role, zone: zone),
+                  _HeroPanel(name: name, role: role),
                   const SizedBox(height: 14),
                   _InfoPanel(
                     phone: phone,
                     role: role,
-                    zone: zone,
                     l10n: l10n,
                   ),
                   const SizedBox(height: 14),
@@ -68,21 +67,15 @@ class _HeroPanel extends StatelessWidget {
   const _HeroPanel({
     required this.name,
     required this.role,
-    required this.zone,
   });
 
   final String name;
   final String role;
-  final String zone;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final roleLabel = role.toLowerCase() == 'supervisor'
-        ? l10n.roleSupervisor
-        : role.toLowerCase() == 'inbound'
-            ? l10n.roleInbound
-            : l10n.roleWorker;
+    final roleLabel = _roleLabel(l10n, role);
 
     return Container(
       width: double.infinity,
@@ -151,29 +144,6 @@ class _HeroPanel extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.location_on_outlined,
-                    color: Colors.white, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  l10n.zoneWithCode(zone),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -184,13 +154,11 @@ class _InfoPanel extends StatelessWidget {
   const _InfoPanel({
     required this.phone,
     required this.role,
-    required this.zone,
     required this.l10n,
   });
 
   final String phone;
   final String role;
-  final String zone;
   final AppLocalizations l10n;
 
   @override
@@ -209,19 +177,21 @@ class _InfoPanel extends StatelessWidget {
           _InfoRow(
             icon: Icons.manage_accounts_outlined,
             label: l10n.accountRole,
-            value: role.toUpperCase(),
-          ),
-          const SizedBox(height: 10),
-          _InfoRow(
-            icon: Icons.grid_view_rounded,
-            label: l10n.accountZone,
-            value: zone,
+            value: _roleLabel(l10n, role),
           ),
           const SizedBox(height: 10),
         ],
       ),
     );
   }
+}
+
+String _roleLabel(AppLocalizations l10n, String role) {
+  return switch (User.canonicalizeRole(role)) {
+    'supervisor' => l10n.roleSupervisor,
+    'inbound' => l10n.roleInbound,
+    _ => l10n.roleWorker,
+  };
 }
 
 class _LanguagePanel extends StatelessWidget {

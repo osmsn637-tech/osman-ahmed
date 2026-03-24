@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:putaway_app/shared/providers/locale_controller.dart';
-import 'package:putaway_app/shared/theme/app_theme.dart';
+import 'package:wherehouse/shared/providers/locale_controller.dart';
+import 'package:wherehouse/shared/theme/app_theme.dart';
+import 'package:wherehouse/shared/widgets/app_logo.dart';
 
 import '../providers/login_form_provider.dart';
 
@@ -32,10 +33,19 @@ class _LoginPageState extends State<LoginPage>
   bool _obscure = true;
   late final AnimationController _introController;
   late final Animation<double> _introAnimation;
+  late final TextEditingController _usernameController;
+  late final TextEditingController _passwordController;
+  LoginFormController? _formController;
 
   @override
   void initState() {
     super.initState();
+    final formController = context.read<LoginFormController>();
+    formController.reset();
+    _usernameController =
+        TextEditingController(text: formController.state.username);
+    _passwordController =
+        TextEditingController(text: formController.state.password);
     _introController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
@@ -48,6 +58,20 @@ class _LoginPageState extends State<LoginPage>
     _loadVersion();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final formController = context.read<LoginFormController>();
+    if (identical(_formController, formController)) {
+      return;
+    }
+
+    _formController?.removeListener(_syncFormFields);
+    _formController = formController;
+    _formController!.addListener(_syncFormFields);
+    _syncFormFields();
+  }
+
   Future<void> _loadVersion() async {
     try {
       final info = await PackageInfo.fromPlatform();
@@ -57,13 +81,34 @@ class _LoginPageState extends State<LoginPage>
 
   @override
   void dispose() {
+    _formController?.removeListener(_syncFormFields);
+    _usernameController.dispose();
+    _passwordController.dispose();
     _introController.dispose();
     super.dispose();
+  }
+
+  void _syncFormFields() {
+    final formState = _formController?.state;
+    if (formState == null) return;
+
+    _syncTextController(_usernameController, formState.username);
+    _syncTextController(_passwordController, formState.password);
+  }
+
+  void _syncTextController(TextEditingController controller, String value) {
+    if (controller.text == value) return;
+
+    controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final controller = context.read<LoginFormController>();
+    final formState = context.watch<LoginFormController>().state;
     final localeController = context.read<LocaleController>();
     final isArabic = _lang == 'ar';
     final direction = isArabic ? TextDirection.rtl : TextDirection.ltr;
@@ -139,20 +184,7 @@ class _LoginPageState extends State<LoginPage>
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Container(
-                                  width: 88,
-                                  height: 88,
-                                  decoration: BoxDecoration(
-                                    color:
-                                        AppTheme.accent.withValues(alpha: 0.09),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.inventory_2_rounded,
-                                    size: 42,
-                                    color: AppTheme.accent,
-                                  ),
-                                ),
+                                const AppLogo(size: 88),
                                 const SizedBox(height: 18),
                                 Text(
                                   'QEU Putaway',
@@ -170,6 +202,8 @@ class _LoginPageState extends State<LoginPage>
                                 ),
                                 const SizedBox(height: 30),
                                 TextField(
+                                  controller: _usernameController,
+                                  enabled: !formState.isSubmitting,
                                   decoration: InputDecoration(
                                     labelText:
                                         isArabic ? _arMobile : 'Mobile Number',
@@ -188,6 +222,8 @@ class _LoginPageState extends State<LoginPage>
                                 ),
                                 const SizedBox(height: 14),
                                 TextField(
+                                  controller: _passwordController,
+                                  enabled: !formState.isSubmitting,
                                   decoration: InputDecoration(
                                     labelText:
                                         isArabic ? _arPassword : 'Password',
@@ -223,20 +259,9 @@ class _LoginPageState extends State<LoginPage>
                                             state.isValid && !state.isSubmitting
                                                 ? controller.submit
                                                 : null,
-                                        child: state.isSubmitting
-                                            ? const SizedBox(
-                                                width: 22,
-                                                height: 22,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                        strokeWidth: 2.5,
-                                                        color: Colors.white),
-                                              )
-                                            : Text(
-                                                isArabic
-                                                    ? _arSignIn
-                                                    : 'Sign In',
-                                              ),
+                                        child: Text(
+                                          isArabic ? _arSignIn : 'Sign In',
+                                        ),
                                       );
                                     },
                                   ),

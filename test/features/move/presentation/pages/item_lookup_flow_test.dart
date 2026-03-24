@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:putaway_app/core/utils/result.dart';
-import 'package:putaway_app/features/auth/domain/entities/user.dart';
-import 'package:putaway_app/features/auth/presentation/providers/session_provider.dart';
-import 'package:putaway_app/features/move/data/repositories/item_repository_mock.dart';
-import 'package:putaway_app/features/move/domain/entities/item_location_entity.dart';
-import 'package:putaway_app/features/move/domain/entities/item_location_summary_entity.dart';
-import 'package:putaway_app/features/move/domain/entities/stock_adjustment_params.dart';
-import 'package:putaway_app/features/move/domain/usecases/lookup_item_by_barcode_usecase.dart';
-import 'package:putaway_app/features/move/presentation/controllers/item_adjustment_controller.dart';
-import 'package:putaway_app/features/move/presentation/controllers/item_lookup_controller.dart';
-import 'package:putaway_app/features/move/presentation/pages/item_lookup_result_page.dart';
+import 'package:wherehouse/core/utils/result.dart';
+import 'package:wherehouse/features/auth/domain/entities/user.dart';
+import 'package:wherehouse/features/auth/presentation/providers/session_provider.dart';
+import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:wherehouse/features/move/domain/entities/item_location_entity.dart';
+import 'package:wherehouse/features/move/domain/entities/item_location_summary_entity.dart';
+import 'package:wherehouse/features/move/domain/repositories/item_repository.dart';
+import 'package:wherehouse/features/move/domain/entities/stock_adjustment_params.dart';
+import 'package:wherehouse/features/move/domain/usecases/lookup_item_by_barcode_usecase.dart';
+import 'package:wherehouse/features/move/presentation/controllers/item_adjustment_controller.dart';
+import 'package:wherehouse/features/move/presentation/controllers/item_lookup_controller.dart';
+import 'package:wherehouse/features/move/presentation/pages/item_lookup_result_page.dart';
+
+import '../../../../support/fake_repositories.dart';
 
 void main() {
   Future<void> scrollTo(WidgetTester tester, Finder finder) async {
@@ -27,7 +31,7 @@ void main() {
   GoRouter buildRouter({
     ItemLookupPageMode mode = ItemLookupPageMode.lookup,
     _FakeAdjustStockGateway? gateway,
-    ItemRepositoryMock? repository,
+    ItemRepository? repository,
   }) {
     final session = SessionController();
     session.setUser(
@@ -40,7 +44,7 @@ void main() {
       ),
     );
     final adjustGateway = gateway ?? _FakeAdjustStockGateway();
-    final itemRepository = repository ?? const ItemRepositoryMock();
+    final itemRepository = repository ?? const FakeItemRepository();
 
     return GoRouter(
       initialLocation: '/item-lookup/result/6287009170024',
@@ -82,7 +86,7 @@ void main() {
   testWidgets('opens item lookup result page with mocked item data', (
     tester,
   ) async {
-    await tester.pumpWidget(MaterialApp.router(routerConfig: buildRouter()));
+    await tester.pumpWidget(buildApp(buildRouter()));
     await tester.pumpAndSettle();
     await scrollTo(tester, find.text('Bulk Locations'));
 
@@ -94,7 +98,7 @@ void main() {
   });
 
   testWidgets('shows mock item image on result page', (tester) async {
-    await tester.pumpWidget(MaterialApp.router(routerConfig: buildRouter()));
+    await tester.pumpWidget(buildApp(buildRouter()));
     await tester.pumpAndSettle();
 
     expect(
@@ -106,7 +110,7 @@ void main() {
   });
 
   testWidgets('back button returns to home route', (tester) async {
-    await tester.pumpWidget(MaterialApp.router(routerConfig: buildRouter()));
+    await tester.pumpWidget(buildApp(buildRouter()));
     await tester.pumpAndSettle();
 
     expect(find.byType(BackButton), findsOneWidget);
@@ -134,9 +138,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: buildRouter(mode: ItemLookupPageMode.adjust),
-      ),
+      buildApp(buildRouter(mode: ItemLookupPageMode.adjust)),
     );
     await tester.pumpAndSettle();
     await scrollTo(tester, find.byKey(const Key('location-row-1-0')));
@@ -162,8 +164,8 @@ void main() {
       'adjust mode allows duplicate location ids without duplicate key errors',
       (tester) async {
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: buildRouter(
+      buildApp(
+        buildRouter(
           mode: ItemLookupPageMode.adjust,
           repository: const _DuplicateLocationItemRepository(),
         ),
@@ -180,9 +182,7 @@ void main() {
   testWidgets('adjust mode quantity stepper never goes negative',
       (tester) async {
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: buildRouter(mode: ItemLookupPageMode.adjust),
-      ),
+      buildApp(buildRouter(mode: ItemLookupPageMode.adjust)),
     );
     await tester.pumpAndSettle();
 
@@ -209,8 +209,8 @@ void main() {
     final gateway = _FakeAdjustStockGateway();
 
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: buildRouter(
+      buildApp(
+        buildRouter(
           mode: ItemLookupPageMode.adjust,
           gateway: gateway,
         ),
@@ -249,8 +249,8 @@ void main() {
       ..response = Failure<void>(Exception('adjust failed'));
 
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: buildRouter(
+      buildApp(
+        buildRouter(
           mode: ItemLookupPageMode.adjust,
           gateway: gateway,
         ),
@@ -282,13 +282,25 @@ void main() {
   });
 
   testWidgets('lookup mode remains read only', (tester) async {
-    await tester.pumpWidget(MaterialApp.router(routerConfig: buildRouter()));
+    await tester.pumpWidget(buildApp(buildRouter()));
     await tester.pumpAndSettle();
 
     expect(find.text('Item Lookup Result'), findsOneWidget);
     expect(find.byKey(const Key('adjust_quantity_value')), findsNothing);
     expect(find.byKey(const Key('adjust_confirm_button')), findsNothing);
     expect(find.text('Adjustment'), findsNothing);
+  });
+
+  testWidgets('lookup mode renders Arabic labels', (tester) async {
+    await tester.pumpWidget(
+      buildApp(buildRouter(), locale: const Locale('ar')),
+    );
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('مواقع التخزين'));
+
+    expect(find.text('نتيجة البحث عن الصنف'), findsOneWidget);
+    expect(find.text('مواقع الرفوف'), findsOneWidget);
+    expect(find.text('مواقع التخزين'), findsOneWidget);
   });
 }
 
@@ -302,35 +314,44 @@ class _FakeAdjustStockGateway {
   }
 }
 
-class _DuplicateLocationItemRepository extends ItemRepositoryMock {
-  const _DuplicateLocationItemRepository();
-
-  @override
-  Future<Result<ItemLocationSummaryEntity>> getItemLocations(String barcode) async {
-    return const Success<ItemLocationSummaryEntity>(
-      ItemLocationSummaryEntity(
-        itemId: 1001,
-        itemName: 'Hajer Water',
-        barcode: '6287009170024',
-        itemImageUrl: 'assets/images/hajer_water.jpg',
-        totalQuantity: 550,
-        locations: [
-          ItemLocationEntity(
-            locationId: 1,
-            zone: 'Z012',
-            type: 'shelf',
-            code: 'Z012-C01-L02-P02',
-            quantity: 150,
+class _DuplicateLocationItemRepository extends FakeItemRepository {
+  const _DuplicateLocationItemRepository()
+      : super(
+          summary: const ItemLocationSummaryEntity(
+            itemId: 1001,
+            itemName: 'Hajer Water',
+            barcode: '6287009170024',
+            itemImageUrl: 'assets/images/hajer_water.jpg',
+            totalQuantity: 550,
+            locations: [
+              ItemLocationEntity(
+                locationId: 1,
+                zone: 'Z012',
+                type: 'shelf',
+                code: 'Z012-C01-L02-P02',
+                quantity: 150,
+              ),
+              ItemLocationEntity(
+                locationId: 1,
+                zone: 'Z012',
+                type: 'shelf',
+                code: 'Z012-C01-L02-P03',
+                quantity: 125,
+              ),
+            ],
           ),
-          ItemLocationEntity(
-            locationId: 1,
-            zone: 'Z012',
-            type: 'shelf',
-            code: 'Z012-C01-L02-P03',
-            quantity: 125,
-          ),
-        ],
-      ),
+        );
+}
+  Widget buildApp(GoRouter router, {Locale? locale}) {
+    return MaterialApp.router(
+      routerConfig: router,
+      locale: locale,
+      supportedLocales: const [Locale('en'), Locale('ar')],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
     );
   }
-}

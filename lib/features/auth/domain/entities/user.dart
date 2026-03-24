@@ -13,7 +13,24 @@ class User {
   final String phone;
   final String zone;
 
-  bool get isWorker => role.toLowerCase() == 'worker';
-  bool get isSupervisor => role.toLowerCase() == 'supervisor' || role.toLowerCase() == 'admin';
-  bool get isInbound => role.toLowerCase() == 'inbound';
+  String get canonicalRole => canonicalizeRole(role);
+
+  bool get isWorker => canonicalRole == 'worker';
+  bool get isSupervisor => canonicalRole == 'supervisor';
+  bool get isInbound => canonicalRole == 'inbound';
+
+  static String canonicalizeRole(String role) {
+    final normalized = role
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[_-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
+
+    return switch (normalized) {
+      'admin' => 'supervisor',
+      'receiver' || 'reciver' => 'inbound',
+      'putaway operator' || 'putaway opreater' => 'worker',
+      _ => normalized,
+    };
+  }
 }

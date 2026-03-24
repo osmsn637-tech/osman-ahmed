@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:putaway_app/features/move/data/models/item_location_summary_model.dart';
+import 'package:wherehouse/features/move/data/models/item_location_summary_model.dart';
 
 void main() {
   group('ItemLocationSummaryModel', () {

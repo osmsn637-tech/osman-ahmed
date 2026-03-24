@@ -94,9 +94,14 @@ class DashboardEmptyState extends StatelessWidget {
 }
 
 class DashboardTypeBadge extends StatelessWidget {
-  const DashboardTypeBadge(this.type, {super.key});
+  const DashboardTypeBadge(
+    this.type, {
+    this.isPutaway = false,
+    super.key,
+  });
 
   final TaskType type;
+  final bool isPutaway;
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +118,11 @@ class DashboardTypeBadge extends StatelessWidget {
           Icon(taskTypeIcon(type), size: 14, color: color),
           const SizedBox(width: 4),
           Text(
-            taskTypeLabel(type),
+          taskTypeLabelForContext(
+            context,
+            type,
+            isPutaway: isPutaway,
+          ),
             style: TextStyle(
                 fontSize: 11, fontWeight: FontWeight.w800, color: color),
           ),
@@ -138,7 +147,7 @@ class DashboardStatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        status.name.toUpperCase(),
+        taskStatusLabelForContext(context, status),
         style:
             TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
       ),

@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:putaway_app/core/utils/result.dart';
-import 'package:putaway_app/features/auth/domain/entities/user.dart';
-import 'package:putaway_app/features/auth/presentation/providers/session_provider.dart';
-import 'package:putaway_app/features/move/data/repositories/item_repository_mock.dart';
-import 'package:putaway_app/features/move/domain/entities/item_location_entity.dart';
-import 'package:putaway_app/features/move/domain/entities/item_location_summary_entity.dart';
-import 'package:putaway_app/features/move/domain/entities/stock_adjustment_params.dart';
-import 'package:putaway_app/features/move/domain/usecases/lookup_item_by_barcode_usecase.dart';
-import 'package:putaway_app/features/move/presentation/controllers/item_adjustment_controller.dart';
-import 'package:putaway_app/features/move/presentation/controllers/item_lookup_controller.dart';
-import 'package:putaway_app/features/move/presentation/pages/item_lookup_result_page.dart';
+import 'package:wherehouse/core/utils/result.dart';
+import 'package:wherehouse/features/auth/domain/entities/user.dart';
+import 'package:wherehouse/features/auth/presentation/providers/session_provider.dart';
+import 'package:wherehouse/features/move/domain/entities/item_location_entity.dart';
+import 'package:wherehouse/features/move/domain/entities/item_location_summary_entity.dart';
+import 'package:wherehouse/features/move/domain/usecases/lookup_item_by_barcode_usecase.dart';
+import 'package:wherehouse/features/move/presentation/controllers/item_adjustment_controller.dart';
+import 'package:wherehouse/features/move/presentation/controllers/item_lookup_controller.dart';
+import 'package:wherehouse/features/move/presentation/pages/item_lookup_result_page.dart';
+
+import '../../../../support/fake_repositories.dart';
 
 void main() {
   GoRouter buildRouter() {
@@ -69,40 +69,32 @@ void main() {
   });
 }
 
-class _DuplicateLocationItemRepository extends ItemRepositoryMock {
-  const _DuplicateLocationItemRepository();
-
-  @override
-  Future<Result<ItemLocationSummaryEntity>> getItemLocations(String barcode) async {
-    return const Success<ItemLocationSummaryEntity>(
-      ItemLocationSummaryEntity(
-        itemId: 1001,
-        itemName: 'Hajer Water',
-        barcode: '6287009170024',
-        itemImageUrl: 'assets/images/hajer_water.jpg',
-        totalQuantity: 275,
-        locations: [
-          ItemLocationEntity(
-            locationId: 1,
-            zone: 'Z012',
-            type: 'shelf',
-            code: 'Z012-C01-L02-P02',
-            quantity: 150,
+class _DuplicateLocationItemRepository extends FakeItemRepository {
+  const _DuplicateLocationItemRepository()
+      : super(
+          summary: const ItemLocationSummaryEntity(
+            itemId: 1001,
+            itemName: 'Hajer Water',
+            barcode: '6287009170024',
+            itemImageUrl: 'assets/images/hajer_water.jpg',
+            totalQuantity: 275,
+            locations: [
+              ItemLocationEntity(
+                locationId: 1,
+                zone: 'Z012',
+                type: 'shelf',
+                code: 'Z012-C01-L02-P02',
+                quantity: 150,
+              ),
+              ItemLocationEntity(
+                locationId: 1,
+                zone: 'Z012',
+                type: 'shelf',
+                code: 'Z012-C01-L02-P03',
+                quantity: 125,
+              ),
+            ],
           ),
-          ItemLocationEntity(
-            locationId: 1,
-            zone: 'Z012',
-            type: 'shelf',
-            code: 'Z012-C01-L02-P03',
-            quantity: 125,
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Future<Result<void>> adjustStock(StockAdjustmentParams params) async {
-    return const Success<void>(null);
-  }
+          adjustStockResult: const Success<void>(null),
+        );
 }

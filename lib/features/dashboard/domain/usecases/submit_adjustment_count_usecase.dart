@@ -8,13 +8,13 @@ class SubmitAdjustmentCountUseCase {
   Future<void> execute({
     required int taskId,
     required String adjustmentItemId,
-    required int actualQuantity,
+    required int quantity,
     String? notes,
   }) {
     return _repo.submitAdjustmentCount(
       taskId: taskId,
       adjustmentItemId: adjustmentItemId,
-      actualQuantity: actualQuantity,
+      quantity: quantity,
       notes: notes,
     );
   }

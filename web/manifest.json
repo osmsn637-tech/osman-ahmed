@@ -1,6 +1,6 @@
 {
-    "name": "putaway_app",
-    "short_name": "putaway_app",
+    "name": "Wherehouse",
+    "short_name": "Wherehouse",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

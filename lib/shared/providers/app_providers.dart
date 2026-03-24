@@ -18,13 +18,14 @@ import '../../features/dashboard/domain/usecases/get_tasks_for_worker_usecase.da
 import '../../features/dashboard/domain/usecases/complete_task_usecase.dart';
 import '../../features/dashboard/domain/usecases/claim_task_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_task_suggestion_usecase.dart';
+import '../../features/dashboard/domain/usecases/report_task_issue_usecase.dart';
 import '../../features/dashboard/domain/usecases/save_cycle_count_progress_usecase.dart';
 import '../../features/dashboard/domain/usecases/scan_adjustment_location_usecase.dart';
+import '../../features/dashboard/domain/usecases/skip_task_usecase.dart';
 import '../../features/dashboard/domain/usecases/submit_adjustment_count_usecase.dart';
 import '../../features/dashboard/domain/usecases/validate_task_location_usecase.dart';
 import '../../features/dashboard/presentation/controllers/dashboard_controller.dart';
 import '../../features/dashboard/presentation/controllers/worker_tasks_controller.dart';
-import '../../features/dashboard/presentation/controllers/supervisor_tasks_controller.dart';
 import '../../features/dashboard/data/datasources/dashboard_remote_data_source.dart';
 import '../../features/dashboard/data/datasources/task_remote_data_source.dart';
 import '../../features/dashboard/data/repositories/task_repository_impl.dart';
@@ -34,7 +35,6 @@ import '../../features/move/domain/usecases/adjust_stock_usecase.dart';
 import '../../features/move/domain/usecases/move_item_usecase.dart';
 import '../../features/move/data/datasources/item_remote_data_source.dart';
 import '../../features/move/data/repositories/item_repository_impl.dart';
-import '../../features/move/data/repositories/item_repository_mock.dart';
 import '../../features/receive/domain/usecases/receive_item_usecase.dart';
 import '../../features/receive/presentation/controllers/receive_controller.dart';
 import '../../features/move/presentation/controllers/move_controller.dart';
@@ -46,8 +46,10 @@ import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../../features/auth/presentation/providers/login_form_provider.dart';
 import '../../features/auth/presentation/providers/session_provider.dart';
 import '../navigation/navigation_controller.dart';
+import '../../features/inbound/data/datasources/inbound_remote_data_source.dart';
+import '../../features/inbound/data/repositories/inbound_repository_impl.dart';
 import '../../features/inbound/domain/repositories/inbound_repository.dart';
-import '../../features/inbound/data/repositories/inbound_repository_mock.dart';
+import '../../features/inbound/domain/usecases/scan_inbound_receipt_usecase.dart';
 import '../../features/inbound/presentation/controllers/inbound_controller.dart';
 import '../providers/router_provider.dart';
 import '../providers/global_error_provider.dart';
@@ -106,7 +108,8 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     ProxyProvider<ApiClient, TaskRemoteDataSource>(
       update: (_, client, __) => TaskRemoteDataSource(client),
     ),
-    ProxyProvider2<DashboardRemoteDataSource, TaskRemoteDataSource, TaskRepository>(
+    ProxyProvider2<DashboardRemoteDataSource, TaskRemoteDataSource,
+        TaskRepository>(
       update: (_, dashboardRemote, taskRemote, __) => TaskRepositoryImpl(
         dashboardRemote,
         taskRemote,
@@ -130,8 +133,14 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     ProxyProvider<TaskRepository, GetTaskSuggestionUseCase>(
       update: (_, repo, __) => GetTaskSuggestionUseCase(repo),
     ),
+    ProxyProvider<TaskRepository, ReportTaskIssueUseCase>(
+      update: (_, repo, __) => ReportTaskIssueUseCase(repo),
+    ),
     ProxyProvider<TaskRepository, SaveCycleCountProgressUseCase>(
       update: (_, repo, __) => SaveCycleCountProgressUseCase(repo),
+    ),
+    ProxyProvider<TaskRepository, SkipTaskUseCase>(
+      update: (_, repo, __) => SkipTaskUseCase(repo),
     ),
     ProxyProvider<TaskRepository, ScanAdjustmentLocationUseCase>(
       update: (_, repo, __) => ScanAdjustmentLocationUseCase(repo),
@@ -146,17 +155,13 @@ List<SingleChildWidget> appProviders(AppConfig config) {
       update: (_, client, __) => ItemRemoteDataSourceImpl(client),
     ),
     ProxyProvider<ItemRemoteDataSource, ItemRepository>(
-      update: (_, remote, __) {
-        // Keep mock data for move/receive/adjust while lookup uses remote API.
-        return const ItemRepositoryMock();
-      },
+      update: (_, remote, __) => ItemRepositoryImpl(remote),
     ),
     ProxyProvider<ItemRepository, GetItemLocationsUseCase>(
       update: (_, repo, __) => GetItemLocationsUseCase(repo),
     ),
-    ProxyProvider<ItemRemoteDataSource, LookupItemByBarcodeUseCase>(
-      update: (_, remote, __) =>
-          LookupItemByBarcodeUseCase(ItemRepositoryImpl(remote)),
+    ProxyProvider<ItemRepository, LookupItemByBarcodeUseCase>(
+      update: (_, repo, __) => LookupItemByBarcodeUseCase(repo),
     ),
     ProxyProvider<ItemRepository, AdjustStockUseCase>(
       update: (_, repo, __) => AdjustStockUseCase(repo),
@@ -228,21 +233,23 @@ List<SingleChildWidget> appProviders(AppConfig config) {
         claimTask: context.read<ClaimTaskUseCase>(),
         completeTask: context.read<CompleteTaskUseCase>(),
         getTaskSuggestion: context.read<GetTaskSuggestionUseCase>(),
+        reportTaskIssue: context.read<ReportTaskIssueUseCase>(),
         scanAdjustmentLocation: context.read<ScanAdjustmentLocationUseCase>(),
         saveCycleCountProgress: context.read<SaveCycleCountProgressUseCase>(),
+        skipTask: context.read<SkipTaskUseCase>(),
         submitAdjustmentCount: context.read<SubmitAdjustmentCountUseCase>(),
         validateTaskLocation: context.read<ValidateTaskLocationUseCase>(),
         session: context.read<SessionController>(),
       )..load(),
     ),
-    ChangeNotifierProvider<SupervisorTasksController>(
-      create: (context) => SupervisorTasksController(
-        getTasksForZone: context.read<GetTasksForZoneUseCase>(),
-        session: context.read<SessionController>(),
-      )..load(),
+    ProxyProvider<ApiClient, InboundRemoteDataSource>(
+      update: (_, client, __) => InboundRemoteDataSource(client),
     ),
-    Provider<InboundRepository>(
-      create: (_) => InboundRepositoryMock(),
+    ProxyProvider<InboundRemoteDataSource, InboundRepository>(
+      update: (_, remote, __) => InboundRepositoryImpl(remote),
+    ),
+    ProxyProvider<InboundRepository, ScanInboundReceiptUseCase>(
+      update: (_, repo, __) => ScanInboundReceiptUseCase(repo),
     ),
     ChangeNotifierProvider<InboundController>(
       create: (context) => InboundController(context.read<InboundRepository>()),

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import 'package:putaway_app/shared/l10n/l10n.dart';
-import 'package:putaway_app/shared/scanner/scanner_provider.dart';
+import 'package:wherehouse/shared/l10n/l10n.dart';
+import 'package:wherehouse/shared/scanner/scanner_provider.dart';
 import '../controllers/stock_adjustment_controller.dart';
 
 class StockAdjustmentPage extends StatefulWidget {

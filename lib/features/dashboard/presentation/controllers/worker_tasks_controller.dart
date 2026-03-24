@@ -7,7 +7,9 @@ import '../../domain/usecases/get_tasks_for_zone_usecase.dart';
 import '../../domain/usecases/claim_task_usecase.dart';
 import '../../domain/usecases/get_task_suggestion_usecase.dart';
 import '../../domain/usecases/scan_adjustment_location_usecase.dart';
+import '../../domain/usecases/report_task_issue_usecase.dart';
 import '../../domain/usecases/save_cycle_count_progress_usecase.dart';
+import '../../domain/usecases/skip_task_usecase.dart';
 import '../../domain/usecases/submit_adjustment_count_usecase.dart';
 import '../../domain/usecases/validate_task_location_usecase.dart';
 import '../../../auth/presentation/providers/session_provider.dart';
@@ -42,18 +44,21 @@ class WorkerTasksController extends ChangeNotifier {
     required ClaimTaskUseCase claimTask,
     required CompleteTaskUseCase completeTask,
     required GetTaskSuggestionUseCase getTaskSuggestion,
+    ReportTaskIssueUseCase? reportTaskIssue,
     required ScanAdjustmentLocationUseCase scanAdjustmentLocation,
     required SaveCycleCountProgressUseCase saveCycleCountProgress,
+    SkipTaskUseCase? skipTask,
     required SubmitAdjustmentCountUseCase submitAdjustmentCount,
     required ValidateTaskLocationUseCase validateTaskLocation,
     required SessionController session,
-  })
-      : _getTasksForZone = getTasksForZone,
+  })  : _getTasksForZone = getTasksForZone,
         _claimTask = claimTask,
         _completeTask = completeTask,
         _getTaskSuggestion = getTaskSuggestion,
+        _reportTaskIssue = reportTaskIssue,
         _scanAdjustmentLocation = scanAdjustmentLocation,
         _saveCycleCountProgress = saveCycleCountProgress,
+        _skipTask = skipTask,
         _submitAdjustmentCount = submitAdjustmentCount,
         _validateTaskLocation = validateTaskLocation,
         _session = session,
@@ -63,8 +68,10 @@ class WorkerTasksController extends ChangeNotifier {
   final ClaimTaskUseCase _claimTask;
   final CompleteTaskUseCase _completeTask;
   final GetTaskSuggestionUseCase _getTaskSuggestion;
+  final ReportTaskIssueUseCase? _reportTaskIssue;
   final ScanAdjustmentLocationUseCase _scanAdjustmentLocation;
   final SaveCycleCountProgressUseCase _saveCycleCountProgress;
+  final SkipTaskUseCase? _skipTask;
   final SubmitAdjustmentCountUseCase _submitAdjustmentCount;
   final ValidateTaskLocationUseCase _validateTaskLocation;
   final SessionController _session;
@@ -97,7 +104,8 @@ class WorkerTasksController extends ChangeNotifier {
   Future<TaskEntity?> claim(int taskId) async {
     final workerId = _session.state.user?.id;
     if (workerId == null) return null;
-    final claimed = await _claimTask.execute(taskId: taskId, workerId: workerId);
+    final claimed =
+        await _claimTask.execute(taskId: taskId, workerId: workerId);
     await load();
     for (final task in _state.current) {
       if (task.id == taskId &&
@@ -113,11 +121,13 @@ class WorkerTasksController extends ChangeNotifier {
     int taskId, {
     int? quantity,
     String? locationId,
+    List<Map<String, Object?>>? cycleCountItems,
   }) async {
     await _completeTask.execute(
       taskId,
       quantity: quantity,
       locationId: locationId,
+      cycleCountItems: cycleCountItems,
     );
     await load();
   }
@@ -134,8 +144,39 @@ class WorkerTasksController extends ChangeNotifier {
     return updated;
   }
 
+  Future<void> continueCycleCountLater(
+    int taskId, {
+    required Map<String, Object?> progress,
+  }) async {
+    await _saveCycleCountProgress.execute(
+      taskId,
+      progress: progress,
+    );
+    if (_skipTask != null) {
+      await _skipTask.execute(taskId);
+    }
+    await load();
+  }
+
   Future<String?> getSuggestion(int taskId) {
     return _getTaskSuggestion.execute(taskId);
+  }
+
+  Future<void> reportTaskIssue(
+    int taskId, {
+    required String note,
+    String? photoPath,
+  }) async {
+    final reportTaskIssue = _reportTaskIssue;
+    if (reportTaskIssue == null) {
+      return;
+    }
+    await reportTaskIssue.execute(
+      taskId: taskId,
+      note: note,
+      photoPath: photoPath,
+    );
+    await load();
   }
 
   Future<Map<String, dynamic>> validateLocation(int taskId, String barcode) {
@@ -152,13 +193,13 @@ class WorkerTasksController extends ChangeNotifier {
   Future<void> submitAdjustmentCount(
     int taskId, {
     required String adjustmentItemId,
-    required int actualQuantity,
+    required int quantity,
     String? notes,
   }) {
     return _submitAdjustmentCount.execute(
       taskId: taskId,
       adjustmentItemId: adjustmentItemId,
-      actualQuantity: actualQuantity,
+      quantity: quantity,
       notes: notes,
     );
   }

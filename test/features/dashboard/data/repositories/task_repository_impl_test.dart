@@ -1,15 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:putaway_app/features/dashboard/data/datasources/dashboard_remote_data_source.dart';
-import 'package:putaway_app/features/dashboard/data/datasources/task_remote_data_source.dart';
-import 'package:putaway_app/features/dashboard/data/repositories/task_repository_impl.dart';
-import 'package:putaway_app/features/dashboard/domain/entities/adjustment_task_entities.dart';
-import 'package:putaway_app/features/dashboard/domain/entities/ai_alert_entity.dart';
-import 'package:putaway_app/features/dashboard/domain/entities/dashboard_summary_entity.dart';
-import 'package:putaway_app/features/dashboard/domain/entities/exception_entity.dart';
-import 'package:putaway_app/features/dashboard/domain/entities/task_entity.dart';
+import 'package:wherehouse/core/errors/app_exception.dart';
+import 'package:wherehouse/features/dashboard/data/datasources/dashboard_remote_data_source.dart';
+import 'package:wherehouse/features/dashboard/data/datasources/task_remote_data_source.dart';
+import 'package:wherehouse/features/dashboard/data/repositories/task_repository_impl.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/adjustment_task_entities.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/ai_alert_entity.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/dashboard_summary_entity.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/exception_entity.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/task_entity.dart';
 
 void main() {
-  test('parses unified putaway tasks as receive while keeping worker task type', () async {
+  test('parses unified putaway tasks as receive while keeping worker task type',
+      () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
       _FakeTaskRemoteDataSource(
@@ -54,7 +56,8 @@ void main() {
     expect(task.status, TaskStatus.pending);
   });
 
-  test('parses unified tasks when quantity is only present at the root level', () async {
+  test('parses unified tasks when quantity is only present at the root level',
+      () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
       _FakeTaskRemoteDataSource(
@@ -86,7 +89,189 @@ void main() {
     expect(task.quantity, 9);
   });
 
-  test('uses product_name when parsing task item name from my-tasks response', () async {
+  test('parses task unit from API payload with pc fallback', () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'id': 'putaway-unit-1',
+              'task_type': 'putaway',
+              'title': 'Boxed Widget',
+              'subtitle': 'Z02-BLK-C01-L01-P01',
+              'status': 'pending',
+              'detail': {
+                'item_id': 779,
+                'product_name': 'Boxed Widget',
+                'product_barcode': 'PUT-779',
+                'quantity': 9,
+                'unit': 'box',
+                'to_location': 'Z02-BLK-C01-L01-P01',
+              },
+            },
+            {
+              'id': 'putaway-unit-2',
+              'task_type': 'putaway',
+              'title': 'Loose Widget',
+              'subtitle': 'Z02-BLK-C01-L01-P02',
+              'status': 'pending',
+              'detail': {
+                'item_id': 780,
+                'product_name': 'Loose Widget',
+                'product_barcode': 'PUT-780',
+                'quantity': 4,
+                'to_location': 'Z02-BLK-C01-L01-P02',
+              },
+            },
+          ],
+        },
+      ),
+    );
+
+    final tasks = await repository.getTasksForZone('Z02');
+
+    expect(tasks.first.quantityUnit, 'box');
+    expect(tasks.first.formatQuantity(tasks.first.quantity), '9 box');
+    expect(tasks.last.quantityUnit, 'pc');
+    expect(tasks.last.formatQuantity(tasks.last.quantity), '4 pc');
+  });
+
+  test('parses unified task quantity from product rows instead of item_count',
+      () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'task_type': 'putaway',
+              'id': '019cee63-4aa3-7c83-acc9-2df64cf6849d',
+              'title': 'Happy Cola Gummies',
+              'subtitle': 'Z01-A01-SS-L01-P01',
+              'status': 'pending',
+              'priority': 'medium',
+              'product_name': 'Happy Cola Gummies',
+              'product_image':
+                  'http://img.qeu.app/products/8691216027312/8691216027312_image.webp',
+              'product_barcode': '8691216027312',
+              'products': [
+                {
+                  'product_id': '40',
+                  'name': 'Happy Cola Gummies',
+                  'image':
+                      'http://img.qeu.app/products/8691216027312/8691216027312_image.webp',
+                  'barcode': '8691216027312',
+                  'quantity': 20,
+                  'location_id': '019b4267-baf6-7189-bdfe-59c5d0411acb',
+                  'location_code': 'Z01-A01-SS-L01-P01',
+                },
+              ],
+              'item_count': 1,
+              'product_location_code': 'Z01-A01-SS-L01-P01',
+            },
+          ],
+        },
+      ),
+    );
+
+    final tasks = await repository.getTasksForZone('Z01');
+
+    expect(tasks.single.quantity, 20);
+  });
+
+  test('sums quantity across all product rows when products are present',
+      () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'task_type': 'putaway',
+              'id': 'putaway-products-sum-1',
+              'title': 'Mixed Shelf Putaway',
+              'subtitle': 'Z01-A01-SS-L01-P01',
+              'status': 'pending',
+              'product_name': 'Primary Product',
+              'product_barcode': 'PRIMARY-1',
+              'products': [
+                {
+                  'product_id': '40',
+                  'name': 'Happy Cola Gummies',
+                  'barcode': '8691216027312',
+                  'quantity': 20,
+                  'location_code': 'Z01-A01-SS-L01-P01',
+                },
+                {
+                  'product_id': '41',
+                  'name': 'Rainbow Bites',
+                  'barcode': '8691216027313',
+                  'quantity': 7,
+                  'location_code': 'Z01-A01-SS-L01-P01',
+                },
+              ],
+              'item_count': 2,
+            },
+          ],
+        },
+      ),
+    );
+
+    final tasks = await repository.getTasksForZone('Z01');
+
+    expect(tasks.single.quantity, 27);
+  });
+
+  test(
+      'submits putaway location_code from product location fields when detail location is absent',
+      () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'task_type': 'putaway',
+            'id': 'putaway-products-location-submit-1',
+            'title': 'Happy Cola Gummies',
+            'status': 'started',
+            'product_name': 'Happy Cola Gummies',
+            'product_barcode': '8691216027312',
+            'products': [
+              {
+                'product_id': '40',
+                'name': 'Happy Cola Gummies',
+                'barcode': '8691216027312',
+                'quantity': 20,
+                'location_id': '019b4267-baf6-7189-bdfe-59c5d0411acb',
+                'location_code': 'Z01-A01-SS-L01-P01',
+              },
+            ],
+            'item_count': 1,
+            'product_location_code': 'Z01-A01-SS-L01-P01',
+          },
+        ],
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('Z01')).single;
+
+    expect(task.quantity, 20);
+    expect(task.toLocation, 'Z01-A01-SS-L01-P01');
+
+    await repository.completeTask(task.id, quantity: 16);
+
+    expect(remoteDataSource.submittedTaskType, 'putaway');
+    expect(remoteDataSource.submittedQuantity, 16);
+    expect(remoteDataSource.submittedLocationCode, 'Z01-A01-SS-L01-P01');
+    expect(remoteDataSource.submittedLocationId, isEmpty);
+  });
+
+  test('uses product_name when parsing task item name from my-tasks response',
+      () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
       _FakeTaskRemoteDataSource(
@@ -117,7 +302,8 @@ void main() {
     expect(task.status, TaskStatus.pending);
   });
 
-  test('maps legacy putaway tasks to receive and normalizes product image urls', () async {
+  test('maps legacy putaway tasks to receive and normalizes product image urls',
+      () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
       _FakeTaskRemoteDataSource(
@@ -148,7 +334,8 @@ void main() {
     expect(task.status, TaskStatus.pending);
   });
 
-  test('prefers product_barcode over legacy barcode fields when parsing tasks', () async {
+  test('prefers product_barcode over legacy barcode fields when parsing tasks',
+      () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
       _FakeTaskRemoteDataSource(
@@ -177,7 +364,9 @@ void main() {
     expect(task.itemBarcode, 'API-PRODUCT-BARCODE');
   });
 
-  test('claims a cached pending task even if a later my-tasks fetch does not include it', () async {
+  test(
+      'claims a cached pending task even if a later my-tasks fetch does not include it',
+      () async {
     final remoteDataSource = _FakeTaskRemoteDataSource.sequence([
       const {
         'tasks': [
@@ -222,7 +411,9 @@ void main() {
     expect(remoteDataSource.startedTaskType, 'putaway');
   });
 
-  test('reuses the same local id for repeated refreshes when remote tasks omit taskId', () async {
+  test(
+      'reuses the same local id for repeated refreshes when remote tasks omit taskId',
+      () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
       _FakeTaskRemoteDataSource.sequence([
@@ -266,7 +457,8 @@ void main() {
     expect(secondLoad.single.itemBarcode, 'NO-ID-123');
   });
 
-  test('scans unified worker tasks using the remote task id and task type', () async {
+  test('scans unified worker tasks using the remote task id and task type',
+      () async {
     final remoteDataSource = _FakeTaskRemoteDataSource(
       const {
         'tasks': [
@@ -305,7 +497,8 @@ void main() {
     expect(remoteDataSource.scannedBarcode, 'ABC-1');
   });
 
-  test('submits putaway completion with worker task location id payload', () async {
+  test('submits putaway completion without calling the complete endpoint',
+      () async {
     final remoteDataSource = _FakeTaskRemoteDataSource(
       const {
         'tasks': [
@@ -344,9 +537,169 @@ void main() {
     expect(remoteDataSource.submittedTaskId, 'putaway-uuid-2');
     expect(remoteDataSource.submittedTaskType, 'putaway');
     expect(remoteDataSource.submittedQuantity, 4);
-    expect(remoteDataSource.submittedLocationId, 'loc-uuid-22');
+    expect(remoteDataSource.submittedLocationId, isEmpty);
+    expect(remoteDataSource.submittedLocationCode, 'Z06-BLK-C01-L01-P01');
     expect(remoteDataSource.submittedTargetLocationCode, isNull);
     expect(remoteDataSource.completedTaskId, isNull);
+    expect(remoteDataSource.completedTaskType, isNull);
+  });
+
+  test('submits unified putaway completion using location_code', () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'id': 'putaway-uuid-top-level-location',
+            'task_type': 'putaway',
+            'title': 'Move Widget Top Level',
+            'subtitle': 'Z06-BLK-C01-L01-P01',
+            'status': 'started',
+            'location_id': 'loc-top-level-z06',
+            'detail': {
+              'item_id': 809,
+              'product_name': 'Move Widget Top Level',
+              'product_barcode': 'MOVE-809',
+              'quantity': 7,
+              'to_location': 'Z06-BLK-C01-L01-P01',
+            },
+          },
+        ],
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('Z06')).single;
+
+    expect(task.toLocationId, 'loc-top-level-z06');
+
+    await repository.completeTask(task.id, quantity: 4);
+
+    expect(remoteDataSource.submittedTaskId, 'putaway-uuid-top-level-location');
+    expect(remoteDataSource.submittedTaskType, 'putaway');
+    expect(remoteDataSource.submittedQuantity, 4);
+    expect(remoteDataSource.submittedLocationId, isEmpty);
+    expect(remoteDataSource.submittedLocationCode, 'Z06-BLK-C01-L01-P01');
+    expect(remoteDataSource.submittedTargetLocationCode, isNull);
+  });
+
+  test(
+      'submit payload keeps putaway location_code even when task location id exists',
+      () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'id': 'putaway-uuid-ui-location',
+            'task_type': 'putaway',
+            'title': 'Move Widget UI Location',
+            'subtitle': 'Z08-BLK-C01-L01-P01',
+            'status': 'started',
+            'location_id': 'loc-z08-task',
+            'detail': {
+              'item_id': 810,
+              'product_name': 'Move Widget UI Location',
+              'product_barcode': 'MOVE-810',
+              'quantity': 3,
+              'to_location': 'Z08-BLK-C01-L01-P01',
+            },
+          },
+        ],
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('Z08')).single;
+    await repository.completeTask(
+      task.id,
+      quantity: 3,
+      locationId: 'Z08-BLK-C01-L01-P01',
+    );
+
+    expect(remoteDataSource.submittedLocationId, isEmpty);
+    expect(remoteDataSource.submittedLocationCode, 'Z08-BLK-C01-L01-P01');
+    expect(remoteDataSource.submittedTargetLocationCode, isNull);
+  });
+
+  test('restock submit uses task location id from the task api response',
+      () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'id': 'restock-submit-1',
+            'task_type': 'restock',
+            'title': 'Refill Juice',
+            'subtitle': 'Aisle 3',
+            'status': 'started',
+            'detail': {
+              'item_id': 811,
+              'item_name': 'Refill Juice',
+              'item_barcode': 'RESTOCK-811',
+              'quantity': 2,
+              'bulk_location': 'BULK-01-01',
+              'target_location_code': 'SHELF-03-03',
+              'target_location_id': 'loc-shelf-03-03',
+            },
+          },
+        ],
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('')).single;
+    await repository.completeTask(
+      task.id,
+      quantity: 2,
+      locationId: 'SHELF-03-03',
+    );
+
+    expect(remoteDataSource.submittedTaskType, 'restock');
+    expect(remoteDataSource.submittedLocationId, 'loc-shelf-03-03');
+    expect(remoteDataSource.submittedTargetLocationCode, 'SHELF-03-03');
+  });
+
+  test('submits legacy putaway completion using location_code', () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'taskId': 1002,
+            'task_type': 'putaway',
+            'to_location': 'Z02-BLK-C01-L01-P01',
+            'location_id': 'loc-legacy-z02',
+            'item_id': 777,
+            'quantity': 2,
+            'status': 'started',
+            'product': {
+              'product_name': 'Widget Green',
+              'product_image': 'http://img.qeu.app/products/widget-green.jpg',
+            },
+          },
+        ],
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('Z02')).single;
+    await repository.completeTask(task.id, quantity: 2);
+
+    expect(remoteDataSource.submittedTaskId, '1002');
+    expect(remoteDataSource.submittedTaskType, 'putaway');
+    expect(remoteDataSource.submittedLocationId, isEmpty);
+    expect(remoteDataSource.submittedLocationCode, 'Z02-BLK-C01-L01-P01');
+    expect(remoteDataSource.submittedTargetLocationCode, isNull);
   });
 
   test('completes receiving tasks with the complete endpoint', () async {
@@ -384,7 +737,91 @@ void main() {
     expect(remoteDataSource.submittedTaskId, isNull);
   });
 
-  test('parses unified restock tasks with refill barcode and locations', () async {
+  test('falls back to submit when receiving complete endpoint fails', () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'id': 'receiving-fallback-1',
+            'task_type': 'receiving',
+            'title': 'Receipt Fallback',
+            'subtitle': 'Inbound',
+            'status': 'started',
+            'detail': {
+              'item_id': 919,
+              'product_name': 'Fallback Widget',
+              'product_barcode': 'REC-919',
+              'quantity': 5,
+              'to_location': 'Z07-BLK-C01-L01-P01',
+              'location_id': 'loc-z07-01',
+            },
+          },
+        ],
+      },
+    )..completeTaskError =
+        const ValidationException('complete endpoint rejected');
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('Z07')).single;
+    final completed = await repository.completeTask(task.id);
+
+    expect(completed.status, TaskStatus.completed);
+    expect(remoteDataSource.completedTaskId, 'receiving-fallback-1');
+    expect(remoteDataSource.completedTaskType, 'receiving');
+    expect(remoteDataSource.submittedTaskId, 'receiving-fallback-1');
+    expect(remoteDataSource.submittedTaskType, 'receiving');
+    expect(remoteDataSource.submittedQuantity, 5);
+    expect(remoteDataSource.submittedLocationId, 'loc-z07-01');
+  });
+
+  test(
+      'completeTask submits cycle count tasks without calling complete endpoint',
+      () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'id': 'cycle-count-submit-1',
+            'task_type': 'cycle_count',
+            'title': 'Full Shelf Count - SHELF-03-03',
+            'subtitle': 'SHELF-03-03',
+            'status': 'started',
+            'detail': {
+              'item_id': 9305,
+              'product_name': 'Full Shelf Count - SHELF-03-03',
+              'quantity': 2,
+              'location_code': 'SHELF-03-03',
+            },
+          },
+        ],
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('Z03')).single;
+    final completed = await repository.completeTask(
+      task.id,
+      quantity: 7,
+      locationId: 'SHELF-03-03',
+    );
+
+    expect(completed.status, TaskStatus.completed);
+    expect(remoteDataSource.submittedTaskId, 'cycle-count-submit-1');
+    expect(remoteDataSource.submittedTaskType, 'cycle_count');
+    expect(remoteDataSource.submittedQuantity, 7);
+    expect(remoteDataSource.submittedLocationId, 'SHELF-03-03');
+    expect(remoteDataSource.completedTaskId, isNull);
+    expect(remoteDataSource.completedTaskType, isNull);
+  });
+
+  test('parses unified restock tasks with refill barcode and locations',
+      () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
       _FakeTaskRemoteDataSource(
@@ -420,7 +857,8 @@ void main() {
     expect(task.toLocation, 'SHELF-01-01');
   });
 
-  test('keeps mixed worker task types visible when subtitle is not a zone', () async {
+  test('keeps mixed worker task types visible when subtitle is not a zone',
+      () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
       _FakeTaskRemoteDataSource(
@@ -474,11 +912,78 @@ void main() {
     final tasks = await repository.getTasksForZone('Z01');
 
     expect(tasks, hasLength(3));
-    expect(tasks.map((task) => task.type), containsAll(<TaskType>[
-      TaskType.receive,
-      TaskType.refill,
-      TaskType.returnTask,
-    ]));
+    expect(
+        tasks.map((task) => task.type),
+        containsAll(<TaskType>[
+          TaskType.receive,
+          TaskType.refill,
+          TaskType.returnTask,
+        ]));
+  });
+
+  test(
+      'does not infer a zone from generic shelf and bulk codes for restock tasks',
+      () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'id': 'restock-generic-locations-1',
+              'task_type': 'restock',
+              'title': 'Refill Juice',
+              'subtitle': 'Aisle 3',
+              'status': 'pending',
+              'detail': {
+                'item_id': 2102,
+                'item_name': 'Refill Juice',
+                'item_barcode': 'REFILL-2102',
+                'quantity': 4,
+                'bulk_location': 'BULK-01-01',
+                'target_location_code': 'SHELF-03-03',
+              },
+            },
+          ],
+        },
+      ),
+    );
+
+    final tasks = await repository.getTasksForZone('Z99');
+
+    expect(tasks, hasLength(1));
+    expect(tasks.single.type, TaskType.refill);
+    expect(tasks.single.zone, isEmpty);
+  });
+
+  test(
+      'does not default legacy restock tasks with generic location codes into a zone',
+      () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'taskId': 2103,
+              'task_type': 'restock',
+              'product_name': 'Refill Tea',
+              'item_id': 2103,
+              'quantity': 6,
+              'to_location': 'SHELF-03-03',
+              'from_location': 'BULK-01-01',
+              'status': 'pending',
+            },
+          ],
+        },
+      ),
+    );
+
+    final tasks = await repository.getTasksForZone('Z99');
+
+    expect(tasks, hasLength(1));
+    expect(tasks.single.type, TaskType.refill);
+    expect(tasks.single.zone, isEmpty);
   });
 
   test('returns only api tasks for the requested zone', () async {
@@ -514,7 +1019,8 @@ void main() {
     expect(tasks.any((task) => task.type == TaskType.cycleCount), isFalse);
   });
 
-  test('returns an empty worker queue when the api response is empty', () async {
+  test('returns an empty worker queue when the api response is empty',
+      () async {
     final remoteDataSource = _FakeTaskRemoteDataSource(const {'tasks': []});
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
@@ -530,7 +1036,66 @@ void main() {
     expect(remoteDataSource.completedTaskId, isNull);
   });
 
-  test('save cycle count progress persists for api-backed cycle count tasks', () async {
+  test('loads worker tasks from all paginated my-tasks pages', () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource.paged(
+      <String, Map<String, dynamic>>{
+        '': const {
+          'tasks': [
+            {
+              'id': 'putaway-page-1',
+              'task_type': 'putaway',
+              'title': 'Page One Widget',
+              'subtitle': 'Z03-BLK-C01-L01-P01',
+              'status': 'pending',
+              'detail': {
+                'item_id': 1301,
+                'product_name': 'Page One Widget',
+                'product_barcode': 'PAGE-1301',
+                'quantity': 1,
+                'to_location': 'Z03-BLK-C01-L01-P01',
+              },
+            },
+          ],
+          'next_cursor': 'page-2',
+        },
+        'page-2': const {
+          'tasks': [
+            {
+              'id': 'putaway-page-2',
+              'task_type': 'putaway',
+              'title': 'Page Two Widget',
+              'subtitle': 'Z03-BLK-C01-L01-P02',
+              'status': 'pending',
+              'detail': {
+                'item_id': 1302,
+                'product_name': 'Page Two Widget',
+                'product_barcode': 'PAGE-1302',
+                'quantity': 1,
+                'to_location': 'Z03-BLK-C01-L01-P02',
+              },
+            },
+          ],
+        },
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final tasks = await repository.getTasksForZone('Z03');
+
+    expect(tasks, hasLength(2));
+    expect(
+      tasks.map((task) => task.itemName),
+      containsAll(<String>['Page One Widget', 'Page Two Widget']),
+    );
+    expect(remoteDataSource.fetchMyTasksCalls, 2);
+    expect(remoteDataSource.requestedCursors, <String?>[null, 'page-2']);
+  });
+
+  test('save cycle count progress persists for api-backed cycle count tasks',
+      () async {
     final remoteDataSource = _FakeTaskRemoteDataSource(
       const {
         'tasks': [
@@ -585,6 +1150,115 @@ void main() {
     expect(remoteDataSource.completedTaskId, isNull);
   });
 
+  test('skipTask pauses cycle count tasks through skip endpoint', () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'id': 'cycle-skip-1',
+            'task_type': 'cycle_count',
+            'title': 'Full Shelf Count - SHELF-03-03',
+            'subtitle': 'SHELF-03-03',
+            'status': 'started',
+            'detail': {
+              'item_id': 9305,
+              'product_name': 'Full Shelf Count - SHELF-03-03',
+              'quantity': 2,
+              'location_code': 'SHELF-03-03',
+            },
+          },
+        ],
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('Z03')).single;
+    final skipped = await repository.skipTask(task.id);
+
+    expect(skipped.status, TaskStatus.pending);
+    expect(skipped.assignedTo, isNull);
+    expect(remoteDataSource.skippedTaskId, 'cycle-skip-1');
+    expect(remoteDataSource.skippedTaskType, 'cycle_count');
+  });
+
+  test(
+      'remote cycle count refresh keeps saved progress but restores pending status',
+      () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource.sequence([
+      const {
+        'tasks': [
+          {
+            'id': 'cycle-refresh-1',
+            'task_type': 'cycle_count',
+            'title': 'Full Shelf Count - SHELF-04-01',
+            'subtitle': 'SHELF-04-01',
+            'status': 'started',
+            'detail': {
+              'item_id': 9310,
+              'product_name': 'Full Shelf Count - SHELF-04-01',
+              'quantity': 2,
+              'location_code': 'SHELF-04-01',
+            },
+          },
+        ],
+      },
+      const {
+        'tasks': [
+          {
+            'id': 'cycle-refresh-1',
+            'task_type': 'cycle_count',
+            'title': 'Full Shelf Count - SHELF-04-01',
+            'subtitle': 'SHELF-04-01',
+            'status': 'pending',
+            'detail': {
+              'item_id': 9310,
+              'product_name': 'Full Shelf Count - SHELF-04-01',
+              'quantity': 2,
+              'location_code': 'SHELF-04-01',
+            },
+          },
+        ],
+      },
+    ]);
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('Z04')).single;
+
+    expect(task.status, TaskStatus.inProgress);
+
+    await repository.saveCycleCountProgress(
+      task.id,
+      progress: const <String, Object?>{
+        'items': [
+          {
+            'key': 'SKU-004',
+            'itemName': 'Shelf Item',
+            'barcode': 'SKU-004',
+            'countedQuantity': 3,
+            'completed': true,
+          },
+        ],
+        'location': 'SHELF-04-01',
+        'locationValidated': true,
+      },
+    );
+
+    final reloaded = await repository.getTasksForZone('Z04');
+    final updated = reloaded.single;
+
+    expect(updated.status, TaskStatus.pending);
+    expect(updated.assignedTo, isNull);
+    expect(updated.cycleCountProgressItems, hasLength(1));
+    expect(updated.cycleCountProgressItems.single.key, 'SKU-004');
+    expect(updated.cycleCountProgressItems.single.countedQuantity, 3);
+  });
+
   test('parses cycle count products and hides zero quantity items', () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),
@@ -599,34 +1273,39 @@ void main() {
               'status': 'draft',
               'priority': 'medium',
               'product_name': 'Primary Product',
-              'product_image': 'http://img.qeu.app/products/5000396014822/5000396014822_image.webp',
+              'product_image':
+                  'http://img.qeu.app/products/5000396014822/5000396014822_image.webp',
               'product_barcode': '5000396014822',
               'products': [
                 {
                   'product_id': '1802',
                   'name': 'Primary Product',
-                  'image': 'http://img.qeu.app/products/5000396014822/5000396014822_image.webp',
+                  'image':
+                      'http://img.qeu.app/products/5000396014822/5000396014822_image.webp',
                   'barcode': '5000396014822',
                   'quantity': 21,
                 },
                 {
                   'product_id': '1795',
                   'name': 'Kolon Portable Vacuum Cleaner',
-                  'image': 'http://img.qeu.app/products/6285353007744/6285353007744_image.webp',
+                  'image':
+                      'http://img.qeu.app/products/6285353007744/6285353007744_image.webp',
                   'barcode': '6285353007744',
                   'quantity': 37,
                 },
                 {
                   'product_id': '154',
                   'name': 'Natural White Vinegar Bottles',
-                  'image': 'http://img.qeu.app/products/6281100021018/6281100021018_image.webp',
+                  'image':
+                      'http://img.qeu.app/products/6281100021018/6281100021018_image.webp',
                   'barcode': '6281100021018',
                   'quantity': 0,
                 },
                 {
                   'product_id': '1987',
                   'name': 'Danette Vanilla Delight',
-                  'image': 'http://img.qeu.app/products/6281022107289/6281022107289_image.webp',
+                  'image':
+                      'http://img.qeu.app/products/6281022107289/6281022107289_image.webp',
                   'barcode': '6281022107289',
                   'quantity': 0,
                 },
@@ -643,7 +1322,9 @@ void main() {
 
     expect(task.type, TaskType.cycleCount);
     expect(task.itemBarcode, '5000396014822');
-    expect(task.itemImageUrl, 'https://img.qeu.app/products/5000396014822/5000396014822_image.webp');
+    expect(task.itemImageUrl,
+        'https://img.qeu.app/products/5000396014822/5000396014822_image.webp');
+    expect(task.quantity, 58);
     expect(task.toLocation, isNull);
     expect(task.zone, isEmpty);
     expect(task.cycleCountItems, hasLength(2));
@@ -661,7 +1342,8 @@ void main() {
     );
   });
 
-  test('scanAdjustmentLocation uses adjustment endpoint and parses products', () async {
+  test('scanAdjustmentLocation uses adjustment endpoint and parses products',
+      () async {
     final remote = _FakeTaskRemoteDataSource(
       const {
         'tasks': [
@@ -680,8 +1362,7 @@ void main() {
           },
         ],
       },
-    )
-      ..adjustmentScanResponse = const {
+    )..adjustmentScanResponse = const {
         'locationId': 'loc-77',
         'locationCode': 'Z01-A01',
         'products': [
@@ -724,7 +1405,7 @@ void main() {
     );
   });
 
-  test('submitAdjustmentCount sends actualQuantity and notes', () async {
+  test('submitAdjustmentCount sends quantity and notes', () async {
     final remote = _FakeTaskRemoteDataSource(
       const {
         'tasks': [
@@ -753,16 +1434,57 @@ void main() {
     await repository.submitAdjustmentCount(
       taskId: tasks.single.id,
       adjustmentItemId: 'adj-item-2',
-      actualQuantity: 7,
+      quantity: 7,
       notes: 'damaged box',
     );
 
     expect(remote.submittedAdjustmentItemId, 'adj-item-2');
-    expect(remote.submittedActualQuantity, 7);
+    expect(remote.submittedAdjustmentQuantity, 7);
     expect(remote.submittedAdjustmentNotes, 'damaged box');
   });
 
-  test('completeTask finishes adjustment tasks through adjustment finish endpoint', () async {
+  test('reportTaskIssue uses remote task id and forwards note and photo path',
+      () async {
+    final remote = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'id': 'receiving-report-1',
+            'task_type': 'receiving',
+            'title': 'Receipt Report',
+            'subtitle': 'Inbound',
+            'status': 'started',
+            'detail': {
+              'item_id': 501,
+              'product_name': 'Blue Mug',
+              'product_barcode': 'ABC-1',
+              'quantity': 5,
+              'to_location': 'Z01-BLK-C01-L01-P01',
+            },
+          },
+        ],
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remote,
+    );
+
+    final task = (await repository.getTasksForZone('Z01')).single;
+    await repository.reportTaskIssue(
+      taskId: task.id,
+      note: 'Damaged package',
+      photoPath: 'C:/tmp/report-photo.jpg',
+    );
+
+    expect(remote.reportedTaskId, 'receiving-report-1');
+    expect(remote.reportedNote, 'Damaged package');
+    expect(remote.reportedPhotoPath, 'C:/tmp/report-photo.jpg');
+  });
+
+  test(
+      'completeTask finishes adjustment tasks through adjustment finish endpoint',
+      () async {
     final remote = _FakeTaskRemoteDataSource(
       const {
         'tasks': [
@@ -796,13 +1518,21 @@ void main() {
 }
 
 class _FakeTaskRemoteDataSource implements TaskRemoteDataSource {
-  _FakeTaskRemoteDataSource(this._response) : _responses = null;
+  _FakeTaskRemoteDataSource(this._response)
+      : _responses = null,
+        _pagedResponses = null;
   _FakeTaskRemoteDataSource.sequence(List<Map<String, dynamic>> responses)
       : _response = const {},
-        _responses = List<Map<String, dynamic>>.from(responses);
+        _responses = List<Map<String, dynamic>>.from(responses),
+        _pagedResponses = null;
+  _FakeTaskRemoteDataSource.paged(Map<String, Map<String, dynamic>> responses)
+      : _response = const {},
+        _responses = null,
+        _pagedResponses = Map<String, Map<String, dynamic>>.from(responses);
 
   final Map<String, dynamic> _response;
   final List<Map<String, dynamic>>? _responses;
+  final Map<String, Map<String, dynamic>>? _pagedResponses;
   String? startedTaskId;
   String? startedTaskType;
   String? scannedTaskId;
@@ -812,15 +1542,25 @@ class _FakeTaskRemoteDataSource implements TaskRemoteDataSource {
   String? adjustmentScanBarcode;
   String? submittedTaskId;
   String? submittedTaskType;
-  int? submittedQuantity;
+  String? reportedTaskId;
+  String? reportedNote;
+  String? reportedPhotoPath;
+  int? submittedAdjustmentQuantity;
   String? submittedLocationId;
+  String? submittedLocationCode;
   String? submittedTargetLocationCode;
   String? submittedAdjustmentItemId;
-  int? submittedActualQuantity;
+  int? submittedQuantity;
   String? submittedAdjustmentNotes;
   String? finishedAdjustmentTaskId;
   String? completedTaskId;
   String? completedTaskType;
+  String? skippedTaskId;
+  String? skippedTaskType;
+  String? skippedReason;
+  AppException? completeTaskError;
+  int fetchMyTasksCalls = 0;
+  final List<String?> requestedCursors = <String?>[];
   Map<String, dynamic> adjustmentScanResponse = const {
     'locationId': 'loc-1',
     'locationCode': 'LOC-01',
@@ -831,11 +1571,16 @@ class _FakeTaskRemoteDataSource implements TaskRemoteDataSource {
   Future<Map<String, dynamic>> fetchMyTasks({
     String? taskType,
     String? cursor,
-    int limit = 100,
+    int pageSize = 100,
   }) async {
+    fetchMyTasksCalls++;
+    requestedCursors.add(cursor);
     if (_responses case final responses?) {
       if (responses.isEmpty) return const {'tasks': []};
       return responses.removeAt(0);
+    }
+    if (_pagedResponses case final pagedResponses?) {
+      return pagedResponses[cursor ?? ''] ?? const {'tasks': []};
     }
     return _response;
   }
@@ -856,7 +1601,9 @@ class _FakeTaskRemoteDataSource implements TaskRemoteDataSource {
     required String taskType,
     String? reason,
   }) async {
-    throw UnsupportedError('skipTask is not implemented in fake');
+    skippedTaskId = taskId;
+    skippedTaskType = taskType;
+    skippedReason = reason;
   }
 
   @override
@@ -865,14 +1612,27 @@ class _FakeTaskRemoteDataSource implements TaskRemoteDataSource {
     required String taskType,
     int? quantity,
     required String locationId,
+    String? locationCode,
     String? targetLocationCode,
   }) async {
     submittedTaskId = taskId;
     submittedTaskType = taskType;
     submittedQuantity = quantity;
     submittedLocationId = locationId;
+    submittedLocationCode = locationCode;
     submittedTargetLocationCode = targetLocationCode;
     return {'ok': true};
+  }
+
+  @override
+  Future<void> reportTaskIssue({
+    required String taskId,
+    required String note,
+    String? photoPath,
+  }) async {
+    reportedTaskId = taskId;
+    reportedNote = note;
+    reportedPhotoPath = photoPath;
   }
 
   @override
@@ -908,11 +1668,11 @@ class _FakeTaskRemoteDataSource implements TaskRemoteDataSource {
   @override
   Future<void> submitAdjustmentCount({
     required String adjustmentItemId,
-    required int actualQuantity,
+    required int quantity,
     String? notes,
   }) async {
     submittedAdjustmentItemId = adjustmentItemId;
-    submittedActualQuantity = actualQuantity;
+    submittedAdjustmentQuantity = quantity;
     submittedAdjustmentNotes = notes;
   }
 
@@ -930,6 +1690,9 @@ class _FakeTaskRemoteDataSource implements TaskRemoteDataSource {
   }) async {
     completedTaskId = taskId;
     completedTaskType = taskType;
+    if (completeTaskError case final error?) {
+      throw error;
+    }
     return {'ok': true};
   }
 }
@@ -951,7 +1714,8 @@ class _FakeDashboardRemoteDataSource implements DashboardRemoteDataSource {
   }
 
   @override
-  Future<void> resolveException({required int id, required String action}) async {
+  Future<void> resolveException(
+      {required int id, required String action}) async {
     throw UnsupportedError('resolveException is not implemented in fake');
   }
 }

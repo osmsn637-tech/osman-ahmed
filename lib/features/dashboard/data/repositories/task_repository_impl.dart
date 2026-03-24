@@ -9,7 +9,8 @@ import '../../domain/entities/task_entity.dart';
 import '../../../../core/errors/app_exception.dart';
 
 class TaskRepositoryImpl implements TaskRepository {
-  TaskRepositoryImpl(this._dashboardRemoteDataSource, this._taskRemoteDataSource);
+  TaskRepositoryImpl(
+      this._dashboardRemoteDataSource, this._taskRemoteDataSource);
 
   final DashboardRemoteDataSource _dashboardRemoteDataSource;
   final TaskRemoteDataSource _taskRemoteDataSource;
@@ -38,7 +39,8 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
-  Future<void> resolveException({required int id, required String action}) async {
+  Future<void> resolveException(
+      {required int id, required String action}) async {
     try {
       await _dashboardRemoteDataSource.resolveException(id: id, action: action);
     } catch (error) {
@@ -58,13 +60,11 @@ class TaskRepositoryImpl implements TaskRepository {
   @override
   Future<List<TaskEntity>> getTasksForZone(String zone) async {
     try {
-      final remote = await _taskRemoteDataSource.fetchMyTasks();
-      final remoteTasks = _parseTaskCollection(remote);
+      final remoteTasks = await _fetchAllRemoteTasks();
       _cacheRemoteTasks(remoteTasks);
       final normalizedZone = _normalizeZone(zone);
       for (final task in remoteTasks) {
-        final cached = _localTasks[task.id] ?? task;
-        _localTasks[task.id] = cached;
+        _localTasks[task.id] = _mergeRemoteTaskWithLocalState(task);
       }
 
       return remoteTasks
@@ -103,6 +103,7 @@ class TaskRepositoryImpl implements TaskRepository {
     int taskId, {
     int? quantity,
     String? locationId,
+    List<Map<String, Object?>>? cycleCountItems,
   }) async {
     final resolved = await _resolveTask(taskId);
     if (resolved == null) {
@@ -111,33 +112,64 @@ class TaskRepositoryImpl implements TaskRepository {
 
     final remoteTaskId = _remoteTaskIdFor(resolved);
     final taskType = _workerTaskType(resolved);
-    final targetQuantity = quantity == null || quantity <= 0 ? resolved.quantity : quantity;
-    final targetLocation = (locationId ?? resolved.toLocation ?? '').trim();
-    final targetLocationId = (locationId ?? resolved.toLocationId ?? targetLocation).trim();
+    final targetQuantity =
+        quantity == null || quantity <= 0 ? resolved.quantity : quantity;
+    final targetLocation = (resolved.toLocation ?? locationId ?? '').trim();
+    final targetLocationId =
+        (resolved.toLocationId ?? locationId ?? targetLocation).trim();
 
     if (resolved.type == TaskType.adjustment) {
       await _taskRemoteDataSource.finishAdjustment(
         adjustmentId: remoteTaskId,
       );
-    } else if (taskType == 'receiving' ||
-        taskType == 'return' ||
-        taskType == 'cycle_count') {
-      await _taskRemoteDataSource.completeTask(
-        taskId: remoteTaskId,
-        taskType: taskType,
-      );
-    } else {
+    } else if (taskType == 'cycle_count') {
       await _taskRemoteDataSource.submitTask(
         taskId: remoteTaskId,
         taskType: taskType,
         quantity: targetQuantity,
-        locationId: resolved.type == TaskType.refill ? '' : targetLocationId,
-        targetLocationCode: resolved.type == TaskType.refill ? targetLocation : null,
+        locationId: targetLocationId,
+        cycleCountItems: cycleCountItems,
       );
+    } else if (taskType == 'receiving' || taskType == 'return') {
+      try {
+        await _taskRemoteDataSource.completeTask(
+          taskId: remoteTaskId,
+          taskType: taskType,
+        );
+      } on AppException catch (error) {
+        if (!_shouldFallbackToSubmit(error)) rethrow;
+        await _taskRemoteDataSource.submitTask(
+          taskId: remoteTaskId,
+          taskType: taskType,
+          quantity: targetQuantity,
+          locationId: targetLocationId,
+        );
+      }
+    } else {
+      final useLocationCode = taskType == 'putaway';
+      await _taskRemoteDataSource.submitTask(
+        taskId: remoteTaskId,
+        taskType: taskType,
+        quantity: targetQuantity,
+        locationId: useLocationCode ? '' : targetLocationId,
+        locationCode: useLocationCode ? targetLocation : null,
+        targetLocationCode:
+            resolved.type == TaskType.refill ? targetLocation : null,
+      );
+      if (!useLocationCode) {
+        await _taskRemoteDataSource.completeTask(
+          taskId: remoteTaskId,
+          taskType: taskType,
+        );
+      }
     }
     final completed = _cloneTask(task: resolved, status: TaskStatus.completed);
     _localTasks[completed.id] = completed;
     return completed;
+  }
+
+  bool _shouldFallbackToSubmit(AppException error) {
+    return error is ValidationException || error is ServerException;
   }
 
   @override
@@ -158,7 +190,30 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
-  Future<TaskEntity> claimTask({required int taskId, required String workerId}) async {
+  Future<TaskEntity> skipTask(int taskId, {String? reason}) async {
+    final existing = await _resolveTask(taskId);
+    if (existing == null) {
+      throw ValidationException('Task $taskId not found');
+    }
+
+    await _taskRemoteDataSource.skipTask(
+      taskId: _remoteTaskIdFor(existing),
+      taskType: _workerTaskType(existing),
+      reason: reason,
+    );
+    _claimedTasks.remove(taskId);
+    final updated = _cloneTask(
+      task: existing,
+      assignedTo: null,
+      status: TaskStatus.pending,
+    );
+    _localTasks[updated.id] = updated;
+    return updated;
+  }
+
+  @override
+  Future<TaskEntity> claimTask(
+      {required int taskId, required String workerId}) async {
     final existing = await _resolveTask(taskId);
     if (existing == null) {
       throw ValidationException(
@@ -195,6 +250,24 @@ class TaskRepositoryImpl implements TaskRepository {
       'location_id': task.toLocationId ?? location,
       'toLocation': location,
     };
+  }
+
+  @override
+  Future<void> reportTaskIssue({
+    required int taskId,
+    required String note,
+    String? photoPath,
+  }) async {
+    final task = await _resolveTask(taskId);
+    if (task == null) {
+      throw ValidationException('Task $taskId not found');
+    }
+
+    await _taskRemoteDataSource.reportTaskIssue(
+      taskId: _remoteTaskIdFor(task),
+      note: note,
+      photoPath: photoPath,
+    );
   }
 
   @override
@@ -241,7 +314,7 @@ class TaskRepositoryImpl implements TaskRepository {
   Future<void> submitAdjustmentCount({
     required int taskId,
     required String adjustmentItemId,
-    required int actualQuantity,
+    required int quantity,
     String? notes,
   }) async {
     final task = await _resolveTask(taskId);
@@ -254,7 +327,7 @@ class TaskRepositoryImpl implements TaskRepository {
 
     await _taskRemoteDataSource.submitAdjustmentCount(
       adjustmentItemId: adjustmentItemId,
-      actualQuantity: actualQuantity,
+      quantity: quantity,
       notes: notes,
     );
   }
@@ -293,11 +366,20 @@ class TaskRepositoryImpl implements TaskRepository {
         data['zoneCode'],
         data['zone_code'],
       ]));
+      final toLocationId = _asString(_firstNonNull([
+        data['toLocationId'],
+        data['to_location_id'],
+        data['targetLocationId'],
+        data['target_location_id'],
+        data['locationId'],
+        data['location_id'],
+      ]));
       final fromLocation = _asString(_firstNonNull([
         data['fromLocation'],
         data['from_location'],
       ]));
       final product = _asMap(data['product']) ?? _asMap(data['item']);
+      final firstProduct = _firstProductMap(data['products']);
       final rawType = _asString(_firstNonNull([
         data['taskType'],
         data['task_type'],
@@ -341,14 +423,24 @@ class TaskRepositoryImpl implements TaskRepository {
         data['item_barcode'],
         product?['barcode'],
       ]));
-      final quantity = _toInt(data['quantity']) ?? 0;
+      final quantity = _quantityFromProducts(data['products']) ??
+          _toInt(data['quantity']) ??
+          0;
       final sourceEventId = _asString(_firstNonNull([
         data['sourceEventId'],
         data['source_event_id'],
       ]));
-      final id = _toInt(_firstNonNull([data['taskId'], data['id'], data['task_id']])) ??
+      final unit = _resolveTaskUnit(
+        data: data,
+        detail: null,
+        product: product,
+        firstProduct: firstProduct,
+      );
+      final id = _toInt(
+              _firstNonNull([data['taskId'], data['id'], data['task_id']])) ??
           _stableLocalIdForRemoteTask(
-            remoteTaskId: _asString(_firstNonNull([data['taskId'], data['id'], data['task_id']])),
+            remoteTaskId: _asString(
+                _firstNonNull([data['taskId'], data['id'], data['task_id']])),
             sourceEventId: sourceEventId,
             rawType: rawType,
             itemId: itemId,
@@ -358,11 +450,17 @@ class TaskRepositoryImpl implements TaskRepository {
             toLocation: toLocation,
             quantity: quantity,
           );
-      final zone = _normalizeZone(toLocation) ?? 'Z01';
+      final zone = _deriveLegacyTaskZone(
+            rawType: rawType,
+            toLocation: toLocation,
+            fromLocation: fromLocation,
+          ) ??
+          '';
       list.add(
         TaskEntity(
           id: id,
-          remoteTaskId: _asString(_firstNonNull([data['taskId'], data['id'], data['task_id']])),
+          remoteTaskId: _asString(
+              _firstNonNull([data['taskId'], data['id'], data['task_id']])),
           apiTaskType: rawType,
           type: _toTaskType(rawType),
           itemId: itemId,
@@ -386,8 +484,9 @@ class TaskRepositoryImpl implements TaskRepository {
           ]))),
           fromLocation: fromLocation,
           toLocation: toLocation,
-          toLocationId: null,
+          toLocationId: toLocationId,
           quantity: quantity,
+          unit: unit,
           assignedTo: null,
           status: _toTaskStatus(_asString(data['status'])),
           createdBy: _asString(data['createdBy']) ??
@@ -408,8 +507,7 @@ class TaskRepositoryImpl implements TaskRepository {
     final local = _localTasks[taskId];
     if (local != null) return local;
 
-    final remote = await _taskRemoteDataSource.fetchMyTasks();
-    final parsed = _parseTaskCollection(remote);
+    final parsed = await _fetchAllRemoteTasks();
     _cacheRemoteTasks(parsed);
     for (final task in parsed) {
       final maybe = _withClaim(task);
@@ -418,6 +516,28 @@ class TaskRepositoryImpl implements TaskRepository {
       }
     }
     return _localTasks[taskId];
+  }
+
+  Future<List<TaskEntity>> _fetchAllRemoteTasks() async {
+    final mergedTasks = <int, TaskEntity>{};
+    final seenCursors = <String>{};
+    String? cursor;
+
+    while (true) {
+      final page = await _taskRemoteDataSource.fetchMyTasks(cursor: cursor);
+      final tasks = _parseTaskCollection(page);
+      for (final task in tasks) {
+        mergedTasks[task.id] = task;
+      }
+
+      final nextCursor = _extractNextCursor(page, currentCursor: cursor);
+      if (nextCursor == null || !seenCursors.add(nextCursor)) {
+        break;
+      }
+      cursor = nextCursor;
+    }
+
+    return mergedTasks.values.toList(growable: false);
   }
 
   Future<TaskEntity?> _resolveTask(int taskId) async {
@@ -431,6 +551,22 @@ class TaskRepositoryImpl implements TaskRepository {
         _tasksBySourceEventId.putIfAbsent(task.sourceEventId!, () => task.id);
       }
     }
+  }
+
+  TaskEntity _mergeRemoteTaskWithLocalState(TaskEntity remoteTask) {
+    final localTask = _localTasks[remoteTask.id];
+    if (localTask == null || remoteTask.type != TaskType.cycleCount) {
+      return remoteTask;
+    }
+
+    final localProgress = localTask.workflowData['cycleCountProgress'];
+    if (localProgress is! Map) {
+      return remoteTask;
+    }
+
+    final workflowData = Map<String, Object?>.from(remoteTask.workflowData)
+      ..['cycleCountProgress'] = Map<String, Object?>.from(localProgress);
+    return _cloneTask(task: remoteTask, workflowData: workflowData);
   }
 
   int _stableLocalIdForRemoteTask({
@@ -455,7 +591,8 @@ class TaskRepositoryImpl implements TaskRepository {
       toLocation?.trim().toUpperCase() ?? '',
       quantity.toString(),
     ].join('|');
-    return _taskIdsByFingerprint.putIfAbsent(fingerprint, () => _nextLocalTaskId--);
+    return _taskIdsByFingerprint.putIfAbsent(
+        fingerprint, () => _nextLocalTaskId--);
   }
 
   TaskEntity? _parseUnifiedTask(Map<String, dynamic> data) {
@@ -465,6 +602,7 @@ class TaskRepositoryImpl implements TaskRepository {
 
     final detail = _asMap(data['detail']);
     final product = _asMap(detail?['product']) ?? _asMap(detail?['item']);
+    final firstProduct = _firstProductMap(data['products']);
     final subtitleLocation = _resolveUnifiedSubtitleLocation(
       rawType: rawType,
       subtitle: _asString(data['subtitle']),
@@ -476,8 +614,20 @@ class TaskRepositoryImpl implements TaskRepository {
       detail?['targetLocationCode'],
       detail?['location_code'],
       detail?['locationCode'],
+      data['product_location_code'],
+      data['productLocationCode'],
+      firstProduct?['location_code'],
+      firstProduct?['locationCode'],
     ]));
     final toLocationId = _asString(_firstNonNull([
+      data['to_location_id'],
+      data['toLocationId'],
+      data['target_location_id'],
+      data['targetLocationId'],
+      data['location_id'],
+      data['locationId'],
+      firstProduct?['location_id'],
+      firstProduct?['locationId'],
       detail?['to_location_id'],
       detail?['toLocationId'],
       detail?['target_location_id'],
@@ -552,7 +702,8 @@ class TaskRepositoryImpl implements TaskRepository {
       data['upc'],
       data['ean'],
     ]));
-    final quantity = _toInt(_firstNonNull([
+    final quantity = _quantityFromProducts(data['products']) ??
+        _toInt(_firstNonNull([
           detail?['quantity'],
           detail?['qty'],
           detail?['expected_quantity'],
@@ -569,6 +720,12 @@ class TaskRepositoryImpl implements TaskRepository {
       detail?['source_event_id'],
       detail?['sourceEventId'],
     ]));
+    final unit = _resolveTaskUnit(
+      data: data,
+      detail: detail,
+      product: product,
+      firstProduct: firstProduct,
+    );
     final workflowData = rawType == 'cycle_count'
         ? _buildCycleCountWorkflowData(data)
         : const <String, Object?>{};
@@ -586,6 +743,7 @@ class TaskRepositoryImpl implements TaskRepository {
         );
     final status = _toTaskStatus(_asString(data['status']));
     final zone = _deriveUnifiedTaskZone(
+          rawType: rawType,
           toLocation: toLocation,
           fromLocation: fromLocation,
           subtitleLocation: subtitleLocation,
@@ -620,6 +778,7 @@ class TaskRepositoryImpl implements TaskRepository {
       toLocation: toLocation ?? subtitleLocation,
       toLocationId: toLocationId,
       quantity: quantity,
+      unit: unit,
       assignedTo: status == TaskStatus.pending ? null : '__worker__',
       status: status,
       createdBy: 'system',
@@ -648,13 +807,37 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   String? _deriveUnifiedTaskZone({
+    required String rawType,
     required String? toLocation,
     required String? fromLocation,
     required String? subtitleLocation,
   }) {
+    final normalizedType = rawType.trim().toLowerCase();
+    if (normalizedType == 'restock') {
+      return _zoneFromExplicitZoneText(toLocation) ??
+          _zoneFromExplicitZoneText(fromLocation) ??
+          _zoneFromExplicitZoneText(subtitleLocation);
+    }
+
     return _zoneFromLocationText(toLocation) ??
         _zoneFromLocationText(fromLocation) ??
         _zoneFromExplicitZoneText(subtitleLocation);
+  }
+
+  String? _deriveLegacyTaskZone({
+    required String? rawType,
+    required String? toLocation,
+    required String? fromLocation,
+  }) {
+    final normalizedType = rawType?.trim().toLowerCase() ?? '';
+    if (normalizedType == 'restock') {
+      return _zoneFromExplicitZoneText(toLocation) ??
+          _zoneFromExplicitZoneText(fromLocation);
+    }
+
+    return _zoneFromLocationText(toLocation) ??
+        _zoneFromLocationText(fromLocation) ??
+        _normalizeZone(toLocation);
   }
 
   Map<String, Object?> _buildCycleCountWorkflowData(Map<String, dynamic> data) {
@@ -664,10 +847,9 @@ class TaskRepositoryImpl implements TaskRepository {
           .whereType<Map>()
           .map((entry) => Map<String, Object?>.from(entry))
           .where((entry) {
-            final quantity = _toInt(entry['quantity']) ?? 0;
-            return quantity > 0;
-          })
-          .toList(growable: false);
+        final quantity = _toInt(entry['quantity']) ?? 0;
+        return quantity > 0;
+      }).toList(growable: false);
       if (parsedProducts.isNotEmpty) {
         return <String, Object?>{
           'cycleCountMode': 'full_shelf',
@@ -679,6 +861,57 @@ class TaskRepositoryImpl implements TaskRepository {
     return const <String, Object?>{};
   }
 
+  int? _quantityFromProducts(dynamic products) {
+    if (products is! List) return null;
+
+    var total = 0;
+    var foundQuantity = false;
+    for (final entry in products) {
+      if (entry is! Map) continue;
+      final quantity = _toInt(entry['quantity']);
+      if (quantity == null) continue;
+      total += quantity;
+      foundQuantity = true;
+    }
+
+    if (!foundQuantity) return null;
+    return total;
+  }
+
+  String? _resolveTaskUnit({
+    required Map<String, dynamic> data,
+    required Map<String, dynamic>? detail,
+    required Map<String, dynamic>? product,
+    required Map<String, dynamic>? firstProduct,
+  }) {
+    return _asString(_firstNonNull([
+      data['unit'],
+      data['uom'],
+      data['unit_name'],
+      data['unitName'],
+      data['quantity_unit'],
+      data['quantityUnit'],
+      detail?['unit'],
+      detail?['uom'],
+      detail?['unit_name'],
+      detail?['unitName'],
+      detail?['quantity_unit'],
+      detail?['quantityUnit'],
+      product?['unit'],
+      product?['uom'],
+      product?['unit_name'],
+      product?['unitName'],
+      product?['quantity_unit'],
+      product?['quantityUnit'],
+      firstProduct?['unit'],
+      firstProduct?['uom'],
+      firstProduct?['unit_name'],
+      firstProduct?['unitName'],
+      firstProduct?['quantity_unit'],
+      firstProduct?['quantityUnit'],
+    ]));
+  }
+
   String? _resolveUnifiedSubtitleLocation({
     required String rawType,
     required String? subtitle,
@@ -686,7 +919,8 @@ class TaskRepositoryImpl implements TaskRepository {
     final trimmed = subtitle?.trim();
     if (trimmed == null || trimmed.isEmpty) return null;
 
-    final normalizedSubtitle = trimmed.toLowerCase().replaceAll(RegExp(r'[\s-]+'), '_');
+    final normalizedSubtitle =
+        trimmed.toLowerCase().replaceAll(RegExp(r'[\s-]+'), '_');
     final normalizedType = rawType.trim().toLowerCase();
     if (normalizedSubtitle == normalizedType) {
       return null;
@@ -716,7 +950,8 @@ class TaskRepositoryImpl implements TaskRepository {
   String? _zoneFromExplicitZoneText(String? value) {
     if (value == null || value.trim().isEmpty) return null;
 
-    final match = RegExp(r'\bZ(\d{1,3})\b').firstMatch(value.trim().toUpperCase());
+    final match =
+        RegExp(r'\bZ(\d{1,3})\b').firstMatch(value.trim().toUpperCase());
     if (match == null) return null;
 
     return 'Z${match.group(1)!.padLeft(2, '0')}';
@@ -847,6 +1082,30 @@ class TaskRepositoryImpl implements TaskRepository {
     return 'Z${matched.padLeft(2, '0')}';
   }
 
+  String? _extractNextCursor(
+    Map<String, dynamic> payload, {
+    String? currentCursor,
+  }) {
+    final pagination = _asMap(payload['pagination']);
+    final meta = _asMap(payload['meta']);
+    final nextCursor = _asString(
+      _firstNonNull([
+        payload['next_cursor'],
+        payload['nextCursor'],
+        pagination?['next_cursor'],
+        pagination?['nextCursor'],
+        meta?['next_cursor'],
+        meta?['nextCursor'],
+      ]),
+    )?.trim();
+
+    if (nextCursor == null || nextCursor.isEmpty) return null;
+    if (currentCursor != null && nextCursor == currentCursor.trim()) {
+      return null;
+    }
+    return nextCursor;
+  }
+
   TaskEntity _cloneTask({
     required TaskEntity task,
     int? id,
@@ -861,6 +1120,7 @@ class TaskRepositoryImpl implements TaskRepository {
     String? toLocation,
     String? toLocationId,
     int? quantity,
+    String? unit,
     String? assignedTo,
     TaskStatus? status,
     String? createdBy,
@@ -884,6 +1144,7 @@ class TaskRepositoryImpl implements TaskRepository {
       toLocation: toLocation ?? task.toLocation,
       toLocationId: toLocationId ?? task.toLocationId,
       quantity: quantity ?? task.quantity,
+      unit: unit ?? task.unit,
       assignedTo: assignedTo,
       status: status ?? task.status,
       createdBy: createdBy ?? task.createdBy,
@@ -921,6 +1182,15 @@ class TaskRepositoryImpl implements TaskRepository {
   Map<String, dynamic>? _asMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
     if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
+  }
+
+  Map<String, dynamic>? _firstProductMap(dynamic value) {
+    if (value is! List) return null;
+    for (final entry in value) {
+      final product = _asMap(entry);
+      if (product != null) return product;
+    }
     return null;
   }
 

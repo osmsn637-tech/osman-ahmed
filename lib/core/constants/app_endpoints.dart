@@ -17,6 +17,8 @@ class AppEndpoints {
       '/mobile/v1/worker/tasks/$taskId/start';
   static String workerTaskScan(String taskId) =>
       '/mobile/v1/worker/tasks/$taskId/scan';
+  static String workerTaskFlag(String taskId) =>
+      '/mobile/v1/worker/tasks/$taskId/flag';
   static String workerTaskSubmit(String taskId) =>
       '/mobile/v1/worker/tasks/$taskId/submit';
   static String workerTaskProgress(String taskId) =>
@@ -34,5 +36,16 @@ class AppEndpoints {
   static String lookupProductByBarcode(String barcode) =>
       'https://api.qeu.app/mobile/v1/products/barcode/${Uri.encodeComponent(barcode)}';
   static String itemStock(String barcode) => '/inventory/items/$barcode/stock';
-  static String locationItems(int locationId) => '/inventory/locations/$locationId/items';
+  static String locationItems(int locationId) =>
+      '/inventory/locations/$locationId/items';
+  static const inboundReceiptScanByPo =
+      '/mobile/v1/inbound/receipts/scan-by-po';
+  static String inboundReceiptDetail(String receiptId) =>
+      '/mobile/v1/inbound/receipts/$receiptId';
+  static String inboundReceiptStart(String receiptId) =>
+      '/mobile/v1/inbound/receipts/$receiptId/start';
+  static String inboundReceiptScanItem(String receiptId) =>
+      '/mobile/v1/inbound/receipts/$receiptId/scan-item';
+  static String inboundReceiptItemConfirm(String itemId) =>
+      '/mobile/v1/inbound/receipt-items/$itemId/confirm';
 }

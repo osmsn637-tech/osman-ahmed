@@ -17,13 +17,20 @@ abstract class TaskRepository {
     int taskId, {
     int? quantity,
     String? locationId,
+    List<Map<String, Object?>>? cycleCountItems,
   });
   Future<TaskEntity> saveCycleCountProgress(
     int taskId, {
     required Map<String, Object?> progress,
   });
+  Future<TaskEntity> skipTask(int taskId, {String? reason});
   Future<TaskEntity> claimTask({required int taskId, required String workerId});
   Future<Map<String, dynamic>> suggestTask(int taskId);
+  Future<void> reportTaskIssue({
+    required int taskId,
+    required String note,
+    String? photoPath,
+  });
   Future<Map<String, dynamic>> validateTaskLocation({
     required int taskId,
     required String barcode,
@@ -35,7 +42,7 @@ abstract class TaskRepository {
   Future<void> submitAdjustmentCount({
     required int taskId,
     required String adjustmentItemId,
-    required int actualQuantity,
+    required int quantity,
     String? notes,
   });
 }

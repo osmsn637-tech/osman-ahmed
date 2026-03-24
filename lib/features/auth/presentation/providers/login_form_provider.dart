@@ -11,7 +11,11 @@ import '../../domain/usecases/login_usecase.dart';
 import 'session_provider.dart';
 
 class LoginFormState {
-  const LoginFormState({this.username = '', this.password = '', this.isSubmitting = false});
+  const LoginFormState({
+    this.username = '',
+    this.password = '',
+    this.isSubmitting = false,
+  });
 
   final String username;
   final String password;
@@ -19,7 +23,11 @@ class LoginFormState {
 
   bool get isValid => username.isNotEmpty && password.isNotEmpty;
 
-  LoginFormState copyWith({String? username, String? password, bool? isSubmitting}) => LoginFormState(
+  LoginFormState copyWith({
+    String? username,
+    String? password,
+    bool? isSubmitting,
+  }) => LoginFormState(
         username: username ?? this.username,
         password: password ?? this.password,
         isSubmitting: isSubmitting ?? this.isSubmitting,
@@ -38,7 +46,10 @@ class LoginFormController extends ChangeNotifier {
         _loading = loading,
         _session = session,
         _tokenRepository = tokenRepository,
-        _state = const LoginFormState();
+        _state = const LoginFormState() {
+    _wasAuthenticated = _session.state.isAuthenticated;
+    _session.addListener(_handleSessionChanged);
+  }
 
   final LoginUseCase _loginUseCase;
   final GlobalErrorController _errors;
@@ -47,7 +58,16 @@ class LoginFormController extends ChangeNotifier {
   final TokenRepository? _tokenRepository;
 
   LoginFormState _state;
+  late bool _wasAuthenticated;
   LoginFormState get state => _state;
+
+  void _handleSessionChanged() {
+    final isAuthenticated = _session.state.isAuthenticated;
+    if (_wasAuthenticated && !isAuthenticated) {
+      reset();
+    }
+    _wasAuthenticated = isAuthenticated;
+  }
 
   void usernameChanged(String value) {
     if (_state.username == value) return;
@@ -61,6 +81,17 @@ class LoginFormController extends ChangeNotifier {
     final wasValid = _state.isValid;
     _state = _state.copyWith(password: value);
     if (wasValid != _state.isValid) notifyListeners();
+  }
+
+  void reset() {
+    if (_state.username.isEmpty &&
+        _state.password.isEmpty &&
+        !_state.isSubmitting) {
+      return;
+    }
+
+    _state = const LoginFormState();
+    notifyListeners();
   }
 
   Future<void> submit() async {
@@ -91,5 +122,11 @@ class LoginFormController extends ChangeNotifier {
           _errors.showError(const UnknownException('Unknown error'));
         }
     }
+  }
+
+  @override
+  void dispose() {
+    _session.removeListener(_handleSessionChanged);
+    super.dispose();
   }
 }

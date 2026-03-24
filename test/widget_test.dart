@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:putaway_app/features/dashboard/domain/entities/task_entity.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/task_entity.dart';
 
 void main() {
   test('TaskEntity status helpers work correctly', () {

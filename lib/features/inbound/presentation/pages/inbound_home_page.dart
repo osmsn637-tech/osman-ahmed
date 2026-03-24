@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:putaway_app/features/move/presentation/pages/item_lookup_scan_dialog.dart';
 import 'package:provider/provider.dart';
+import 'package:wherehouse/features/auth/domain/entities/user.dart';
+import 'package:wherehouse/features/move/presentation/pages/item_lookup_scan_dialog.dart';
 
-import 'package:putaway_app/features/auth/presentation/providers/session_provider.dart';
-import 'package:putaway_app/shared/l10n/l10n.dart';
-import 'package:putaway_app/shared/theme/app_theme.dart';
-import 'package:putaway_app/shared/ui/action_button.dart';
+import 'package:wherehouse/features/auth/presentation/providers/session_provider.dart';
+import 'package:wherehouse/features/inbound/domain/usecases/scan_inbound_receipt_usecase.dart';
+import 'package:wherehouse/shared/l10n/l10n.dart';
+import 'package:wherehouse/shared/theme/app_theme.dart';
+import 'package:wherehouse/shared/widgets/app_logo.dart';
 
 class InboundHomePage extends StatelessWidget {
   const InboundHomePage({super.key});
@@ -14,12 +16,23 @@ class InboundHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final userName =
-        context.select<SessionController, String?>((s) => s.state.user?.name) ??
-            'Inbound';
+    final isArabic = context.isArabicLocale;
+    final user = context.select<SessionController, User?>(
+      (session) => session.state.user,
+    );
+    final userName = user?.name ?? (isArabic ? 'الوارد' : 'Inbound');
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.inboundTitle)),
+      appBar: AppBar(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppLogo(size: 24),
+            const SizedBox(width: 8),
+            Text(isArabic ? 'الوارد' : 'Inbound'),
+          ],
+        ),
+      ),
       body: Stack(
         children: [
           Container(
@@ -27,7 +40,7 @@ class InboundHomePage extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFFE8F0F8), AppTheme.surface],
+                colors: [Color(0xFFE6EEF8), AppTheme.surface],
                 stops: [0, 0.38],
               ),
             ),
@@ -39,30 +52,18 @@ class InboundHomePage extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
                   children: [
-                    _WelcomeBackCard(userName: userName),
-                    const SizedBox(height: 14),
-                    ActionButton(
-                      label: 'Create Receipt',
-                      icon: Icons.note_add_rounded,
-                      color: AppTheme.primary,
-                      onTap: () => _openCreateInbound(context),
-                      height: 72,
-                    ),
+                    _InboundOverviewPanel(workerName: userName),
                     const SizedBox(height: 12),
-                    ActionButton(
-                      label: 'Receive',
-                      icon: Icons.call_received_rounded,
-                      color: AppTheme.accent,
-                      onTap: () => _openReceive(context),
-                      height: 72,
-                    ),
-                    const SizedBox(height: 12),
-                    ActionButton(
-                      label: 'Lookup',
+                    _InboundQuickActionButton(
                       icon: Icons.search_rounded,
-                      color: AppTheme.success,
-                      onTap: () => _openLookup(context),
-                      height: 72,
+                      label: l10n.workerLookup,
+                      onPressed: () => _openLookup(context),
+                    ),
+                    const SizedBox(height: 12),
+                    _InboundQuickActionButton(
+                      icon: Icons.call_received_rounded,
+                      label: l10n.inboundReceive,
+                      onPressed: () => _openReceive(context),
                     ),
                   ],
                 ),
@@ -74,32 +75,40 @@ class InboundHomePage extends StatelessWidget {
     );
   }
 
-  Future<void> _openCreateInbound(BuildContext context) async {
-    final po = await showItemLookupScanDialog(
-      context,
-      title: 'Scan PO',
-      hintText: 'PO.00..',
-      emptyErrorMessage: 'Enter a valid PO',
-      continueLabel: 'Continue',
-      showKeyboard: false,
-    );
-    final normalized = po?.trim() ?? '';
-    if (!context.mounted || normalized.isEmpty) return;
-    context.push('/inbound/create?po=${Uri.encodeComponent(normalized)}');
-  }
-
   Future<void> _openReceive(BuildContext context) async {
+    final isArabic = context.isArabicLocale;
     final po = await showItemLookupScanDialog(
       context,
-      title: 'Scan PO',
+      title: isArabic ? 'مسح أمر الشراء' : 'Scan PO',
       hintText: 'PO.00..',
-      emptyErrorMessage: 'Enter a valid PO',
-      continueLabel: 'Continue',
+      emptyErrorMessage: isArabic ? 'أدخل أمر شراء صالح' : 'Enter a valid PO',
+      continueLabel: isArabic ? 'متابعة' : 'Continue',
       showKeyboard: false,
     );
     final normalized = po?.trim() ?? '';
     if (!context.mounted || normalized.isEmpty) return;
-    context.push('/receive?barcode=${Uri.encodeComponent(normalized)}');
+    final scanUseCase = context.read<ScanInboundReceiptUseCase>();
+    final result = await scanUseCase.execute(normalized);
+    result.when(
+      success: (scan) {
+        if (!context.mounted) return;
+        context.push(
+          '/inbound/receipt/${Uri.encodeComponent(scan.receiptId)}',
+          extra: scan,
+        );
+      },
+      failure: (error) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _openLookup(BuildContext context) async {
@@ -113,10 +122,10 @@ class InboundHomePage extends StatelessWidget {
   }
 }
 
-class _WelcomeBackCard extends StatelessWidget {
-  const _WelcomeBackCard({required this.userName});
+class _InboundOverviewPanel extends StatelessWidget {
+  const _InboundOverviewPanel({required this.workerName});
 
-  final String userName;
+  final String workerName;
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +151,7 @@ class _WelcomeBackCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            l10n.workerWelcomeBack(userName),
+            l10n.workerWelcomeBack(workerName),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
@@ -157,6 +166,37 @@ class _WelcomeBackCard extends StatelessWidget {
                 ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InboundQuickActionButton extends StatelessWidget {
+  const _InboundQuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+          ),
+        ),
       ),
     );
   }

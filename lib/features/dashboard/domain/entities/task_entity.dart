@@ -12,6 +12,7 @@ class TaskEntity {
     required this.toLocation,
     this.toLocationId,
     required this.quantity,
+    this.unit,
     this.assignedTo,
     required this.status,
     required this.createdBy,
@@ -35,6 +36,7 @@ class TaskEntity {
   final String? toLocation;
   final String? toLocationId;
   final int quantity;
+  final String? unit;
   final String? assignedTo;
   final TaskStatus status;
   final String createdBy;
@@ -48,6 +50,8 @@ class TaskEntity {
   bool get isPending => status == TaskStatus.pending;
   bool get isInProgress => status == TaskStatus.inProgress;
   bool get isCompleted => status == TaskStatus.completed;
+  String get quantityUnit => _normalizedUnit(unit) ?? 'pc';
+  String formatQuantity(int value) => '$value $quantityUnit';
   String get cycleCountMode {
     final raw = workflowData['cycleCountMode'];
     if (raw is String && raw.trim().isNotEmpty) {
@@ -80,6 +84,7 @@ class TaskEntity {
               barcode: item.barcode,
               expectedQuantity: item.expectedQuantity,
               imageUrl: item.imageUrl,
+              unit: item.quantityUnit,
             ),
           )
           .toList(growable: false);
@@ -96,6 +101,7 @@ class TaskEntity {
               itemName: line.itemName,
               barcode: line.barcode?.trim() ?? '',
               expectedQuantity: line.expectedQuantity,
+              unit: line.quantityUnit,
             ),
           )
           .toList(growable: false);
@@ -108,6 +114,7 @@ class TaskEntity {
         barcode: itemBarcode?.trim() ?? '',
         expectedQuantity: cycleCountExpectedQuantity,
         imageUrl: itemImageUrl,
+        unit: quantityUnit,
       ),
     ];
   }
@@ -121,6 +128,7 @@ class TaskEntity {
         .map(
           (entry) => CycleCountProductItem.fromMap(
             Map<String, Object?>.from(entry),
+            fallbackUnit: quantityUnit,
           ),
         )
         .where((item) => item.expectedQuantity > 0)
@@ -138,6 +146,7 @@ class TaskEntity {
         .map(
           (entry) => CycleCountProgressItem.fromMap(
             Map<String, Object?>.from(entry),
+            fallbackUnit: quantityUnit,
           ),
         )
         .toList(growable: false);
@@ -159,7 +168,12 @@ class TaskEntity {
     if (raw is List) {
       return raw
           .whereType<Map>()
-          .map((entry) => ReturnTaskItem.fromMap(Map<String, Object?>.from(entry)))
+          .map(
+            (entry) => ReturnTaskItem.fromMap(
+              Map<String, Object?>.from(entry),
+              fallbackUnit: quantityUnit,
+            ),
+          )
           .toList(growable: false);
     }
 
@@ -168,6 +182,7 @@ class TaskEntity {
         itemName: itemName,
         barcode: itemBarcode,
         quantity: quantity,
+        unit: quantityUnit,
         imageUrl: itemImageUrl,
         location: toLocation,
       ),
@@ -180,8 +195,12 @@ class TaskEntity {
 
     return raw
         .whereType<Map>()
-        .map((entry) =>
-            TaskWorkflowLine.fromMap(Map<String, Object?>.from(entry)))
+        .map(
+          (entry) => TaskWorkflowLine.fromMap(
+            Map<String, Object?>.from(entry),
+            fallbackUnit: quantityUnit,
+          ),
+        )
         .toList(growable: false);
   }
 
@@ -221,6 +240,7 @@ class CycleCountItem {
     required this.barcode,
     required this.expectedQuantity,
     this.imageUrl,
+    this.unit,
   });
 
   final String key;
@@ -228,6 +248,10 @@ class CycleCountItem {
   final String barcode;
   final int expectedQuantity;
   final String? imageUrl;
+  final String? unit;
+
+  String get quantityUnit => _normalizedUnit(unit) ?? 'pc';
+  String formatQuantity(int value) => '$value $quantityUnit';
 }
 
 class CycleCountProgressItem {
@@ -236,14 +260,22 @@ class CycleCountProgressItem {
     required this.barcode,
     required this.countedQuantity,
     required this.completed,
+    this.unit,
   });
 
   final String key;
   final String barcode;
   final int countedQuantity;
   final bool completed;
+  final String? unit;
 
-  factory CycleCountProgressItem.fromMap(Map<String, Object?> data) {
+  String get quantityUnit => _normalizedUnit(unit) ?? 'pc';
+  String formatQuantity(int value) => '$value $quantityUnit';
+
+  factory CycleCountProgressItem.fromMap(
+    Map<String, Object?> data, {
+    String? fallbackUnit,
+  }) {
     final barcode = data['barcode']?.toString().trim() ?? '';
     final itemName = data['itemName']?.toString().trim() ?? '';
     final key = data['key']?.toString().trim();
@@ -257,6 +289,7 @@ class CycleCountProgressItem {
           ) ??
           0,
       completed: data['completed'] == true,
+      unit: _unitFromMap(data, fallbackUnit: fallbackUnit),
     );
   }
 }
@@ -268,6 +301,7 @@ class CycleCountProductItem {
     required this.barcode,
     required this.expectedQuantity,
     this.imageUrl,
+    this.unit,
   });
 
   final String productId;
@@ -275,8 +309,15 @@ class CycleCountProductItem {
   final String barcode;
   final int expectedQuantity;
   final String? imageUrl;
+  final String? unit;
 
-  factory CycleCountProductItem.fromMap(Map<String, Object?> data) {
+  String get quantityUnit => _normalizedUnit(unit) ?? 'pc';
+  String formatQuantity(int value) => '$value $quantityUnit';
+
+  factory CycleCountProductItem.fromMap(
+    Map<String, Object?> data, {
+    String? fallbackUnit,
+  }) {
     return CycleCountProductItem(
       productId: data['product_id']?.toString().trim() ?? '',
       itemName: (data['name'] ?? data['itemName'] ?? 'Unknown item').toString(),
@@ -286,6 +327,7 @@ class CycleCountProductItem {
           ) ??
           0,
       imageUrl: data['image']?.toString().trim(),
+      unit: _unitFromMap(data, fallbackUnit: fallbackUnit),
     );
   }
 }
@@ -295,13 +337,21 @@ class TaskWorkflowLine {
     required this.itemName,
     this.barcode,
     required this.expectedQuantity,
+    this.unit,
   });
 
   final String itemName;
   final String? barcode;
   final int expectedQuantity;
+  final String? unit;
 
-  factory TaskWorkflowLine.fromMap(Map<String, Object?> data) {
+  String get quantityUnit => _normalizedUnit(unit) ?? 'pc';
+  String formatQuantity(int value) => '$value $quantityUnit';
+
+  factory TaskWorkflowLine.fromMap(
+    Map<String, Object?> data, {
+    String? fallbackUnit,
+  }) {
     return TaskWorkflowLine(
       itemName: (data['itemName'] ?? data['name'] ?? 'Unknown item').toString(),
       barcode: data['barcode']?.toString(),
@@ -309,6 +359,7 @@ class TaskWorkflowLine {
             data['expectedQuantity'] ?? data['quantity'] ?? data['expected_qty'],
           ) ??
           0,
+      unit: _unitFromMap(data, fallbackUnit: fallbackUnit),
     );
   }
 
@@ -325,6 +376,7 @@ class ReturnTaskItem {
     required this.itemName,
     this.barcode,
     required this.quantity,
+    this.unit,
     this.imageUrl,
     this.location,
   });
@@ -332,10 +384,17 @@ class ReturnTaskItem {
   final String itemName;
   final String? barcode;
   final int quantity;
+  final String? unit;
   final String? imageUrl;
   final String? location;
 
-  factory ReturnTaskItem.fromMap(Map<String, Object?> data) {
+  String get quantityUnit => _normalizedUnit(unit) ?? 'pc';
+  String formatQuantity(int value) => '$value $quantityUnit';
+
+  factory ReturnTaskItem.fromMap(
+    Map<String, Object?> data, {
+    String? fallbackUnit,
+  }) {
     return ReturnTaskItem(
       itemName: (data['itemName'] ?? data['name'] ?? 'Unknown item').toString(),
       barcode: data['itemBarcode']?.toString() ?? data['barcode']?.toString(),
@@ -343,10 +402,28 @@ class ReturnTaskItem {
             data['quantity'] ?? data['expectedQuantity'] ?? data['expected_qty'],
           ) ??
           0,
+      unit: _unitFromMap(data, fallbackUnit: fallbackUnit),
       imageUrl: data['imageUrl']?.toString() ?? data['image']?.toString(),
       location: data['location']?.toString() ?? data['toLocation']?.toString(),
     );
   }
+}
+
+String? _unitFromMap(Map<String, Object?> data, {String? fallbackUnit}) {
+  return _normalizedUnit(data['unit']) ??
+      _normalizedUnit(data['uom']) ??
+      _normalizedUnit(data['unit_name']) ??
+      _normalizedUnit(data['unitName']) ??
+      _normalizedUnit(data['quantity_unit']) ??
+      _normalizedUnit(data['quantityUnit']) ??
+      _normalizedUnit(fallbackUnit);
+}
+
+String? _normalizedUnit(Object? value) {
+  if (value == null) return null;
+  final trimmed = value.toString().trim();
+  if (trimmed.isEmpty) return null;
+  return trimmed;
 }
 
 enum TaskType {
@@ -401,4 +478,9 @@ extension TaskSourceCode on TaskSource {
         return 'manager_dashboard';
     }
   }
+}
+
+extension TaskEntityApiFlags on TaskEntity {
+  bool get isPutawayTask =>
+      apiTaskType?.trim().toLowerCase() == 'putaway';
 }

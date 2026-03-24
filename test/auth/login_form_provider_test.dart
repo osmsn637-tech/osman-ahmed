@@ -1,13 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:putaway_app/core/utils/result.dart';
-import 'package:putaway_app/features/auth/domain/entities/login_params.dart';
-import 'package:putaway_app/features/auth/domain/entities/user.dart';
-import 'package:putaway_app/features/auth/domain/repositories/auth_repository.dart';
-import 'package:putaway_app/features/auth/domain/usecases/login_usecase.dart';
-import 'package:putaway_app/features/auth/presentation/providers/login_form_provider.dart';
-import 'package:putaway_app/features/auth/presentation/providers/session_provider.dart';
-import 'package:putaway_app/shared/providers/global_error_provider.dart';
-import 'package:putaway_app/shared/providers/global_loading_provider.dart';
+import 'package:wherehouse/core/utils/result.dart';
+import 'package:wherehouse/features/auth/domain/entities/login_params.dart';
+import 'package:wherehouse/features/auth/domain/entities/user.dart';
+import 'package:wherehouse/features/auth/domain/repositories/auth_repository.dart';
+import 'package:wherehouse/features/auth/domain/usecases/login_usecase.dart';
+import 'package:wherehouse/features/auth/presentation/providers/login_form_provider.dart';
+import 'package:wherehouse/features/auth/presentation/providers/session_provider.dart';
+import 'package:wherehouse/shared/providers/global_error_provider.dart';
+import 'package:wherehouse/shared/providers/global_loading_provider.dart';
 
 void main() {
   test('mock login assigns inbound role for inbound account', () async {

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 
-import 'package:putaway_app/features/move/domain/entities/item_location_summary_entity.dart';
-import 'package:putaway_app/shared/l10n/l10n.dart';
-import 'package:putaway_app/shared/scanner/scanner_provider.dart';
-import 'package:putaway_app/shared/ui/location_row.dart';
-import 'package:putaway_app/shared/ui/scan_box.dart';
+import 'package:wherehouse/features/move/domain/entities/item_location_summary_entity.dart';
+import 'package:wherehouse/shared/l10n/l10n.dart';
+import 'package:wherehouse/shared/scanner/scanner_provider.dart';
+import 'package:wherehouse/shared/ui/location_row.dart';
+import 'package:wherehouse/shared/ui/scan_box.dart';
 import '../controllers/receive_controller.dart';
 
 class ReceivePage extends StatefulWidget {

@@ -1,24 +1,27 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:putaway_app/features/auth/domain/entities/user.dart';
-import 'package:putaway_app/features/auth/presentation/providers/session_provider.dart';
-import 'package:putaway_app/features/dashboard/domain/entities/adjustment_task_entities.dart';
-import 'package:putaway_app/features/dashboard/domain/entities/ai_alert_entity.dart';
-import 'package:putaway_app/features/dashboard/domain/entities/dashboard_summary_entity.dart';
-import 'package:putaway_app/features/dashboard/domain/entities/exception_entity.dart';
-import 'package:putaway_app/features/dashboard/domain/entities/task_entity.dart';
-import 'package:putaway_app/features/dashboard/domain/repositories/task_repository.dart';
-import 'package:putaway_app/features/dashboard/domain/usecases/claim_task_usecase.dart';
-import 'package:putaway_app/features/dashboard/domain/usecases/complete_task_usecase.dart';
-import 'package:putaway_app/features/dashboard/domain/usecases/get_task_suggestion_usecase.dart';
-import 'package:putaway_app/features/dashboard/domain/usecases/get_tasks_for_zone_usecase.dart';
-import 'package:putaway_app/features/dashboard/domain/usecases/scan_adjustment_location_usecase.dart';
-import 'package:putaway_app/features/dashboard/domain/usecases/save_cycle_count_progress_usecase.dart';
-import 'package:putaway_app/features/dashboard/domain/usecases/submit_adjustment_count_usecase.dart';
-import 'package:putaway_app/features/dashboard/domain/usecases/validate_task_location_usecase.dart';
-import 'package:putaway_app/features/dashboard/presentation/controllers/worker_tasks_controller.dart';
+import 'package:wherehouse/features/auth/domain/entities/user.dart';
+import 'package:wherehouse/features/auth/presentation/providers/session_provider.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/adjustment_task_entities.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/ai_alert_entity.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/dashboard_summary_entity.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/exception_entity.dart';
+import 'package:wherehouse/features/dashboard/domain/entities/task_entity.dart';
+import 'package:wherehouse/features/dashboard/domain/repositories/task_repository.dart';
+import 'package:wherehouse/features/dashboard/domain/usecases/claim_task_usecase.dart';
+import 'package:wherehouse/features/dashboard/domain/usecases/complete_task_usecase.dart';
+import 'package:wherehouse/features/dashboard/domain/usecases/get_task_suggestion_usecase.dart';
+import 'package:wherehouse/features/dashboard/domain/usecases/get_tasks_for_zone_usecase.dart';
+import 'package:wherehouse/features/dashboard/domain/usecases/report_task_issue_usecase.dart';
+import 'package:wherehouse/features/dashboard/domain/usecases/scan_adjustment_location_usecase.dart';
+import 'package:wherehouse/features/dashboard/domain/usecases/skip_task_usecase.dart';
+import 'package:wherehouse/features/dashboard/domain/usecases/save_cycle_count_progress_usecase.dart';
+import 'package:wherehouse/features/dashboard/domain/usecases/submit_adjustment_count_usecase.dart';
+import 'package:wherehouse/features/dashboard/domain/usecases/validate_task_location_usecase.dart';
+import 'package:wherehouse/features/dashboard/presentation/controllers/worker_tasks_controller.dart';
 
 void main() {
-  test('claim returns the newly claimed task when refreshed list is stale', () async {
+  test('claim returns the newly claimed task when refreshed list is stale',
+      () async {
     final session = SessionController();
     session.setUser(
       const User(
@@ -35,6 +38,7 @@ void main() {
       claimTask: ClaimTaskUseCase(repository),
       completeTask: CompleteTaskUseCase(repository),
       getTaskSuggestion: GetTaskSuggestionUseCase(repository),
+      reportTaskIssue: ReportTaskIssueUseCase(repository),
       scanAdjustmentLocation: ScanAdjustmentLocationUseCase(repository),
       saveCycleCountProgress: SaveCycleCountProgressUseCase(repository),
       submitAdjustmentCount: SubmitAdjustmentCountUseCase(repository),
@@ -49,47 +53,182 @@ void main() {
     expect(claimed!.status, TaskStatus.inProgress);
     expect(claimed.assignedTo, 'worker-1');
   });
+
+  test(
+      'continue cycle count later saves progress, skips task, and reloads pending',
+      () async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+    final repository = _FakeTaskRepository.cycleCount();
+    final controller = WorkerTasksController(
+      getTasksForZone: GetTasksForZoneUseCase(repository),
+      claimTask: ClaimTaskUseCase(repository),
+      completeTask: CompleteTaskUseCase(repository),
+      getTaskSuggestion: GetTaskSuggestionUseCase(repository),
+      reportTaskIssue: ReportTaskIssueUseCase(repository),
+      scanAdjustmentLocation: ScanAdjustmentLocationUseCase(repository),
+      skipTask: SkipTaskUseCase(repository),
+      saveCycleCountProgress: SaveCycleCountProgressUseCase(repository),
+      submitAdjustmentCount: SubmitAdjustmentCountUseCase(repository),
+      validateTaskLocation: ValidateTaskLocationUseCase(repository),
+      session: session,
+    );
+
+    await controller.load();
+    await controller.continueCycleCountLater(
+      7,
+      progress: const <String, Object?>{
+        'items': [
+          {
+            'key': 'SKU-007',
+            'itemName': 'Saved Item',
+            'barcode': 'SKU-007',
+            'countedQuantity': 4,
+            'completed': true,
+          },
+        ],
+        'location': 'SHELF-07-01',
+        'locationValidated': true,
+      },
+    );
+
+    expect(repository.savedProgress, isNotNull);
+    expect(repository.skipCalled, isTrue);
+    expect(controller.state.current, hasLength(1));
+    expect(controller.state.current.single.status, TaskStatus.pending);
+    expect(
+        controller.state.current.single.cycleCountProgressItems, hasLength(1));
+    expect(
+      controller
+          .state.current.single.cycleCountProgressItems.single.countedQuantity,
+      4,
+    );
+  });
+
+  test('reportTaskIssue forwards note and photo path to repository', () async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+    final repository = _FakeTaskRepository();
+    final controller = WorkerTasksController(
+      getTasksForZone: GetTasksForZoneUseCase(repository),
+      claimTask: ClaimTaskUseCase(repository),
+      completeTask: CompleteTaskUseCase(repository),
+      getTaskSuggestion: GetTaskSuggestionUseCase(repository),
+      reportTaskIssue: ReportTaskIssueUseCase(repository),
+      scanAdjustmentLocation: ScanAdjustmentLocationUseCase(repository),
+      saveCycleCountProgress: SaveCycleCountProgressUseCase(repository),
+      submitAdjustmentCount: SubmitAdjustmentCountUseCase(repository),
+      validateTaskLocation: ValidateTaskLocationUseCase(repository),
+      session: session,
+    );
+
+    await controller.reportTaskIssue(
+      1,
+      note: 'Broken tote',
+      photoPath: 'C:/tmp/tote.jpg',
+    );
+
+    expect(repository.reportedNote, 'Broken tote');
+    expect(repository.reportedPhotoPath, 'C:/tmp/tote.jpg');
+  });
 }
 
 class _FakeTaskRepository implements TaskRepository {
-  final TaskEntity _pending = const TaskEntity(
-    id: 1,
-    type: TaskType.returnTask,
-    itemId: 1,
-    itemName: 'Return Tote RT-204',
-    itemBarcode: '123456789012',
-    fromLocation: 'RT-204',
-    toLocation: 'RET-01-04',
-    quantity: 6,
-    assignedTo: null,
-    status: TaskStatus.pending,
-    createdBy: 'system',
-    zone: 'Z01',
-  );
+  _FakeTaskRepository()
+      : _current = const TaskEntity(
+          id: 1,
+          type: TaskType.returnTask,
+          itemId: 1,
+          itemName: 'Return Tote RT-204',
+          itemBarcode: '123456789012',
+          fromLocation: 'RT-204',
+          toLocation: 'RET-01-04',
+          quantity: 6,
+          assignedTo: null,
+          status: TaskStatus.pending,
+          createdBy: 'system',
+          zone: 'Z01',
+        );
+  _FakeTaskRepository.cycleCount()
+      : _current = const TaskEntity(
+          id: 7,
+          type: TaskType.cycleCount,
+          itemId: 7,
+          itemName: 'Count SKU in SHELF-07-01',
+          itemBarcode: 'SKU-007',
+          fromLocation: null,
+          toLocation: 'SHELF-07-01',
+          quantity: 1,
+          assignedTo: 'worker-1',
+          status: TaskStatus.inProgress,
+          createdBy: 'system',
+          zone: 'Z01',
+          workflowData: <String, Object?>{
+            'cycleCountMode': 'single_item',
+            'expectedQuantity': 1,
+          },
+        );
+
+  TaskEntity _current;
+  Map<String, Object?>? savedProgress;
+  bool skipCalled = false;
+  String? reportedNote;
+  String? reportedPhotoPath;
 
   @override
-  Future<TaskEntity> claimTask({required int taskId, required String workerId}) async {
-    return TaskEntity(
-      id: _pending.id,
-      type: _pending.type,
-      itemId: _pending.itemId,
-      itemName: _pending.itemName,
-      itemBarcode: _pending.itemBarcode,
-      fromLocation: _pending.fromLocation,
-      toLocation: _pending.toLocation,
-      quantity: _pending.quantity,
+  Future<TaskEntity> claimTask(
+      {required int taskId, required String workerId}) async {
+    _current = TaskEntity(
+      id: _current.id,
+      type: _current.type,
+      itemId: _current.itemId,
+      itemName: _current.itemName,
+      itemBarcode: _current.itemBarcode,
+      fromLocation: _current.fromLocation,
+      toLocation: _current.toLocation,
+      quantity: _current.quantity,
       assignedTo: workerId,
       status: TaskStatus.inProgress,
-      createdBy: _pending.createdBy,
-      zone: _pending.zone,
+      createdBy: _current.createdBy,
+      zone: _current.zone,
+      workflowData: _current.workflowData,
     );
+    return _current;
   }
 
   @override
-  Future<List<TaskEntity>> getTasksForZone(String zone) async => <TaskEntity>[_pending];
+  Future<List<TaskEntity>> getTasksForZone(String zone) async =>
+      <TaskEntity>[_current];
 
   @override
-  Future<TaskEntity> completeTask(int taskId, {int? quantity, String? locationId}) {
+  Future<void> reportTaskIssue({
+    required int taskId,
+    required String note,
+    String? photoPath,
+  }) async {
+    reportedNote = note;
+    reportedPhotoPath = photoPath;
+  }
+
+  @override
+  Future<TaskEntity> completeTask(int taskId,
+      {int? quantity, String? locationId}) {
     throw UnimplementedError();
   }
 
@@ -97,8 +236,51 @@ class _FakeTaskRepository implements TaskRepository {
   Future<TaskEntity> saveCycleCountProgress(
     int taskId, {
     required Map<String, Object?> progress,
-  }) {
-    throw UnimplementedError();
+  }) async {
+    savedProgress = progress;
+    _current = TaskEntity(
+      id: _current.id,
+      type: _current.type,
+      itemId: _current.itemId,
+      itemName: _current.itemName,
+      itemBarcode: _current.itemBarcode,
+      fromLocation: _current.fromLocation,
+      toLocation: _current.toLocation,
+      quantity: _current.quantity,
+      assignedTo: _current.assignedTo,
+      status: _current.status,
+      createdBy: _current.createdBy,
+      zone: _current.zone,
+      workflowData: <String, Object?>{
+        ..._current.workflowData,
+        'cycleCountProgress': progress,
+      },
+    );
+    return _current;
+  }
+
+  @override
+  Future<TaskEntity> skipTask(int taskId, {String? reason}) async {
+    skipCalled = true;
+    _current = TaskEntity(
+      id: _current.id,
+      type: _current.type,
+      itemId: _current.itemId,
+      itemName: _current.itemName,
+      itemBarcode: _current.itemBarcode,
+      fromLocation: _current.fromLocation,
+      toLocation: _current.toLocation,
+      quantity: _current.quantity,
+      assignedTo: null,
+      status: TaskStatus.pending,
+      createdBy: _current.createdBy,
+      zone: _current.zone,
+      workflowData: <String, Object?>{
+        ..._current.workflowData,
+        if (savedProgress != null) 'cycleCountProgress': savedProgress!,
+      },
+    );
+    return _current;
   }
 
   @override
@@ -113,14 +295,16 @@ class _FakeTaskRepository implements TaskRepository {
   }
 
   @override
-  Future<List<ExceptionEntity>> getExceptions() async => const <ExceptionEntity>[];
+  Future<List<ExceptionEntity>> getExceptions() async =>
+      const <ExceptionEntity>[];
 
   @override
   Future<List<TaskEntity>> getTasksForWorker(String workerId) async =>
-      <TaskEntity>[_pending];
+      <TaskEntity>[_current];
 
   @override
-  Future<void> resolveException({required int id, required String action}) async {}
+  Future<void> resolveException(
+      {required int id, required String action}) async {}
 
   @override
   Future<Map<String, dynamic>> suggestTask(int taskId) async =>
@@ -149,7 +333,7 @@ class _FakeTaskRepository implements TaskRepository {
   Future<void> submitAdjustmentCount({
     required int taskId,
     required String adjustmentItemId,
-    required int actualQuantity,
+    required int quantity,
     String? notes,
   }) async {}
 }

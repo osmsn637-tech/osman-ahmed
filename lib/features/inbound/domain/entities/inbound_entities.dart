@@ -42,7 +42,8 @@ class InboundDocument extends Equatable {
   final DateTime? expectedArrival;
 
   int get totalItems => items.length;
-  int get receivedItems => items.where((item) => item.receivedQuantity > 0).length;
+  int get receivedItems =>
+      items.where((item) => item.receivedQuantity > 0).length;
   bool get isPending => status == InboundStatus.pending;
   bool get isInProgress => status == InboundStatus.inProgress;
   bool get isCompleted => status == InboundStatus.completed;
@@ -194,3 +195,110 @@ class ReceiveInboundItemParams {
   final bool isReturn;
   final String? notes;
 }
+
+class InboundReceiptScanResult extends Equatable {
+  const InboundReceiptScanResult({
+    required this.barcode,
+    required this.receiptId,
+    required this.poNumber,
+    this.status = 'pending',
+    this.items = const <InboundReceiptItem>[],
+  });
+
+  final String barcode;
+  final String receiptId;
+  final String poNumber;
+  final String status;
+  final List<InboundReceiptItem> items;
+
+  InboundReceipt toReceipt() {
+    return InboundReceipt(
+      id: receiptId,
+      poNumber: poNumber,
+      status: status,
+      items: items,
+    );
+  }
+
+  @override
+  List<Object?> get props => [barcode, receiptId, poNumber, status, items];
+}
+
+class InboundReceipt extends Equatable {
+  const InboundReceipt({
+    required this.id,
+    required this.poNumber,
+    required this.items,
+    this.status = 'pending',
+  });
+
+  final String id;
+  final String poNumber;
+  final String status;
+  final List<InboundReceiptItem> items;
+
+  InboundReceipt copyWith({
+    String? id,
+    String? poNumber,
+    String? status,
+    List<InboundReceiptItem>? items,
+  }) {
+    return InboundReceipt(
+      id: id ?? this.id,
+      poNumber: poNumber ?? this.poNumber,
+      status: status ?? this.status,
+      items: items ?? this.items,
+    );
+  }
+
+  @override
+  List<Object?> get props => [id, poNumber, status, items];
+}
+
+class InboundReceiptItem extends Equatable {
+  const InboundReceiptItem({
+    required this.id,
+    required this.itemName,
+    required this.barcode,
+    required this.expectedQuantity,
+    this.imageUrl,
+    this.receivedQuantity = 0,
+  });
+
+  final String id;
+  final String itemName;
+  final String barcode;
+  final int expectedQuantity;
+  final String? imageUrl;
+  final int receivedQuantity;
+
+  InboundReceiptItem copyWith({
+    String? id,
+    String? itemName,
+    String? barcode,
+    int? expectedQuantity,
+    Object? imageUrl = _sentinel,
+    int? receivedQuantity,
+  }) {
+    return InboundReceiptItem(
+      id: id ?? this.id,
+      itemName: itemName ?? this.itemName,
+      barcode: barcode ?? this.barcode,
+      expectedQuantity: expectedQuantity ?? this.expectedQuantity,
+      imageUrl: imageUrl == _sentinel ? this.imageUrl : imageUrl as String?,
+      receivedQuantity: receivedQuantity ?? this.receivedQuantity,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        id,
+        itemName,
+        barcode,
+        expectedQuantity,
+        imageUrl,
+        receivedQuantity,
+      ];
+}
+
+const Object _sentinel = Object();

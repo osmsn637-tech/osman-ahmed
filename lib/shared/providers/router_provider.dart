@@ -13,6 +13,10 @@ import '../../features/move/presentation/pages/item_lookup_result_page.dart';
 import '../../features/move/presentation/pages/move_item_page.dart';
 import '../../features/move/presentation/pages/stock_adjustment_page.dart';
 import '../../features/inbound/presentation/pages/create_inbound_page.dart';
+import '../../features/inbound/domain/entities/inbound_entities.dart';
+import '../../features/inbound/presentation/controllers/inbound_receipt_controller.dart';
+import '../../features/inbound/presentation/pages/inbound_receipt_page.dart';
+import '../../features/inbound/domain/repositories/inbound_repository.dart';
 import '../../features/receive/presentation/pages/receive_page.dart';
 import '../../shared/widgets/main_scaffold.dart';
 import '../pages/account_page.dart';
@@ -62,6 +66,25 @@ GoRouter buildRouter(
           initialDocumentNumber: state.uri.queryParameters['po'],
           initialSupplier: state.uri.queryParameters['supplier'],
         ),
+      ),
+      GoRoute(
+        path: '/inbound/receipt/:id',
+        builder: (context, state) {
+          final receiptId = Uri.decodeComponent(
+            state.pathParameters['id'] ?? '',
+          );
+          final initialScanResult = state.extra is InboundReceiptScanResult
+              ? state.extra as InboundReceiptScanResult
+              : null;
+          return ChangeNotifierProvider<InboundReceiptController>(
+            create: (_) => InboundReceiptController(
+              context.read<InboundRepository>(),
+              receiptId: receiptId,
+              initialScanResult: initialScanResult,
+            ),
+            child: InboundReceiptPage(receiptId: receiptId),
+          );
+        },
       ),
       GoRoute(
         path: '/move',

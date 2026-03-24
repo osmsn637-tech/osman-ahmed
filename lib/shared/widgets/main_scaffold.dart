@@ -7,7 +7,6 @@ import '../navigation/navigation_controller.dart';
 import '../pages/account_page.dart';
 import '../../features/auth/presentation/providers/session_provider.dart';
 import '../../features/dashboard/presentation/pages/worker_home_page.dart';
-import '../../features/dashboard/presentation/pages/supervisor_home_page.dart';
 import '../../features/inbound/presentation/pages/inbound_home_page.dart';
 
 class MainScaffold extends StatefulWidget {
@@ -28,7 +27,6 @@ class _RoleAwareHomePage extends StatelessWidget {
         context.select<SessionController, dynamic>((s) => s.state.user);
     if (user == null) return const HomePage();
     if (user.isInbound) return const InboundHomePage();
-    if (user.isSupervisor) return const SupervisorHomePage();
     return const WorkerHomePage();
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../shared/l10n/l10n.dart';
 import '../../../../shared/ui/location_row.dart';
 import '../../domain/entities/item_location_entity.dart';
 import '../controllers/item_adjustment_controller.dart';
@@ -43,7 +44,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
     final adjustmentState = adjustmentController?.state;
     final theme = Theme.of(context);
     final summary = state.summary;
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final isArabic = context.isArabicLocale;
 
     if (isAdjustMode && adjustmentState?.success == true) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -174,6 +175,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                     _AdjustmentPanel(
                       state: adjustmentState!,
                       reasons: adjustmentController!.reasons,
+                      isArabic: isArabic,
                       onIncrement: adjustmentController.increment,
                       onDecrement: adjustmentController.decrement,
                       onReasonChanged: (value) {
@@ -531,6 +533,7 @@ class _AdjustmentPanel extends StatelessWidget {
   const _AdjustmentPanel({
     required this.state,
     required this.reasons,
+    required this.isArabic,
     required this.onIncrement,
     required this.onDecrement,
     required this.onReasonChanged,
@@ -540,6 +543,7 @@ class _AdjustmentPanel extends StatelessWidget {
 
   final ItemAdjustmentState state;
   final List<String> reasons;
+  final bool isArabic;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final ValueChanged<String?> onReasonChanged;
@@ -556,15 +560,19 @@ class _AdjustmentPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Adjustment',
-              style: TextStyle(fontWeight: FontWeight.w800),
+            Text(
+              isArabic ? 'تعديل المخزون' : 'Adjustment',
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
               state.selectedLocationCode == null
-                  ? 'Select a location to adjust.'
-                  : 'Selected location: ${state.selectedLocationCode}',
+                  ? (isArabic
+                      ? 'اختر موقعًا لإجراء التعديل.'
+                      : 'Select a location to adjust.')
+                  : (isArabic
+                      ? 'الموقع المحدد: ${state.selectedLocationCode}'
+                      : 'Selected location: ${state.selectedLocationCode}'),
               style: TextStyle(color: Colors.grey.shade700),
             ),
             const SizedBox(height: 12),
@@ -598,7 +606,9 @@ class _AdjustmentPanel extends StatelessWidget {
             DropdownButtonFormField<String>(
               key: const Key('adjust_reason_field'),
               initialValue: state.reason,
-              decoration: const InputDecoration(labelText: 'Reason'),
+              decoration: InputDecoration(
+                labelText: isArabic ? 'السبب' : 'Reason',
+              ),
               items: reasons
                   .map(
                     (reason) => DropdownMenuItem<String>(
@@ -615,9 +625,11 @@ class _AdjustmentPanel extends StatelessWidget {
               onChanged: onNoteChanged,
               minLines: 2,
               maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Note',
-                hintText: 'Why are you adjusting this location?',
+              decoration: InputDecoration(
+                labelText: isArabic ? 'ملاحظة' : 'Note',
+                hintText: isArabic
+                    ? 'لماذا تقوم بتعديل هذا الموقع؟'
+                    : 'Why are you adjusting this location?',
               ),
             ),
             if (state.errorMessage != null) ...[
@@ -633,7 +645,11 @@ class _AdjustmentPanel extends StatelessWidget {
               child: ElevatedButton(
                 key: const Key('adjust_confirm_button'),
                 onPressed: onConfirm,
-                child: Text(state.isSubmitting ? 'Confirming...' : 'Confirm'),
+                child: Text(
+                  state.isSubmitting
+                      ? (isArabic ? 'جارٍ التأكيد...' : 'Confirming...')
+                      : (isArabic ? 'تأكيد' : 'Confirm'),
+                ),
               ),
             ),
           ],

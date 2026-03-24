@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../../../core/errors/app_exception.dart';
+import '../../../../flutter_gen/gen_l10n/app_localizations.dart';
 import '../../../../shared/l10n/l10n.dart';
 import '../../../../shared/theme/app_theme.dart';
 import '../../domain/entities/adjustment_task_entities.dart';
@@ -10,6 +13,7 @@ import '../../../move/presentation/pages/item_lookup_scan_dialog.dart';
 import '../../domain/entities/task_entity.dart';
 import '../shared/dashboard_common_widgets.dart';
 import '../shared/location_format.dart';
+import '../shared/task_report_photo_attachment.dart';
 import '../shared/task_visuals.dart';
 
 class WorkerTaskDetailsPage extends StatefulWidget {
@@ -19,9 +23,12 @@ class WorkerTaskDetailsPage extends StatefulWidget {
     this.onStartTask,
     this.onCompleteTask,
     this.onSaveCycleCountProgress,
+    this.onContinueCycleCountLater,
     this.onGetSuggestion,
     this.onScanAdjustmentLocation,
     this.onSubmitAdjustmentCount,
+    this.onReportTaskIssue,
+    this.onCaptureReportPhoto,
     this.onValidateLocation,
     this.onLookupItem,
   });
@@ -32,19 +39,29 @@ class WorkerTaskDetailsPage extends StatefulWidget {
     int taskId, {
     int? quantity,
     String? locationId,
+    List<Map<String, Object?>>? cycleCountItems,
   })? onCompleteTask;
   final Future<void> Function(
     int taskId, {
     required Map<String, Object?> progress,
   })? onSaveCycleCountProgress;
+  final Future<void> Function(
+    int taskId, {
+    required Map<String, Object?> progress,
+  })? onContinueCycleCountLater;
   final Future<String?> Function()? onGetSuggestion;
   final Future<AdjustmentTaskLocationScan> Function(String barcode)?
       onScanAdjustmentLocation;
   final Future<void> Function({
     required String adjustmentItemId,
-    required int actualQuantity,
+    required int quantity,
     String? notes,
   })? onSubmitAdjustmentCount;
+  final Future<void> Function({
+    required String note,
+    String? photoPath,
+  })? onReportTaskIssue;
+  final Future<TaskReportPhotoAttachment?> Function()? onCaptureReportPhoto;
   final Future<Map<String, dynamic>> Function(String barcode)?
       onValidateLocation;
   final Future<ItemLocationSummaryEntity> Function(String barcode)?
@@ -60,6 +77,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   late final TextEditingController _bulkLocationController;
   late final TextEditingController _quantityController;
   late final TextEditingController _returnToteController;
+  late final TextEditingController _returnScanController;
   late final TextEditingController _returnQuantityController;
   late final TextEditingController _cycleCountScanController;
   late final TextEditingController _cycleCountDetailQuantityController;
@@ -67,6 +85,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   late final TextEditingController _adjustmentNoteController;
   late final TextEditingController _unexpectedItemNameController;
   late final TextEditingController _unexpectedItemQuantityController;
+  late final FocusNode _productScanFocusNode;
+  late final FocusNode _locationScanFocusNode;
+  late final FocusNode _returnScanFocusNode;
   late final FocusNode _cycleCountScanFocusNode;
   late final FocusNode _cycleCountDetailBarcodeFocusNode;
   final List<TextEditingController> _cycleCountLineControllers =
@@ -107,12 +128,47 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   _AdjustmentMode _adjustmentMode = _AdjustmentMode.decrease;
   late final List<_CycleCountItemState> _cycleCountItems;
   Timer? _cycleCountScanDebounce;
+  Timer? _productValidationDebounce;
+  Timer? _locationValidationDebounce;
+  Timer? _returnValidationDebounce;
+  Timer? _productFailureClearTimer;
+  Timer? _locationFailureClearTimer;
+  Timer? _cycleCountDetailBarcodeClearTimer;
   final List<bool> _returnItemValidated = <bool>[];
+
+  String _tr(String english, String arabic) =>
+      context.isArabicLocale ? arabic : english;
+
+  String get _manualTypeLabel => _tr('Manual Type', 'إدخال يدوي');
+
+  String get _cancelLabel => _tr('Cancel', 'إلغاء');
+
+  String get _locationValidatedLabel =>
+      _tr('Location validated', 'تم التحقق من الموقع');
+
+  String get _pendingTaskRightProductMessage =>
+      _tr('right product', 'الصنف الصحيح');
   final List<bool> _returnItemLocationValidated = <bool>[];
   final List<TextEditingController> _returnItemLocationControllers =
       <TextEditingController>[];
   final List<TextEditingController> _returnItemQuantityControllers =
       <TextEditingController>[];
+  String? _lastAutoValidatedProduct;
+  String? _lastAutoValidatedLocation;
+  String? _locationValidationInFlightValue;
+  bool _cycleCountDetailBarcodeValidated = false;
+
+  String _messageForError(
+    Object error, {
+    required String fallbackEnglish,
+    required String fallbackArabic,
+  }) {
+    return switch (error) {
+      AppException(message: final message) when message.trim().isNotEmpty =>
+        message,
+      _ => _tr(fallbackEnglish, fallbackArabic),
+    };
+  }
 
   @override
   void initState() {
@@ -120,12 +176,15 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     final task = widget.task;
     _productController = TextEditingController();
     _locationController = TextEditingController(
-      text: task.type == TaskType.receive ? '' : task.toLocation ?? '',
+      text: task.type == TaskType.receive || task.type == TaskType.cycleCount
+          ? ''
+          : task.toLocation ?? '',
     );
     _bulkLocationController =
         TextEditingController(text: task.fromLocation ?? '');
     _quantityController = TextEditingController(text: task.quantity.toString());
     _returnToteController = TextEditingController();
+    _returnScanController = TextEditingController();
     _returnQuantityController = TextEditingController();
     _cycleCountScanController = TextEditingController();
     _cycleCountDetailQuantityController = TextEditingController();
@@ -133,6 +192,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     _adjustmentNoteController = TextEditingController();
     _unexpectedItemNameController = TextEditingController();
     _unexpectedItemQuantityController = TextEditingController();
+    _productScanFocusNode = FocusNode(debugLabel: 'task-product-scan');
+    _locationScanFocusNode = FocusNode(debugLabel: 'task-location-scan');
+    _returnScanFocusNode = FocusNode(debugLabel: 'return-scan');
     _cycleCountScanFocusNode = FocusNode(debugLabel: 'cycle-count-scan');
     _cycleCountDetailBarcodeFocusNode =
         FocusNode(debugLabel: 'cycle-count-detail-barcode');
@@ -158,6 +220,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       Future<void>.microtask(_loadRefillLookup);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreActiveValidationFocus();
       _restoreCycleCountScannerFocus();
     });
   }
@@ -170,14 +233,24 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     _quantityController.removeListener(_updateRefillQuantity);
     _quantityController.dispose();
     _returnToteController.dispose();
+    _returnValidationDebounce?.cancel();
+    _productFailureClearTimer?.cancel();
+    _locationFailureClearTimer?.cancel();
+    _cycleCountDetailBarcodeClearTimer?.cancel();
+    _returnScanController.dispose();
     _returnQuantityController.dispose();
     _cycleCountScanDebounce?.cancel();
+    _productValidationDebounce?.cancel();
+    _locationValidationDebounce?.cancel();
     _cycleCountScanController.dispose();
     _cycleCountDetailQuantityController.dispose();
     _cycleCountDetailBarcodeController.dispose();
     _adjustmentNoteController.dispose();
     _unexpectedItemNameController.dispose();
     _unexpectedItemQuantityController.dispose();
+    _productScanFocusNode.dispose();
+    _locationScanFocusNode.dispose();
+    _returnScanFocusNode.dispose();
     _cycleCountScanFocusNode.dispose();
     _cycleCountDetailBarcodeFocusNode.dispose();
     for (final controller in _cycleCountLineControllers) {
@@ -218,7 +291,8 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     final returnReady = _isReturnFlowComplete();
     final adjustmentReady = _isAdjustmentFlowComplete();
     final cycleCountReady = _isCycleCountFlowComplete();
-    final refillQuantityDisplay = '$_refillQuantity/${task.quantity}';
+    final refillQuantityDisplay =
+        '${task.formatQuantity(_refillQuantity)} / ${task.formatQuantity(task.quantity)}';
     final showReturnAdvanceAction = showCompleteAction &&
         task.type == TaskType.returnTask &&
         _returnPage == 0;
@@ -237,6 +311,13 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       appBar: AppBar(
         title: Text(l10n.workerTaskDetailsTitle),
         actions: [
+          if (widget.onReportTaskIssue != null)
+            IconButton(
+              key: const Key('report-task-button'),
+              onPressed: _openReportTaskDialog,
+              icon: const Icon(Icons.report_problem_outlined),
+              tooltip: _tr('Report Problem', '????? ?? ?????'),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: Container(
@@ -303,7 +384,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                     showStartAction
                         ? l10n.workerStartTask
                         : showReturnAdvanceAction
-                            ? 'Return'
+                            ? _tr('Return', 'إرجاع')
                             : l10n.workerComplete,
                   ),
                   style: ElevatedButton.styleFrom(
@@ -464,36 +545,17 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                           ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      key: const Key('product-validate-field'),
-                      controller: _productController,
-                      decoration: InputDecoration(
-                        labelText: l10n.workerScanOrEnterProductBarcode,
-                        prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: OutlinedButton(
-                        key: const Key('validate-product-button'),
-                        onPressed: hasBarcode ? _validateProduct : null,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: typeColor,
-                          side: BorderSide(color: typeColor),
-                        ),
-                        child: Text(l10n.workerValidateProduct),
-                      ),
+                    _buildHiddenBarcodeCaptureField(),
+                    _buildScanCaptureSummary(
+                      emptyText: l10n.workerScanOrEnterProductBarcode,
+                      currentValue: _productController.text,
+                      manualButtonText: _manualTypeLabel,
+                      manualButtonKey: const Key('manual-type-barcode-button'),
+                      onManualType: _openManualBarcodeDialog,
                     ),
                     if (_productValidationMessage != null) ...[
                       const SizedBox(height: 10),
-                      _ValidationMessage(
-                        message: _productValidationMessage!,
-                        isPositive: _productValidationMessage ==
-                            l10n.workerProductValidated,
-                      ),
+                      _buildProductValidationAlert(context),
                     ],
                   ],
                 ),
@@ -516,7 +578,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                   children: [
                     Row(
                       children: [
-                        DashboardTypeBadge(task.type),
+                        DashboardTypeBadge(
+                          task.type,
+                          isPutaway: task.isPutawayTask,
+                        ),
                         const SizedBox(width: 8),
                         DashboardStatusBadge(task.status),
                       ],
@@ -524,13 +589,16 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                     const SizedBox(height: 12),
                     _InfoRow(
                       label: l10n.workerTaskType,
-                      value: taskTypeLabel(task.type),
+                      value: taskTypeLabel(
+                        task.type,
+                        isPutaway: task.isPutawayTask,
+                      ),
                     ),
                     _InfoRow(
                       label: l10n.workerQuantity,
                       value: task.type == TaskType.refill
                           ? refillQuantityDisplay
-                          : task.quantity.toString(),
+                          : task.formatQuantity(task.quantity),
                     ),
                     _InfoRow(
                       label: l10n.workerStatus,
@@ -552,7 +620,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _refillLookupError ?? 'Could not load refill locations.',
+          _refillLookupError ??
+              _tr(
+                'Could not load refill locations.',
+                'تعذر تحميل مواقع إعادة التعبئة.',
+              ),
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
@@ -561,7 +633,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         OutlinedButton(
           key: const Key('refill-retry-button'),
           onPressed: _loadRefillLookup,
-          child: const Text('Retry'),
+          child: Text(_tr('Retry', 'إعادة المحاولة')),
         ),
       ],
     );
@@ -601,60 +673,26 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         ),
         _InfoRow(
           label: l10n.workerQuantity,
-          value: task.quantity.toString(),
+          value: task.formatQuantity(task.quantity),
         ),
         const SizedBox(height: 12),
         _LocationRow(
-          label: 'From Bulk Location',
+          label: _tr('From Bulk Location', 'من موقع التخزين'),
           value: _refillBulkLocation,
           icon: Icons.north_west_rounded,
         ),
         const SizedBox(height: 16),
-        TextField(
-          key: const Key('product-validate-field'),
-          controller: _productController,
-          onChanged: (_) {
-            if (_itemValidated ||
-                _locationValidated ||
-                _productValidationMessage != null ||
-                _locationValidationMessage != null ||
-                _refillPage != 0) {
-              setState(() {
-                _itemValidated = false;
-                _locationValidated = false;
-                _productValidationMessage = null;
-                _locationValidationMessage = null;
-                _refillPage = 0;
-              });
-            }
-          },
-          decoration: const InputDecoration(
-            labelText: 'Validate barcode',
-            prefixIcon: Icon(Icons.qr_code_scanner_rounded),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton(
-            key: const Key('validate-product-button'),
-            onPressed: hasBarcode ? _validateProduct : null,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: taskTypeColor(widget.task.type),
-              side: BorderSide(color: taskTypeColor(widget.task.type)),
-            ),
-            child: Text(l10n.workerValidateProduct),
-          ),
+        _buildHiddenBarcodeCaptureField(),
+        _buildScanCaptureSummary(
+          emptyText: _tr('Scan product barcode', 'امسح باركود الصنف'),
+          currentValue: _productController.text,
+          manualButtonText: _manualTypeLabel,
+          manualButtonKey: const Key('manual-type-barcode-button'),
+          onManualType: _openManualBarcodeDialog,
         ),
         if (_productValidationMessage != null) ...[
           const SizedBox(height: 10),
-          _ValidationMessage(
-            message: _productValidationMessage!,
-            isPositive:
-                _productValidationMessage == l10n.workerProductValidated,
-          ),
+          _buildProductValidationAlert(context),
         ],
       ],
     );
@@ -667,15 +705,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       children: [
         if (_productValidationMessage != null) ...[
           const SizedBox(height: 10),
-          _ValidationMessage(
-            message: _productValidationMessage!,
-            isPositive:
-                _productValidationMessage == l10n.workerProductValidated,
-          ),
+          _buildProductValidationAlert(context),
           const SizedBox(height: 12),
         ],
         Text(
-          'Shelf Location',
+          _tr('Shelf Location', 'موقع الرف'),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: AppTheme.textPrimary,
@@ -683,58 +717,28 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         ),
         const SizedBox(height: 12),
         _LocationRow(
-          label: 'To Shelf Location',
+          label: _tr('To Shelf Location', 'إلى موقع الرف'),
           value: _refillShelfLocation,
           icon: Icons.south_east_rounded,
         ),
         const SizedBox(height: 16),
-        TextField(
-          key: const Key('location-validate-field'),
-          controller: _locationController,
-          onChanged: (_) {
-            if (_locationValidated || _locationValidationMessage != null) {
-              setState(() {
-                _locationValidated = false;
-                _locationValidationMessage = null;
-              });
-            }
-          },
-          decoration: InputDecoration(
-            labelText: 'Validate shelf location',
-            helperText:
-                'Scan ${_refillShelfLocation ?? 'the shelf location'} to continue.',
-            prefixIcon: const Icon(Icons.location_on_outlined),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton(
-            key: const Key('validate-location-button'),
-            onPressed:
-                (!_itemValidated || _validating) ? null : _validateLocation,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.accent,
-              side: const BorderSide(color: AppTheme.accent),
-            ),
-            child: _validating
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(l10n.workerValidateLocation),
-          ),
+        _buildHiddenLocationCaptureField(),
+        _buildScanCaptureSummary(
+          emptyText: _refillShelfLocation == null
+              ? _tr('Scan shelf location', 'امسح موقع الرف')
+              : _tr(
+                  'Scan ${_refillShelfLocation!}',
+                  'امسح ${_refillShelfLocation!}',
+                ),
+          currentValue: _locationController.text,
+          manualButtonText: _manualTypeLabel,
+          manualButtonKey: const Key('manual-type-location-button'),
+          onManualType: _openManualLocationDialog,
+          icon: Icons.location_on_outlined,
         ),
         if (_locationValidationMessage != null) ...[
           const SizedBox(height: 10),
-          _ValidationMessage(
-            message: _locationValidationMessage!,
-            isPositive:
-                _locationValidationMessage == l10n.workerLocationValidated,
-          ),
+          _buildLocationValidationAlert(context),
         ],
         const SizedBox(height: 12),
         TextField(
@@ -742,9 +746,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           controller: _quantityController,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
-            labelText: 'Enter quantity',
-            hintText: 'Quantity to move',
-            suffixText: 'max ${task.quantity}',
+            labelText: _tr('Enter quantity', 'أدخل الكمية'),
+            hintText: _tr('Quantity to move', 'الكمية المطلوب نقلها'),
+            suffixText: _tr(
+              'max ${task.formatQuantity(task.quantity)}',
+              'الحد الأقصى ${task.formatQuantity(task.quantity)}',
+            ),
             prefixIcon: const Icon(Icons.format_list_numbered_rounded),
             filled: true,
             fillColor: Colors.white,
@@ -797,60 +804,26 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           itemName: task.itemName,
           barcode: hasBarcode ? barcode! : l10n.workerNoBarcodeAvailable,
           itemImageUrl: imageUrl,
-          quantity: task.quantity,
+          quantityLabel: task.formatQuantity(task.quantity),
         ),
         const SizedBox(height: 12),
-        const _LocationRow(
-          label: 'From Inbound',
-          value: 'Inbound',
+        _LocationRow(
+          label: _tr('From Inbound', 'من الوارد'),
+          value: _tr('Inbound', 'الوارد'),
           icon: Icons.north_west_rounded,
         ),
         const SizedBox(height: 16),
-        TextField(
-          key: const Key('product-validate-field'),
-          controller: _productController,
-          onChanged: (_) {
-            if (_itemValidated ||
-                _locationValidated ||
-                _productValidationMessage != null ||
-                _locationValidationMessage != null ||
-                _receivePage != 0) {
-              setState(() {
-                _itemValidated = false;
-                _locationValidated = false;
-                _productValidationMessage = null;
-                _locationValidationMessage = null;
-                _receivePage = 0;
-              });
-            }
-          },
-          decoration: const InputDecoration(
-            labelText: 'Validate barcode',
-            prefixIcon: Icon(Icons.qr_code_scanner_rounded),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton(
-            key: const Key('validate-product-button'),
-            onPressed: hasBarcode ? _validateProduct : null,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: taskTypeColor(widget.task.type),
-              side: BorderSide(color: taskTypeColor(widget.task.type)),
-            ),
-            child: Text(l10n.workerValidateProduct),
-          ),
+        _buildHiddenBarcodeCaptureField(),
+        _buildScanCaptureSummary(
+          emptyText: _tr('Scan product barcode', 'امسح باركود الصنف'),
+          currentValue: _productController.text,
+          manualButtonText: _manualTypeLabel,
+          manualButtonKey: const Key('manual-type-barcode-button'),
+          onManualType: _openManualBarcodeDialog,
         ),
         if (_productValidationMessage != null) ...[
           const SizedBox(height: 10),
-          _ValidationMessage(
-            message: _productValidationMessage!,
-            isPositive:
-                _productValidationMessage == l10n.workerProductValidated,
-          ),
+          _buildProductValidationAlert(context),
         ],
       ],
     );
@@ -863,15 +836,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       children: [
         if (_productValidationMessage != null) ...[
           const SizedBox(height: 10),
-          _ValidationMessage(
-            message: _productValidationMessage!,
-            isPositive:
-                _productValidationMessage == l10n.workerProductValidated,
-          ),
+          _buildProductValidationAlert(context),
           const SizedBox(height: 12),
         ],
         Text(
-          'Bulk Location',
+          _tr('Bulk Location', 'موقع التخزين'),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: AppTheme.textPrimary,
@@ -879,58 +848,28 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         ),
         const SizedBox(height: 12),
         _LocationRow(
-          label: 'To Bulk Location',
+          label: _tr('To Bulk Location', 'إلى موقع التخزين'),
           value: task.toLocation,
           icon: Icons.south_east_rounded,
         ),
         const SizedBox(height: 16),
-        TextField(
-          key: const Key('location-validate-field'),
-          controller: _locationController,
-          onChanged: (_) {
-            if (_locationValidated || _locationValidationMessage != null) {
-              setState(() {
-                _locationValidated = false;
-                _locationValidationMessage = null;
-              });
-            }
-          },
-          decoration: InputDecoration(
-            labelText: 'Validate bulk location',
-            helperText:
-                'Scan ${widget.task.toLocation ?? 'the bulk location'} to complete.',
-            prefixIcon: const Icon(Icons.location_on_outlined),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton(
-            key: const Key('validate-location-button'),
-            onPressed:
-                (!_itemValidated || _validating) ? null : _validateLocation,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.accent,
-              side: const BorderSide(color: AppTheme.accent),
-            ),
-            child: _validating
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(l10n.workerValidateLocation),
-          ),
+        _buildHiddenLocationCaptureField(),
+        _buildScanCaptureSummary(
+          emptyText: widget.task.toLocation == null
+              ? _tr('Scan bulk location', 'امسح موقع التخزين')
+              : _tr(
+                  'Scan ${widget.task.toLocation!}',
+                  'امسح ${widget.task.toLocation!}',
+                ),
+          currentValue: _locationController.text,
+          manualButtonText: _manualTypeLabel,
+          manualButtonKey: const Key('manual-type-location-button'),
+          onManualType: _openManualLocationDialog,
+          icon: Icons.location_on_outlined,
         ),
         if (_locationValidationMessage != null) ...[
           const SizedBox(height: 10),
-          _ValidationMessage(
-            message: _locationValidationMessage!,
-            isPositive:
-                _locationValidationMessage == l10n.workerLocationValidated,
-          ),
+          _buildLocationValidationAlert(context),
         ],
         const SizedBox(height: 12),
         if (widget.onCompleteTask != null)
@@ -987,11 +926,20 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         ),
         const SizedBox(height: 12),
         _LocationRow(
-          label: 'Return Tote',
+          label: _tr('Return Tote', 'حاوية المرتجع'),
           value: task.returnContainerId,
           icon: Icons.inventory_rounded,
         ),
         const SizedBox(height: 16),
+        _buildHiddenReturnCaptureField(),
+        _buildScanCaptureSummary(
+          emptyText: _tr('Scan return item barcode', 'امسح باركود صنف المرتجع'),
+          currentValue: _returnScanController.text,
+          manualButtonText: _manualTypeLabel,
+          manualButtonKey: const Key('manual-type-return-barcode-button'),
+          onManualType: _openReturnManualBarcodeDialog,
+        ),
+        const SizedBox(height: 12),
         for (var index = 0; index < items.length; index++) ...[
           _buildReturnValidationLine(
             context,
@@ -1016,7 +964,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Return Items',
+          _tr('Return Items', 'أصناف المرتجع'),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: AppTheme.textPrimary,
@@ -1073,9 +1021,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             ),
           ),
           SizedBox(
-            width: 36,
+            width: 72,
             child: Text(
-              '${item.quantity}',
+              item.formatQuantity(item.quantity),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
@@ -1186,7 +1134,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                   ),
                   child: Text(
                     _returnItemLocationControllers[index].text.trim().isEmpty
-                        ? 'Scan return location'
+                        ? _tr('Scan return location', 'امسح موقع المرتجع')
                         : _returnItemLocationControllers[index].text.trim(),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w700,
@@ -1224,8 +1172,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             keyboardType: TextInputType.number,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              labelText: 'Returned Quantity',
-              suffixText: 'max ${item.quantity}',
+              labelText: _tr('Returned Quantity', 'الكمية المرتجعة'),
+              suffixText: _tr(
+                'max ${item.formatQuantity(item.quantity)}',
+                'الحد الأقصى ${item.formatQuantity(item.quantity)}',
+              ),
               prefixIcon: const Icon(Icons.format_list_numbered_rounded),
               filled: true,
               fillColor: Colors.white,
@@ -1233,8 +1184,8 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           ),
           const SizedBox(height: 8),
           if (validated)
-            const _ValidationMessage(
-              message: 'Location validated',
+            _ValidationMessage(
+              message: _locationValidatedLabel,
               isPositive: true,
             ),
         ],
@@ -1263,7 +1214,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Adjustment',
+          _tr('Adjustment', 'تعديل المخزون'),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: AppTheme.textPrimary,
@@ -1285,7 +1236,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                 child: Text(
                   scan?.locationCode.isNotEmpty == true
                       ? scan!.locationCode
-                      : 'Scan a location to load products',
+                      : _tr(
+                          'Scan a location to load products',
+                          'امسح موقعًا لتحميل المنتجات',
+                        ),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: scan == null
@@ -1327,7 +1281,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         if (scan != null) ...[
           const SizedBox(height: 16),
           Text(
-            'Products at ${scan.locationCode}',
+            _tr(
+              'Products at ${scan.locationCode}',
+              'المنتجات في ${scan.locationCode}',
+            ),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
@@ -1358,8 +1315,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     final previewActive = selected && _adjustmentDelta > 0;
     final previewQuantity =
         previewActive ? _adjustmentPreviewQuantity : product.systemQuantity;
-    final modeLabel =
-        _adjustmentMode == _AdjustmentMode.decrease ? 'Decrease' : 'Increase';
+    final modeLabel = _adjustmentMode == _AdjustmentMode.decrease
+        ? _tr('Decrease', 'تقليل')
+        : _tr('Increase', 'زيادة');
 
     return InkWell(
       key: Key('adjustment-product-${product.adjustmentItemId}'),
@@ -1398,7 +1356,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    product.counted ? 'Counted' : 'Pending',
+                    product.counted
+                        ? _tr('Counted', 'تم العد')
+                        : _tr('Pending', 'قيد الانتظار'),
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       color: product.counted
@@ -1411,7 +1371,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Current: ${product.systemQuantity}',
+              _tr(
+                'Current: ${widget.task.formatQuantity(product.systemQuantity)}',
+                'الحالي: ${widget.task.formatQuantity(product.systemQuantity)}',
+              ),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -1419,7 +1382,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             if (previewActive) ...[
               const SizedBox(height: 4),
               Text(
-                '$modeLabel by $_adjustmentDelta -> $previewQuantity',
+                _tr(
+                  '$modeLabel by $_adjustmentDelta -> $previewQuantity',
+                  '$modeLabel بمقدار $_adjustmentDelta -> $previewQuantity',
+                ),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: _adjustmentMode == _AdjustmentMode.decrease
@@ -1439,8 +1405,15 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     AdjustmentTaskProduct product,
   ) {
     final previewQuantity = _adjustmentPreviewQuantity;
-    final canIncreaseDelta = _adjustmentMode == _AdjustmentMode.increase ||
+    final canRaiseDelta = _adjustmentMode == _AdjustmentMode.increase ||
         _adjustmentDelta < product.systemQuantity;
+    final canLowerDelta = _adjustmentDelta > 0;
+    final canUseDecrementButton = _adjustmentMode == _AdjustmentMode.decrease
+        ? canRaiseDelta
+        : canLowerDelta;
+    final canUseIncrementButton = _adjustmentMode == _AdjustmentMode.increase
+        ? canRaiseDelta
+        : canLowerDelta;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1453,7 +1426,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Adjust ${product.productName}',
+            _tr(
+              'Adjust ${product.productName}',
+              'تعديل ${product.productName}',
+            ),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
@@ -1464,13 +1440,13 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             children: [
               ChoiceChip(
                 key: const Key('adjustment-mode-decrease'),
-                label: const Text('Decrease'),
+                label: Text(_tr('Decrease', 'تقليل')),
                 selected: _adjustmentMode == _AdjustmentMode.decrease,
                 onSelected: (_) => _setAdjustmentMode(_AdjustmentMode.decrease),
               ),
               ChoiceChip(
                 key: const Key('adjustment-mode-increase'),
-                label: const Text('Increase'),
+                label: Text(_tr('Increase', 'زيادة')),
                 selected: _adjustmentMode == _AdjustmentMode.increase,
                 onSelected: (_) => _setAdjustmentMode(_AdjustmentMode.increase),
               ),
@@ -1482,7 +1458,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
               IconButton(
                 key: const Key('adjustment-delta-decrement'),
                 onPressed:
-                    _adjustmentDelta > 0 ? _decrementAdjustmentDelta : null,
+                    canUseDecrementButton ? _decrementAdjustmentDelta : null,
                 icon: const Icon(Icons.remove_circle_outline),
               ),
               Expanded(
@@ -1499,24 +1475,34 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
               ),
               IconButton(
                 key: const Key('adjustment-delta-increment'),
-                onPressed: canIncreaseDelta ? _incrementAdjustmentDelta : null,
+                onPressed:
+                    canUseIncrementButton ? _incrementAdjustmentDelta : null,
                 icon: const Icon(Icons.add_circle_outline),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
-            'Current: ${product.systemQuantity}',
+            _tr(
+              'Current: ${widget.task.formatQuantity(product.systemQuantity)}',
+              'الحالي: ${widget.task.formatQuantity(product.systemQuantity)}',
+            ),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
-            'Change: ${_adjustmentMode == _AdjustmentMode.decrease ? '-' : '+'}$_adjustmentDelta',
+            _tr(
+              'Change: ${_adjustmentMode == _AdjustmentMode.decrease ? '-' : '+'}${widget.task.formatQuantity(_adjustmentDelta)}',
+              'التغيير: ${_adjustmentMode == _AdjustmentMode.decrease ? '-' : '+'}${widget.task.formatQuantity(_adjustmentDelta)}',
+            ),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
-            'New: $previewQuantity',
+            _tr(
+              'New: ${widget.task.formatQuantity(previewQuantity)}',
+              'الجديد: ${widget.task.formatQuantity(previewQuantity)}',
+            ),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
@@ -1525,9 +1511,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             controller: _adjustmentNoteController,
             minLines: 2,
             maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Note',
-              hintText: 'Add note for this adjustment',
+            decoration: InputDecoration(
+              labelText: _tr('Note', 'ملاحظة'),
+              hintText: _tr(
+                  'Add note for this adjustment', 'أضف ملاحظة لهذا التعديل'),
             ),
             onChanged: (_) {
               if (_adjustmentErrorMessage != null) {
@@ -1544,7 +1531,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                   ? null
                   : _submitAdjustmentChange,
               child: Text(
-                _submittingAdjustment ? 'Submitting...' : 'Submit Adjustment',
+                _submittingAdjustment
+                    ? _tr('Submitting...', 'جارٍ الإرسال...')
+                    : _tr('Submit Adjustment', 'إرسال التعديل'),
               ),
             ),
           ),
@@ -1563,6 +1552,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           key: const Key('cycle-count-hidden-scan-field'),
           controller: _cycleCountScanController,
           focusNode: _cycleCountScanFocusNode,
+          autofocus: true,
           keyboardType: TextInputType.none,
           showCursor: false,
           enableSuggestions: false,
@@ -1582,6 +1572,174 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     );
   }
 
+  Widget _buildHiddenValidationField({
+    required Key fieldKey,
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required ValueChanged<String> onChanged,
+    bool autofocus = true,
+  }) {
+    return SizedBox(
+      width: 1,
+      height: 1,
+      child: Opacity(
+        opacity: 0,
+        child: TextField(
+          key: fieldKey,
+          controller: controller,
+          focusNode: focusNode,
+          autofocus: autofocus,
+          keyboardType: TextInputType.none,
+          showCursor: false,
+          enableSuggestions: false,
+          autocorrect: false,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            isCollapsed: true,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+          ),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHiddenBarcodeCaptureField() {
+    return _buildHiddenValidationField(
+      fieldKey: const Key('product-validate-field'),
+      controller: _productController,
+      focusNode: _productScanFocusNode,
+      onChanged: _handleProductInputChanged,
+    );
+  }
+
+  Widget _buildHiddenLocationCaptureField() {
+    return _buildHiddenValidationField(
+      fieldKey: const Key('location-validate-field'),
+      controller: _locationController,
+      focusNode: _locationScanFocusNode,
+      onChanged: _handleLocationInputChanged,
+    );
+  }
+
+  Widget _buildHiddenReturnCaptureField() {
+    return _buildHiddenValidationField(
+      fieldKey: const Key('return-validate-field'),
+      controller: _returnScanController,
+      focusNode: _returnScanFocusNode,
+      onChanged: _handleReturnBarcodeInputChanged,
+    );
+  }
+
+  Widget _buildScanCaptureSummary({
+    required String emptyText,
+    required String currentValue,
+    required String manualButtonText,
+    required Key manualButtonKey,
+    required VoidCallback onManualType,
+    IconData icon = Icons.qr_code_scanner_rounded,
+  }) {
+    final value = currentValue.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceAlt.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.surfaceAlt),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: AppTheme.textMuted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  value.isEmpty ? emptyText : value,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: value.isEmpty
+                            ? AppTheme.textMuted
+                            : AppTheme.textPrimary,
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: manualButtonKey,
+          onPressed: onManualType,
+          icon: const Icon(Icons.keyboard_rounded),
+          label: Text(manualButtonText),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProductValidationAlert(BuildContext context) {
+    final message = _productValidationMessage;
+    if (message == null) {
+      return const SizedBox.shrink();
+    }
+
+    final l10n = context.l10n;
+    final isPendingReadyMessage = message == _pendingTaskRightProductMessage;
+    final isPositive =
+        isPendingReadyMessage || message == l10n.workerProductValidated;
+    final supportingText = isPendingReadyMessage
+        ? _tr(
+            'Start the task to unlock the next step.',
+            'ابدأ المهمة لفتح الخطوة التالية.',
+          )
+        : isPositive
+            ? _tr(
+                'Correct barcode captured. Continue to the next step.',
+                'تم التقاط الباركود الصحيح. تابع إلى الخطوة التالية.',
+              )
+            : _tr(
+                'This barcode does not match the task item. Scan the correct product to continue.',
+                'هذا الباركود لا يطابق صنف المهمة. امسح الصنف الصحيح للمتابعة.',
+              );
+
+    return _ValidationMessage(
+      key: const Key('product-validation-alert'),
+      message: message,
+      supportingText: supportingText,
+      isPositive: isPositive,
+    );
+  }
+
+  Widget _buildLocationValidationAlert(BuildContext context) {
+    final message = _locationValidationMessage;
+    if (message == null) {
+      return const SizedBox.shrink();
+    }
+
+    final l10n = context.l10n;
+    final isPositive = message == l10n.workerLocationValidated;
+    final supportingText = isPositive
+        ? _tr(
+            'Location confirmed. You can keep moving through the task.',
+            'تم تأكيد الموقع. يمكنك متابعة خطوات المهمة.',
+          )
+        : _tr(
+            'The scanned location does not match this step. Scan the expected location and try again.',
+            'الموقع الممسوح لا يطابق هذه الخطوة. امسح الموقع المتوقع ثم حاول مرة أخرى.',
+          );
+
+    return _ValidationMessage(
+      key: const Key('location-validation-alert'),
+      message: message,
+      supportingText: supportingText,
+      isPositive: isPositive,
+    );
+  }
+
   Widget _buildCycleCountListPage(BuildContext context, TaskEntity task) {
     final typeColor = taskTypeColor(task.type);
     final counted = _cycleCountItems.where((item) => item.completed).length;
@@ -1591,7 +1749,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Cycle Count',
+          _tr('Cycle Count', 'الجرد الدوري'),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: AppTheme.textPrimary,
@@ -1599,56 +1757,37 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         ),
         const SizedBox(height: 8),
         _LocationRow(
-          label: 'Count Location',
+          label: _tr('Count Location', 'موقع الجرد'),
           value: task.toLocation,
           icon: Icons.grid_view_rounded,
         ),
         _buildCycleCountHiddenScanField(),
         const SizedBox(height: 12),
-        TextField(
-          key: const Key('location-validate-field'),
-          controller: _locationController,
-          onChanged: (_) {
-            if (_locationValidated || _locationValidationMessage != null) {
-              setState(() {
-                _locationValidated = false;
-                _locationValidationMessage = null;
-              });
-            }
-          },
-          decoration: const InputDecoration(
-            labelText: 'Scan count location',
-            prefixIcon: Icon(Icons.location_on_outlined),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton(
-            key: const Key('validate-location-button'),
-            onPressed: _validating ? null : _validateLocation,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: typeColor,
-              side: BorderSide(color: typeColor),
-            ),
-            child: const Text('Validate Location'),
-          ),
+        _buildHiddenLocationCaptureField(),
+        _buildScanCaptureSummary(
+          emptyText: _tr('Scan count location', 'امسح موقع الجرد'),
+          currentValue: _locationController.text,
+          manualButtonText: _manualTypeLabel,
+          manualButtonKey: const Key('manual-type-location-button'),
+          onManualType: _openManualLocationDialog,
+          icon: Icons.location_on_outlined,
         ),
         const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               child: Text(
-                'Counted Items',
+                _tr('Counted Items', 'الأصناف المعدودة'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
               ),
             ),
             Text(
-              '$counted of $total counted',
+              _tr(
+                '$counted of $total counted',
+                '$counted من $total تم عدها',
+              ),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppTheme.textMuted,
@@ -1670,7 +1809,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Continue later'),
+                    : Text(_tr('Continue later', 'متابعة لاحقًا')),
               ),
             ),
           ],
@@ -1758,8 +1897,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                 const SizedBox(height: 4),
                 Text(
                   item.completed
-                      ? '${item.countedQuantity} counted'
-                      : 'Pending',
+                      ? _tr(
+                          '${item.formatQuantity(item.countedQuantity)} counted',
+                          '${item.formatQuantity(item.countedQuantity)} تم عدها',
+                        )
+                      : _tr('Pending', 'قيد الانتظار'),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: statusColor,
@@ -1778,6 +1920,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     TaskEntity task,
     _CycleCountItemState item,
   ) {
+    final quantityEnabled = _isCycleCountDetailQuantityEnabled(item);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1789,7 +1932,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             ),
             Expanded(
               child: Text(
-                'Count Item',
+                _tr('Count Item', 'عد الصنف'),
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: AppTheme.textPrimary,
@@ -1800,7 +1943,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         ),
         const SizedBox(height: 8),
         _LocationRow(
-          label: 'Shelf Location',
+          label: _tr('Shelf Location', 'موقع الرف'),
           value: task.toLocation,
           icon: Icons.grid_view_rounded,
         ),
@@ -1837,28 +1980,29 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         ),
         const SizedBox(height: 12),
         if (_cycleCountDetailOpenedManually) ...[
-          TextField(
-            key: const Key('cycle-count-detail-barcode-field'),
+          _buildHiddenValidationField(
+            fieldKey: const Key('cycle-count-detail-barcode-field'),
             controller: _cycleCountDetailBarcodeController,
             focusNode: _cycleCountDetailBarcodeFocusNode,
-            keyboardType: TextInputType.text,
-            textInputAction: TextInputAction.done,
-            decoration: const InputDecoration(
-              labelText: 'Type barcode manually',
-              prefixIcon: Icon(Icons.qr_code_rounded),
-              filled: true,
-              fillColor: Colors.white,
-            ),
+            onChanged: _handleCycleCountDetailBarcodeChanged,
+          ),
+          _buildScanCaptureSummary(
+            emptyText: _tr('Scan or type barcode', 'امسح أو اكتب الباركود'),
+            currentValue: _cycleCountDetailBarcodeController.text,
+            manualButtonText: _manualTypeLabel,
+            manualButtonKey: const Key('cycle-count-detail-manual-type-button'),
+            onManualType: _openCycleCountManualBarcodeDialog,
           ),
           const SizedBox(height: 12),
         ],
         TextField(
           key: const Key('cycle-count-detail-quantity-field'),
           controller: _cycleCountDetailQuantityController,
+          enabled: quantityEnabled,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Shelf Quantity',
-            prefixIcon: Icon(Icons.fact_check_outlined),
+          decoration: InputDecoration(
+            labelText: _tr('Shelf Quantity', 'كمية الرف'),
+            prefixIcon: const Icon(Icons.fact_check_outlined),
             filled: true,
             fillColor: Colors.white,
           ),
@@ -1876,7 +2020,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Confirm quantity'),
+                : Text(_tr('Confirm quantity', 'تأكيد الكمية')),
           ),
         ),
         if (_completionMessage != null) ...[
@@ -1903,7 +2047,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _startErrorMessage = 'Failed to start task. Please try again.';
+          _startErrorMessage = _tr(
+            'Failed to start task. Please try again.',
+            'فشل بدء المهمة. حاول مرة أخرى.',
+          );
         });
       }
     } finally {
@@ -1950,6 +2097,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             barcode: item.barcode,
             expectedQuantity: item.expectedQuantity,
             imageUrl: item.imageUrl,
+            unit: item.quantityUnit,
           ),
         )
         .toList(growable: false);
@@ -1977,7 +2125,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     }
     if (raw['locationValidated'] == true) {
       _locationValidated = true;
-      _locationValidationMessage = 'Location validated';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _locationValidationMessage = _locationValidatedLabel;
+        });
+      });
     }
   }
 
@@ -2022,6 +2175,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     _cycleCountDetailQuantityController.text = selectedItem.countedQuantity > 0
         ? selectedItem.countedQuantity.toString()
         : '';
+    _cycleCountDetailBarcodeClearTimer?.cancel();
     _cycleCountDetailBarcodeController.clear();
     _cycleCountScanDebounce?.cancel();
     _cycleCountScanController.clear();
@@ -2029,6 +2183,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       _selectedCycleCountItemKey = selectedItem.key;
       _cycleCountPage = 1;
       _cycleCountDetailOpenedManually = openedManually;
+      _cycleCountDetailBarcodeValidated = false;
       _cycleCountScanError = null;
       _completionMessage = null;
     });
@@ -2045,10 +2200,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   }
 
   void _returnToCycleCountList() {
+    _cycleCountDetailBarcodeClearTimer?.cancel();
     setState(() {
       _cycleCountPage = 0;
       _selectedCycleCountItemKey = null;
       _cycleCountDetailOpenedManually = false;
+      _cycleCountDetailBarcodeValidated = false;
       _cycleCountDetailBarcodeController.clear();
       _completionMessage = null;
     });
@@ -2078,7 +2235,46 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     return value.replaceAll(RegExp(r'[\r\n]+'), '').trim().toUpperCase();
   }
 
-  void _submitCycleCountScan(String normalized) {
+  void _handleCycleCountDetailBarcodeChanged(String value) {
+    _cycleCountDetailBarcodeClearTimer?.cancel();
+    final item = _selectedCycleCountItem;
+    final normalized = _normalizeCycleCountBarcode(value);
+    final expected =
+        item == null ? '' : _normalizeCycleCountBarcode(item.barcode);
+    setState(() {
+      _cycleCountDetailBarcodeValidated =
+          expected.isEmpty || (normalized.isNotEmpty && normalized == expected);
+      if (_completionMessage != null) {
+        _completionMessage = null;
+      }
+    });
+    if (normalized.isEmpty) return;
+    _cycleCountDetailBarcodeClearTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      if (_normalizeCycleCountBarcode(
+              _cycleCountDetailBarcodeController.text) !=
+          normalized) {
+        return;
+      }
+      setState(() {
+        _cycleCountDetailBarcodeController.clear();
+      });
+      _restoreActiveValidationFocus();
+    });
+  }
+
+  bool _isCycleCountDetailQuantityEnabled(_CycleCountItemState item) {
+    if (!_cycleCountDetailOpenedManually) {
+      return true;
+    }
+    final expectedBarcode = _normalizeCycleCountBarcode(item.barcode);
+    if (expectedBarcode.isEmpty) {
+      return true;
+    }
+    return _cycleCountDetailBarcodeValidated;
+  }
+
+  Future<void> _submitCycleCountScan(String normalized) async {
     if (!mounted) return;
     _cycleCountScanDebounce?.cancel();
     _cycleCountScanController.clear();
@@ -2088,13 +2284,27 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
 
     for (final item in _cycleCountItems) {
       if (item.barcode.trim().toUpperCase() == normalized) {
+        setState(() => _cycleCountScanError = null);
         _openCycleCountItem(item.key);
         return;
       }
     }
 
     setState(() {
-      _cycleCountScanError = 'Scanned item is not in this cycle count list.';
+      _cycleCountScanError = _tr(
+        'Scanned item is not in this cycle count list.',
+        'الصنف الممسوح غير موجود في قائمة الجرد هذه.',
+      );
+    });
+    _restoreCycleCountScannerFocus();
+  }
+
+  void _showCycleCountScanError() {
+    setState(() {
+      _cycleCountScanError = _tr(
+        'Scanned item is not in this cycle count list.',
+        '????? ??????? ??? ????? ?? ????? ????? ???.',
+      );
     });
     _restoreCycleCountScannerFocus();
   }
@@ -2118,6 +2328,18 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     };
   }
 
+  List<Map<String, Object?>> _cycleCountSubmissionItems() {
+    return _cycleCountItems
+        .map(
+          (item) => <String, Object?>{
+            'itemName': item.itemName,
+            'barcode': item.barcode,
+            'countedQuantity': item.countedQuantity,
+          },
+        )
+        .toList(growable: false);
+  }
+
   Future<void> _saveCycleCountProgress() async {
     if (widget.onSaveCycleCountProgress == null ||
         widget.task.type != TaskType.cycleCount) {
@@ -2132,6 +2354,15 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   Future<void> _confirmCycleCountItem() async {
     final item = _selectedCycleCountItem;
     if (item == null) return;
+    if (!_isCycleCountDetailQuantityEnabled(item)) {
+      setState(() {
+        _completionMessage = _tr(
+          'Validate the item barcode before entering quantity.',
+          'تحقق من باركود الصنف قبل إدخال الكمية.',
+        );
+      });
+      return;
+    }
     final manualBarcode = _normalizeCycleCountBarcode(
       _cycleCountDetailBarcodeController.text,
     );
@@ -2140,7 +2371,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         expectedBarcode.isNotEmpty &&
         manualBarcode != expectedBarcode) {
       setState(() {
-        _completionMessage = 'Typed barcode does not match this item.';
+        _completionMessage = _tr(
+          'Typed barcode does not match this item.',
+          'الباركود المُدخل لا يطابق هذا الصنف.',
+        );
       });
       return;
     }
@@ -2148,7 +2382,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         _parsePositiveInt(_cycleCountDetailQuantityController.text);
     if (quantity == null) {
       setState(() {
-        _completionMessage = 'Enter a valid counted quantity.';
+        _completionMessage = _tr(
+          'Enter a valid counted quantity.',
+          'أدخل كمية معدودة صحيحة.',
+        );
       });
       return;
     }
@@ -2167,17 +2404,22 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       );
       await _saveCycleCountProgress();
       if (!mounted) return;
+      _cycleCountDetailBarcodeClearTimer?.cancel();
       setState(() {
         _cycleCountPage = 0;
         _selectedCycleCountItemKey = null;
         _cycleCountDetailOpenedManually = false;
+        _cycleCountDetailBarcodeValidated = false;
         _cycleCountDetailBarcodeController.clear();
       });
       _restoreCycleCountScannerFocus();
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _completionMessage = 'Failed to save cycle count progress.';
+        _completionMessage = _tr(
+          'Failed to save cycle count progress.',
+          'فشل حفظ تقدم الجرد.',
+        );
       });
     } finally {
       if (mounted) {
@@ -2194,7 +2436,15 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       _completionMessage = null;
     });
     try {
-      await _saveCycleCountProgress();
+      final continueLater = widget.onContinueCycleCountLater;
+      if (continueLater != null) {
+        await continueLater(
+          widget.task.id,
+          progress: _buildCycleCountProgressPayload(),
+        );
+      } else {
+        await _saveCycleCountProgress();
+      }
       if (!mounted) return;
       final navigator = Navigator.of(context);
       if (navigator.canPop()) {
@@ -2203,7 +2453,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _completionMessage = 'Failed to save cycle count progress.';
+        _completionMessage = _tr(
+          'Failed to save cycle count progress.',
+          'فشل حفظ تقدم الجرد.',
+        );
       });
     } finally {
       if (mounted) {
@@ -2220,8 +2473,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
 
     final scanned = await showItemLookupScanDialog(
       context,
-      title: 'Scan adjustment location',
-      hintText: 'Scan or enter location barcode',
+      title: _tr('Scan adjustment location', 'امسح موقع التعديل'),
+      hintText: _tr(
+        'Scan or enter location barcode',
+        'امسح أو أدخل باركود الموقع',
+      ),
       showKeyboard: false,
     );
     if (!mounted || scanned == null) return;
@@ -2243,8 +2499,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _adjustmentErrorMessage =
-            'Could not load adjustment products for this location.';
+        _adjustmentErrorMessage = _tr(
+          'Could not load adjustment products for this location.',
+          'تعذر تحميل منتجات التعديل لهذا الموقع.',
+        );
       });
     } finally {
       if (mounted) {
@@ -2279,8 +2537,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   void _incrementAdjustmentDelta() {
     final selected = _selectedAdjustmentProduct;
     if (selected == null) return;
-    if (_adjustmentMode == _AdjustmentMode.decrease &&
-        _adjustmentDelta >= selected.systemQuantity) {
+    if (_adjustmentMode == _AdjustmentMode.decrease) {
+      if (_adjustmentDelta <= 0) return;
+      setState(() {
+        _adjustmentDelta -= 1;
+        _adjustmentErrorMessage = null;
+      });
       return;
     }
     setState(() {
@@ -2290,6 +2552,16 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   }
 
   void _decrementAdjustmentDelta() {
+    final selected = _selectedAdjustmentProduct;
+    if (selected == null) return;
+    if (_adjustmentMode == _AdjustmentMode.decrease) {
+      if (_adjustmentDelta >= selected.systemQuantity) return;
+      setState(() {
+        _adjustmentDelta += 1;
+        _adjustmentErrorMessage = null;
+      });
+      return;
+    }
     if (_adjustmentDelta <= 0) return;
     setState(() {
       _adjustmentDelta -= 1;
@@ -2304,16 +2576,21 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
 
     if (_adjustmentDelta <= 0) {
       setState(() {
-        _adjustmentErrorMessage = 'Enter an adjustment quantity.';
+        _adjustmentErrorMessage = _tr(
+          'Enter an adjustment quantity.',
+          'أدخل كمية التعديل.',
+        );
       });
       return;
     }
 
-    final actualQuantity = _adjustmentPreviewQuantity;
-    if (actualQuantity < 0) {
+    final quantity = _adjustmentPreviewQuantity;
+    if (quantity < 0) {
       setState(() {
-        _adjustmentErrorMessage =
-            'Decrease amount cannot make quantity negative.';
+        _adjustmentErrorMessage = _tr(
+          'Decrease amount cannot make quantity negative.',
+          'قيمة التخفيض لا يمكن أن تجعل الكمية سالبة.',
+        );
       });
       return;
     }
@@ -2326,7 +2603,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     try {
       await submitter(
         adjustmentItemId: selected.adjustmentItemId,
-        actualQuantity: actualQuantity,
+        quantity: quantity,
         notes: _adjustmentNoteController.text.trim().isEmpty
             ? null
             : _adjustmentNoteController.text.trim(),
@@ -2339,7 +2616,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             (product) => product.adjustmentItemId == selected.adjustmentItemId
                 ? product.copyWith(
                     counted: true,
-                    systemQuantity: actualQuantity,
+                    systemQuantity: quantity,
                   )
                 : product,
           )
@@ -2356,8 +2633,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _adjustmentErrorMessage =
-            'Failed to submit adjustment. Please try again.';
+        _adjustmentErrorMessage = _tr(
+          'Failed to submit adjustment. Please try again.',
+          'فشل إرسال التعديل. حاول مرة أخرى.',
+        );
       });
     } finally {
       if (mounted) {
@@ -2378,8 +2657,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         if (_refillQuantity <= 0 ||
             shelfLocation.isEmpty ||
             !_locationValidated) {
-          setState(() => _completionMessage =
-              'Enter quantity to move and confirm the shelf location before completing.');
+          setState(() => _completionMessage = _tr(
+                'Enter quantity to move and confirm the shelf location before completing.',
+                'أدخل الكمية المراد نقلها وأكد موقع الرف قبل الإكمال.',
+              ));
           return;
         }
         await widget.onCompleteTask!(
@@ -2389,8 +2670,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         );
       } else if (task.type == TaskType.returnTask) {
         if (!_isReturnFlowComplete()) {
-          setState(() => _completionMessage =
-              'Process every return item before completing.');
+          setState(() => _completionMessage = _tr(
+                'Process every return item before completing.',
+                'عالج كل أصناف المرتجع قبل الإكمال.',
+              ));
           return;
         }
         await widget.onCompleteTask!(
@@ -2401,22 +2684,41 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       } else if (task.type == TaskType.cycleCount) {
         final location = _locationController.text.trim();
         if (!_isCycleCountFlowComplete()) {
-          setState(() => _completionMessage =
-              'Finish the cycle count inputs before completing.');
+          setState(() => _completionMessage = _tr(
+                'Finish the cycle count inputs before completing.',
+                'أكمل مدخلات الجرد قبل الإكمال.',
+              ));
           return;
         }
         await widget.onCompleteTask!(
           task.id,
           quantity: _cycleCountTotalCountedQuantity,
           locationId: location,
+          cycleCountItems: _cycleCountSubmissionItems(),
+        );
+      } else if (task.type == TaskType.receive) {
+        final receiveLocationId = task.isPutawayTask
+            ? task.toLocationId?.trim()
+            : _locationController.text.trim();
+        await widget.onCompleteTask!(
+          task.id,
+          quantity: task.quantity,
+          locationId: receiveLocationId,
         );
       } else {
         await widget.onCompleteTask!(task.id);
       }
       if (mounted) Navigator.of(context).pop();
-    } catch (_) {
+    } catch (error) {
       setState(() {
-        _completionMessage = 'Failed to complete task. Please try again.';
+        _completionMessage = switch (error) {
+          AppException(message: final message) when message.trim().isNotEmpty =>
+            message,
+          _ => _tr(
+              'Failed to complete task. Please try again.',
+              'فشل إكمال المهمة. حاول مرة أخرى.',
+            ),
+        };
       });
     } finally {
       if (mounted) setState(() => _completing = false);
@@ -2438,10 +2740,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             key: const Key('bulk-location-field'),
             controller: _bulkLocationController,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: 'Step 1: Bulk location',
+            decoration: InputDecoration(
+              labelText: _tr('Step 1: Bulk location', 'الخطوة 1: موقع التخزين'),
               hintText: 'BULK-01-01',
-              prefixIcon: Icon(Icons.inventory_2_outlined),
+              prefixIcon: const Icon(Icons.inventory_2_outlined),
               filled: true,
               fillColor: Colors.white,
             ),
@@ -2452,9 +2754,15 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             controller: _quantityController,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: 'Step 2: Select quantity (max ${task.quantity})',
-              hintText: 'Enter quantity',
-              suffixText: 'max ${task.quantity}',
+              labelText: _tr(
+                'Step 2: Select quantity (max ${task.formatQuantity(task.quantity)})',
+                'الخطوة 2: اختر الكمية (الحد الأقصى ${task.formatQuantity(task.quantity)})',
+              ),
+              hintText: _tr('Enter quantity', 'أدخل الكمية'),
+              suffixText: _tr(
+                'max ${task.formatQuantity(task.quantity)}',
+                'الحد الأقصى ${task.formatQuantity(task.quantity)}',
+              ),
               prefixIcon: const Icon(Icons.format_list_numbered_rounded),
               filled: true,
               fillColor: Colors.white,
@@ -2468,21 +2776,23 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           ),
           const SizedBox(height: 8),
           _LocationRow(
-            label: 'Task destination (for reference)',
+            label: _tr(
+              'Task destination (for reference)',
+              'وجهة المهمة (للمرجع)',
+            ),
             value: task.toLocation,
             icon: Icons.south_east_rounded,
           ),
           const SizedBox(height: 12),
-          TextField(
-            key: const Key('location-validate-field'),
-            controller: _locationController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: 'Step 3: Scan or enter shelf location',
-              prefixIcon: Icon(Icons.location_on_outlined),
-              filled: true,
-              fillColor: Colors.white,
-            ),
+          _buildHiddenLocationCaptureField(),
+          _buildScanCaptureSummary(
+            emptyText:
+                _tr('Step 3: Scan shelf location', 'الخطوة 3: امسح موقع الرف'),
+            currentValue: _locationController.text,
+            manualButtonText: _manualTypeLabel,
+            manualButtonKey: const Key('manual-type-location-button'),
+            onManualType: _openManualLocationDialog,
+            icon: Icons.location_on_outlined,
           ),
           if (_completionMessage != null) ...[
             const SizedBox(height: 10),
@@ -2512,15 +2822,14 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           icon: Icons.south_east_rounded,
         ),
         const SizedBox(height: 12),
-        TextField(
-          key: const Key('location-validate-field'),
-          controller: _locationController,
-          decoration: InputDecoration(
-            labelText: l10n.workerScanOrEnterLocation,
-            prefixIcon: const Icon(Icons.location_on_outlined),
-            filled: true,
-            fillColor: Colors.white,
-          ),
+        _buildHiddenLocationCaptureField(),
+        _buildScanCaptureSummary(
+          emptyText: l10n.workerScanOrEnterLocation,
+          currentValue: _locationController.text,
+          manualButtonText: _manualTypeLabel,
+          manualButtonKey: const Key('manual-type-location-button'),
+          onManualType: _openManualLocationDialog,
+          icon: Icons.location_on_outlined,
         ),
         const SizedBox(height: 8),
         if (widget.onGetSuggestion != null) ...[
@@ -2540,7 +2849,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Use suggested location'),
+                  : Text(
+                      _tr(
+                        'Use suggested location',
+                        'استخدم الموقع المقترح',
+                      ),
+                    ),
             ),
           ),
         ],
@@ -2549,6 +2863,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           GestureDetector(
             onTap: () {
               _locationController.text = _suggestedLocation!;
+              _handleLocationInputChanged(_suggestedLocation!);
             },
             child: Container(
               width: double.infinity,
@@ -2565,7 +2880,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                       size: 16, color: AppTheme.accent),
                   const SizedBox(width: 6),
                   Text(
-                    'Suggested: $_suggestedLocation',
+                    _tr(
+                      'Suggested: $_suggestedLocation',
+                      'المقترح: $_suggestedLocation',
+                    ),
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ],
@@ -2573,32 +2891,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             ),
           ),
         ],
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton(
-            key: const Key('validate-location-button'),
-            onPressed: _validating ? null : _validateLocation,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.accent,
-              side: const BorderSide(color: AppTheme.accent),
-            ),
-            child: _validating
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(l10n.workerValidateLocation),
-          ),
-        ),
         if (_locationValidationMessage != null) ...[
           const SizedBox(height: 10),
-          _ValidationMessage(
-            message: _locationValidationMessage!,
-            isPositive:
-                _locationValidationMessage == l10n.workerLocationValidated,
-          ),
+          _buildLocationValidationAlert(context),
         ],
       ],
     );
@@ -2723,31 +3018,370 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     }
   }
 
+  _ActiveValidationTarget get _activeValidationTarget {
+    final task = widget.task;
+    if (task.type == TaskType.cycleCount) {
+      if (!_locationValidated) return _ActiveValidationTarget.location;
+      if (_cycleCountPage == 1 && _cycleCountDetailOpenedManually) {
+        return _ActiveValidationTarget.cycleCountDetailBarcode;
+      }
+      return _ActiveValidationTarget.none;
+    }
+    if (task.type == TaskType.receive) {
+      return _itemValidated
+          ? _ActiveValidationTarget.location
+          : _ActiveValidationTarget.barcode;
+    }
+    if (task.type == TaskType.refill) {
+      return _itemValidated
+          ? _ActiveValidationTarget.location
+          : _ActiveValidationTarget.barcode;
+    }
+    if (task.type == TaskType.returnTask) {
+      return _returnPage == 0
+          ? _ActiveValidationTarget.returnBarcode
+          : _ActiveValidationTarget.none;
+    }
+    if (task.type == TaskType.adjustment) {
+      return _ActiveValidationTarget.none;
+    }
+    final hasBarcode = (task.itemBarcode?.trim().isNotEmpty ?? false);
+    if (!_itemValidated && hasBarcode) {
+      return _ActiveValidationTarget.barcode;
+    }
+    return _ActiveValidationTarget.location;
+  }
+
+  String _normalizeProductBarcode(String value) {
+    return value.replaceAll(RegExp(r'\D+'), '');
+  }
+
+  void _handleProductInputChanged(String value) {
+    _productFailureClearTimer?.cancel();
+    final normalized = _normalizeProductBarcode(value);
+    if (normalized != value) {
+      _productController.value = TextEditingValue(
+        text: normalized,
+        selection: TextSelection.collapsed(offset: normalized.length),
+      );
+      return;
+    }
+    if (_lastAutoValidatedProduct == normalized &&
+        normalized.isNotEmpty &&
+        _productValidationMessage != null) {
+      return;
+    }
+    setState(() {
+      if (_itemValidated ||
+          _locationValidated ||
+          _productValidationMessage != null ||
+          _locationValidationMessage != null ||
+          _receivePage != 0 ||
+          _refillPage != 0) {
+        _itemValidated = false;
+        _locationValidated = false;
+        _productValidationMessage = null;
+        _locationValidationMessage = null;
+        _completionMessage = null;
+        if (widget.task.type == TaskType.receive) {
+          _receivePage = 0;
+        }
+        if (widget.task.type == TaskType.refill) {
+          _refillPage = 0;
+          _locationController.clear();
+        }
+      }
+    });
+    if (normalized.isEmpty) {
+      _lastAutoValidatedProduct = null;
+      _productValidationDebounce?.cancel();
+      return;
+    }
+    _scheduleProductFailureClear(normalized);
+    _productValidationDebounce?.cancel();
+    _productValidationDebounce = Timer(
+      const Duration(milliseconds: 150),
+      () {
+        if (!mounted) return;
+        if (_normalizeProductBarcode(_productController.text) != normalized) {
+          return;
+        }
+        _validateProduct();
+      },
+    );
+  }
+
+  void _handleLocationInputChanged(String value) {
+    _locationFailureClearTimer?.cancel();
+    final normalized = value.trim().toUpperCase();
+    final isRepeatedValidatedValue = _lastAutoValidatedLocation == normalized &&
+        _locationValidationMessage != null;
+    if (isRepeatedValidatedValue ||
+        _locationValidationInFlightValue == normalized) {
+      return;
+    }
+    setState(() {
+      if (_locationValidated || _locationValidationMessage != null) {
+        _locationValidated = false;
+        _locationValidationMessage = null;
+      }
+    });
+    if (normalized.isEmpty) {
+      _lastAutoValidatedLocation = null;
+      _locationValidationDebounce?.cancel();
+      _locationValidationInFlightValue = null;
+      return;
+    }
+    _scheduleLocationFailureClear(normalized);
+    if (!_canAutoValidateLocation()) return;
+    _locationValidationDebounce?.cancel();
+    _locationValidationDebounce = Timer(
+      const Duration(milliseconds: 150),
+      () {
+        if (!mounted) return;
+        if (_locationController.text.trim().toUpperCase() != normalized) return;
+        if (!_canAutoValidateLocation()) return;
+        _validateLocation();
+      },
+    );
+  }
+
+  bool _canAutoValidateLocation() {
+    if (_validating) return false;
+    if ((widget.task.type == TaskType.receive ||
+            widget.task.type == TaskType.refill) &&
+        !_itemValidated) {
+      return false;
+    }
+    return true;
+  }
+
+  String _normalizeReturnBarcode(String value) {
+    return value.replaceAll(RegExp(r'[\r\n]+'), '').trim().toUpperCase();
+  }
+
+  void _handleReturnBarcodeInputChanged(String value) {
+    if (_returnPage != 0) return;
+    final normalized = _normalizeReturnBarcode(value);
+    if (normalized.isEmpty) {
+      _returnValidationDebounce?.cancel();
+      return;
+    }
+
+    _returnValidationDebounce?.cancel();
+    if (value.contains('\n') || value.contains('\r')) {
+      _submitReturnBarcodeScan(normalized);
+      return;
+    }
+
+    _returnValidationDebounce = Timer(
+      const Duration(milliseconds: 150),
+      () => _submitReturnBarcodeScan(
+        _normalizeReturnBarcode(_returnScanController.text),
+      ),
+    );
+  }
+
+  void _submitReturnBarcodeScan(String normalized) {
+    if (!mounted) return;
+    _returnValidationDebounce?.cancel();
+    _returnScanController.clear();
+    if (widget.task.type != TaskType.returnTask ||
+        _returnPage != 0 ||
+        normalized.isEmpty) {
+      return;
+    }
+
+    for (var index = 0; index < widget.task.returnItems.length; index++) {
+      if (_returnItemValidated[index]) continue;
+      final expected = _normalizeReturnBarcode(
+        widget.task.returnItems[index].barcode ?? '',
+      );
+      if (expected != normalized) continue;
+      setState(() {
+        _returnItemValidated[index] = true;
+        _completionMessage = null;
+      });
+      _playScanFeedback(isSuccess: true);
+      _restoreActiveValidationFocus();
+      return;
+    }
+
+    setState(() {
+      _completionMessage = _tr(
+        'Scanned item is not in this return list.',
+        'الصنف الممسوح غير موجود في قائمة المرتجعات هذه.',
+      );
+    });
+    _playScanFeedback(isSuccess: false);
+    _restoreActiveValidationFocus();
+  }
+
+  void _restoreActiveValidationFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      switch (_activeValidationTarget) {
+        case _ActiveValidationTarget.barcode:
+          if (!_productScanFocusNode.hasFocus) {
+            _productScanFocusNode.requestFocus();
+          }
+          break;
+        case _ActiveValidationTarget.location:
+          if (!_locationScanFocusNode.hasFocus) {
+            _locationScanFocusNode.requestFocus();
+          }
+          break;
+        case _ActiveValidationTarget.returnBarcode:
+          if (!_returnScanFocusNode.hasFocus) {
+            _returnScanFocusNode.requestFocus();
+          }
+          break;
+        case _ActiveValidationTarget.cycleCountDetailBarcode:
+          if (!_cycleCountDetailBarcodeFocusNode.hasFocus) {
+            _cycleCountDetailBarcodeFocusNode.requestFocus();
+          }
+          break;
+        case _ActiveValidationTarget.none:
+          break;
+      }
+    });
+  }
+
+  Future<void> _openManualBarcodeDialog() async {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _ManualBarcodeKeypadDialog(
+        initialValue: _productController.text,
+      ),
+    );
+    if (!mounted || value == null) {
+      _restoreActiveValidationFocus();
+      return;
+    }
+    _productController.text = value;
+    _handleProductInputChanged(value);
+    _restoreActiveValidationFocus();
+  }
+
+  Future<void> _openReportTaskDialog() async {
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (_) => _TaskReportDialog(
+        onSubmit: ({
+          required note,
+          String? photoPath,
+        }) =>
+            widget.onReportTaskIssue!(
+          note: note,
+          photoPath: photoPath,
+        ),
+        onCapturePhoto: widget.onCaptureReportPhoto,
+      ),
+    );
+    if (!mounted || submitted != true) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _tr(
+            'Problem report sent successfully.',
+            '?? ??? ?????? ?????.',
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openReturnManualBarcodeDialog() async {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _ManualBarcodeKeypadDialog(
+        initialValue: _returnScanController.text,
+      ),
+    );
+    if (!mounted || value == null) {
+      _restoreActiveValidationFocus();
+      return;
+    }
+    _returnScanController.text = value;
+    _handleReturnBarcodeInputChanged(value);
+    _restoreActiveValidationFocus();
+  }
+
+  Future<void> _openManualLocationDialog() async {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _ManualLocationEntryDialog(
+        initialValue: _locationController.text,
+      ),
+    );
+    if (!mounted || value == null) {
+      _restoreActiveValidationFocus();
+      return;
+    }
+    _locationController.text = value;
+    _handleLocationInputChanged(value);
+    _restoreActiveValidationFocus();
+  }
+
+  Future<void> _openCycleCountManualBarcodeDialog() async {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _ManualBarcodeKeypadDialog(
+        initialValue: _cycleCountDetailBarcodeController.text,
+      ),
+    );
+    if (!mounted || value == null) {
+      _restoreActiveValidationFocus();
+      return;
+    }
+    _cycleCountDetailBarcodeController.text = value;
+    _handleCycleCountDetailBarcodeChanged(value);
+    _restoreActiveValidationFocus();
+  }
+
   void _validateProduct() {
     final l10n = context.l10n;
-    final expected = widget.task.itemBarcode?.trim().toUpperCase() ?? '';
-    final scanned = _productController.text.trim().toUpperCase();
+    final effectiveTask = _effectiveTask;
+    final expected = _normalizeProductBarcode(widget.task.itemBarcode ?? '');
+    final scanned = _normalizeProductBarcode(_productController.text);
     final isValid = scanned == expected;
+    final canAdvanceProductFlow = effectiveTask.status == TaskStatus.inProgress;
+    final usePendingRightProductMessage = isValid &&
+        !canAdvanceProductFlow &&
+        (widget.task.type == TaskType.receive ||
+            widget.task.type == TaskType.refill);
     setState(() {
-      _productValidationMessage =
-          isValid ? l10n.workerProductValidated : l10n.workerProductMismatch;
+      _productValidationMessage = usePendingRightProductMessage
+          ? _pendingTaskRightProductMessage
+          : isValid
+              ? l10n.workerProductValidated
+              : l10n.workerProductMismatch;
+      _lastAutoValidatedProduct = scanned.isEmpty ? null : scanned;
       if (widget.task.type == TaskType.receive) {
         _itemValidated = isValid;
         _locationValidated = false;
         _locationValidationMessage = null;
-        _receivePage = isValid ? 1 : 0;
+        _receivePage = isValid && canAdvanceProductFlow ? 1 : 0;
       } else if (widget.task.type == TaskType.refill) {
         _itemValidated = isValid;
         _locationValidated = false;
         _locationValidationMessage = null;
         _completionMessage = null;
         _locationController.clear();
-        _refillPage = isValid ? 1 : 0;
+        _refillPage = isValid && canAdvanceProductFlow ? 1 : 0;
       } else if (widget.task.type == TaskType.returnTask ||
           widget.task.isSingleItemCycleCount) {
         _itemValidated = isValid;
       }
     });
+    _playScanFeedback(isSuccess: isValid);
+    if (!isValid && scanned.isNotEmpty) {
+      _scheduleProductFailureClear(scanned);
+    }
+    _restoreActiveValidationFocus();
   }
 
   void _validateReturnTote() {
@@ -2765,8 +3399,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         widget.task.returnItems[index].barcode?.trim().toUpperCase() ?? '';
     final scanned = await showItemLookupScanDialog(
       context,
-      title: 'Scan item barcode',
-      hintText: 'Scan or enter item barcode',
+      title: _tr('Scan item barcode', 'امسح باركود الصنف'),
+      hintText: _tr(
+        'Scan or enter item barcode',
+        'امسح أو أدخل باركود الصنف',
+      ),
       showKeyboard: false,
     );
     if (!mounted || scanned == null) return;
@@ -2787,8 +3424,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     if (index < 0 || index >= widget.task.returnItems.length) return;
     final scanned = await showItemLookupScanDialog(
       context,
-      title: 'Scan return location',
-      hintText: 'Scan or enter return location',
+      title: _tr('Scan return location', 'امسح موقع المرتجع'),
+      hintText: _tr(
+        'Scan or enter return location',
+        'امسح أو أدخل موقع المرتجع',
+      ),
       showKeyboard: false,
     );
     if (!mounted || scanned == null) return;
@@ -2816,11 +3456,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         _suggestedLocation = suggestion;
         if (suggestion == null) {
           _locationValidationMessage = l10n.workerLocationMismatch;
-        } else {
-          _locationController.text = suggestion;
-          _locationValidationMessage = l10n.workerLocationValidated;
         }
       });
+      if (suggestion != null) {
+        _locationController.text = suggestion;
+        _handleLocationInputChanged(suggestion);
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -2838,6 +3479,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     if (widget.task.type == TaskType.receive && !_itemValidated) return;
     if (widget.task.type == TaskType.refill && !_itemValidated) return;
     final scanned = _locationController.text.trim().toUpperCase();
+    if (scanned.isEmpty) return;
     final expected = ((widget.task.type == TaskType.refill
                 ? _refillShelfLocation
                 : widget.task.toLocation ?? widget.task.fromLocation) ??
@@ -2846,76 +3488,116 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         .toUpperCase();
     if (widget.task.type == TaskType.refill) {
       final isValid = scanned == expected;
-      setState(() {
-        _locationValidated = isValid;
-        _locationValidationMessage = isValid
-            ? l10n.workerLocationValidated
-            : l10n.workerLocationMismatch;
-      });
+      _applyLocationValidationResult(l10n, scanned: scanned, isValid: isValid);
       if (isValid) {
         _restoreCycleCountScannerFocus();
       }
+      _restoreActiveValidationFocus();
+      return;
+    }
+    if (widget.task.isPutawayTask) {
+      final isValid = scanned == expected;
+      _applyLocationValidationResult(l10n, scanned: scanned, isValid: isValid);
+      if (isValid) {
+        _restoreCycleCountScannerFocus();
+      }
+      _restoreActiveValidationFocus();
       return;
     }
     if (widget.onValidateLocation == null) {
       final isValid = scanned == expected;
-      setState(() {
-        _locationValidationMessage = isValid
-            ? l10n.workerLocationValidated
-            : l10n.workerLocationMismatch;
-        if (widget.task.type == TaskType.receive ||
-            widget.task.type == TaskType.refill ||
-            widget.task.type == TaskType.returnTask ||
-            widget.task.type == TaskType.cycleCount) {
-          _locationValidated = isValid;
-        }
-      });
+      _applyLocationValidationResult(l10n, scanned: scanned, isValid: isValid);
       if (isValid) {
         _restoreCycleCountScannerFocus();
       }
+      _restoreActiveValidationFocus();
       return;
     }
 
+    _locationValidationInFlightValue = scanned;
     setState(() => _validating = true);
     try {
       final response = await widget.onValidateLocation!(scanned);
       if (!mounted) return;
       final valid = _extractValidationResult(response);
       final isValid = valid ?? (scanned == expected);
-      setState(() {
-        _locationValidationMessage = isValid
-            ? l10n.workerLocationValidated
-            : l10n.workerLocationMismatch;
-        if (widget.task.type == TaskType.receive ||
-            widget.task.type == TaskType.refill ||
-            widget.task.type == TaskType.returnTask ||
-            widget.task.type == TaskType.cycleCount) {
-          _locationValidated = isValid;
-        }
-      });
+      _applyLocationValidationResult(l10n, scanned: scanned, isValid: isValid);
       if (isValid) {
         _restoreCycleCountScannerFocus();
       }
     } catch (_) {
       if (!mounted) return;
       final isValid = scanned == expected;
-      setState(() {
-        _locationValidationMessage = isValid
-            ? l10n.workerLocationValidated
-            : l10n.workerLocationMismatch;
-        if (widget.task.type == TaskType.receive ||
-            widget.task.type == TaskType.refill ||
-            widget.task.type == TaskType.returnTask ||
-            widget.task.type == TaskType.cycleCount) {
-          _locationValidated = isValid;
-        }
-      });
+      _applyLocationValidationResult(l10n, scanned: scanned, isValid: isValid);
       if (isValid) {
         _restoreCycleCountScannerFocus();
       }
     } finally {
+      _locationValidationInFlightValue = null;
       if (mounted) setState(() => _validating = false);
+      if (mounted && _locationController.text.trim().toUpperCase() != scanned) {
+        _handleLocationInputChanged(_locationController.text);
+      }
+      _restoreActiveValidationFocus();
     }
+  }
+
+  void _applyLocationValidationResult(
+    AppLocalizations l10n, {
+    required String scanned,
+    required bool isValid,
+  }) {
+    setState(() {
+      _locationValidationMessage =
+          isValid ? l10n.workerLocationValidated : l10n.workerLocationMismatch;
+      if (widget.task.type == TaskType.receive ||
+          widget.task.type == TaskType.refill ||
+          widget.task.type == TaskType.returnTask ||
+          widget.task.type == TaskType.cycleCount) {
+        _locationValidated = isValid;
+      }
+      _lastAutoValidatedLocation = scanned;
+    });
+    _playScanFeedback(isSuccess: isValid);
+    if (!isValid && scanned.isNotEmpty) {
+      _scheduleLocationFailureClear(scanned);
+    }
+  }
+
+  void _playScanFeedback({required bool isSuccess}) {
+    if (isSuccess) {
+      HapticFeedback.mediumImpact();
+      SystemSound.play(SystemSoundType.click);
+      return;
+    }
+    HapticFeedback.vibrate();
+    SystemSound.play(SystemSoundType.alert);
+  }
+
+  void _scheduleProductFailureClear(String scanned) {
+    _productFailureClearTimer?.cancel();
+    _productFailureClearTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      if (_normalizeProductBarcode(_productController.text) != scanned) return;
+      setState(() {
+        _productController.clear();
+        _lastAutoValidatedProduct = null;
+      });
+      _restoreActiveValidationFocus();
+    });
+  }
+
+  void _scheduleLocationFailureClear(String scanned) {
+    _locationFailureClearTimer?.cancel();
+    _locationFailureClearTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      if (_locationController.text.trim().toUpperCase() != scanned) return;
+      setState(() {
+        _locationController.clear();
+        _lastAutoValidatedLocation = null;
+      });
+      _restoreActiveValidationFocus();
+    });
   }
 
   bool? _extractValidationResult(Map<String, dynamic> response) {
@@ -2990,7 +3672,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       }
       _refillLookupError = hasFallbackBulk && hasFallbackShelf
           ? null
-          : 'Could not load refill locations.';
+          : _tr(
+              'Could not load refill locations.',
+              'تعذر تحميل مواقع إعادة التعبئة.',
+            );
     });
   }
 
@@ -3027,6 +3712,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     if (fallback == null || fallback.isEmpty) return null;
     return fallback;
   }
+
 }
 
 class _TaskHeroCard extends StatelessWidget {
@@ -3107,12 +3793,16 @@ class _TaskHeroCard extends StatelessWidget {
             children: [
               _MiniBadge(
                 icon: Icons.category_outlined,
-                label: taskTypeLabel(task.type),
+                label: taskTypeLabelForContext(
+                  context,
+                  task.type,
+                  isPutaway: task.isPutawayTask,
+                ),
                 color: typeColor,
               ),
               _MiniBadge(
                 icon: Icons.timer_outlined,
-                label: task.status.name.toUpperCase(),
+                label: taskStatusLabelForContext(context, task.status),
                 color: statusColor,
               ),
               _MiniBadge(
@@ -3157,7 +3847,7 @@ class _TaskHeroCard extends StatelessWidget {
                                   ),
                         ),
                         Text(
-                          task.quantity.toString(),
+                          task.formatQuantity(task.quantity),
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     fontWeight: FontWeight.w800,
@@ -3189,17 +3879,18 @@ class _ReceiveHeroCard extends StatelessWidget {
     required this.itemName,
     required this.barcode,
     required this.itemImageUrl,
-    required this.quantity,
+    required this.quantityLabel,
   });
 
   final String itemName;
   final String barcode;
   final String? itemImageUrl;
-  final int quantity;
+  final String quantityLabel;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isArabic = context.isArabicLocale;
 
     return Card(
       key: const Key('receive-hero-card'),
@@ -3279,16 +3970,16 @@ class _ReceiveHeroCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Total Quantity',
-                      style: TextStyle(
+                    Text(
+                      isArabic ? 'إجمالي الكمية' : 'Total Quantity',
+                      style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '$quantity',
+                      quantityLabel,
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
@@ -3430,6 +4121,7 @@ class _CycleCountItemState {
     this.countedQuantity = 0,
     this.completed = false,
     this.imageUrl,
+    this.unit,
   });
 
   final String key;
@@ -3439,6 +4131,10 @@ class _CycleCountItemState {
   final int countedQuantity;
   final bool completed;
   final String? imageUrl;
+  final String? unit;
+
+  String get quantityUnit => unit?.trim().isNotEmpty == true ? unit!.trim() : 'pc';
+  String formatQuantity(int value) => '$value $quantityUnit';
 
   _CycleCountItemState copyWith({
     int? countedQuantity,
@@ -3452,6 +4148,7 @@ class _CycleCountItemState {
       countedQuantity: countedQuantity ?? this.countedQuantity,
       completed: completed ?? this.completed,
       imageUrl: imageUrl,
+      unit: unit,
     );
   }
 }
@@ -3546,6 +4243,536 @@ class _LocationRow extends StatelessWidget {
   }
 }
 
+enum _ActiveValidationTarget {
+  none,
+  barcode,
+  location,
+  returnBarcode,
+  cycleCountDetailBarcode,
+}
+
+class _TaskReportDialog extends StatefulWidget {
+  const _TaskReportDialog({
+    required this.onSubmit,
+    this.onCapturePhoto,
+  });
+
+  final Future<void> Function({
+    required String note,
+    String? photoPath,
+  }) onSubmit;
+  final Future<TaskReportPhotoAttachment?> Function()? onCapturePhoto;
+
+  @override
+  State<_TaskReportDialog> createState() => _TaskReportDialogState();
+}
+
+class _TaskReportDialogState extends State<_TaskReportDialog> {
+  late final TextEditingController _noteController;
+  TaskReportPhotoAttachment? _photo;
+  String? _errorMessage;
+  bool _capturingPhoto = false;
+  bool _submitting = false;
+
+  bool get _canSubmit => !_submitting && _noteController.text.trim().isNotEmpty;
+
+  String _tr(String english, String arabic) =>
+      context.isArabicLocale ? arabic : english;
+
+  @override
+  void initState() {
+    super.initState();
+    _noteController = TextEditingController()..addListener(_handleNoteChanged);
+  }
+
+  @override
+  void dispose() {
+    _noteController
+      ..removeListener(_handleNoteChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _handleNoteChanged() {
+    setState(() {});
+  }
+
+  String _messageForError(Object error) {
+    return switch (error) {
+      AppException(message: final message) when message.trim().isNotEmpty =>
+        message,
+      _ => _tr(
+          'Failed to send the problem report. Please try again.',
+          '??? ????? ?????? ?? ?????. ???? ??? ????.',
+        ),
+    };
+  }
+
+  Future<void> _capturePhoto() async {
+    if (widget.onCapturePhoto == null || _capturingPhoto || _submitting) {
+      return;
+    }
+
+    setState(() {
+      _capturingPhoto = true;
+      _errorMessage = null;
+    });
+    try {
+      final photo = await widget.onCapturePhoto!.call();
+      if (!mounted || photo == null) {
+        return;
+      }
+      setState(() => _photo = photo);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = _messageForError(error));
+    } finally {
+      if (mounted) {
+        setState(() => _capturingPhoto = false);
+      }
+    }
+  }
+
+  Future<void> _submit() async {
+    final note = _noteController.text.trim();
+    if (note.isEmpty || _submitting) {
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
+    try {
+      await widget.onSubmit(
+        note: note,
+        photoPath: _photo?.path,
+      );
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = _messageForError(error));
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isArabic = context.isArabicLocale;
+
+    return AlertDialog(
+      key: const Key('report-task-dialog'),
+      title: Text(_tr('Report Problem', '????? ?? ?????')),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _tr(
+                  'Describe the issue so the team can review this task.',
+                  '???? ??????? ????? ??? ??????? ????? ??????.',
+                ),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                key: const Key('report-task-note-field'),
+                controller: _noteController,
+                minLines: 3,
+                maxLines: 5,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: _tr('Note', '??????'),
+                  hintText: _tr(
+                    'Write what went wrong',
+                    '???? ?? ???',
+                  ),
+                  alignLabelWithHint: true,
+                  prefixIcon: const Padding(
+                    padding: EdgeInsets.only(bottom: 48),
+                    child: Icon(Icons.edit_note_rounded),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  key: const Key('report-task-photo-button'),
+                  onPressed: widget.onCapturePhoto == null ||
+                          _capturingPhoto ||
+                          _submitting
+                      ? null
+                      : _capturePhoto,
+                  icon: _capturingPhoto
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          _photo == null
+                              ? Icons.photo_camera_outlined
+                              : Icons.cameraswitch_outlined,
+                        ),
+                  label: Text(
+                    _capturingPhoto
+                        ? _tr('Opening camera...', '???? ??? ?????...')
+                        : _photo == null
+                            ? _tr('Take Photo', '???? ?????')
+                            : _tr('Retake Photo', '????? ?????'),
+                  ),
+                ),
+              ),
+              if (_photo != null) ...[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image(
+                    key: const Key('report-task-photo-preview'),
+                    image: MemoryImage(_photo!.bytes),
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton.icon(
+                    key: const Key('report-task-remove-photo-button'),
+                    onPressed: _submitting
+                        ? null
+                        : () => setState(() => _photo = null),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    label: Text(_tr('Remove Photo', '??? ?????')),
+                  ),
+                ),
+              ],
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 8),
+                _ValidationMessage(
+                  key: const Key('report-task-error-message'),
+                  message: _errorMessage!,
+                  isPositive: false,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed:
+              _submitting ? null : () => Navigator.of(context).pop(false),
+          child: Text(isArabic ? '?????' : 'Cancel'),
+        ),
+        FilledButton(
+          key: const Key('report-task-submit-button'),
+          onPressed: _canSubmit ? _submit : null,
+          child: _submitting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(_tr('Submit Report', '???? ??????')),
+        ),
+      ],
+    );
+  }
+}
+
+class _ManualBarcodeKeypadDialog extends StatefulWidget {
+  const _ManualBarcodeKeypadDialog({required this.initialValue});
+
+  final String initialValue;
+
+  @override
+  State<_ManualBarcodeKeypadDialog> createState() =>
+      _ManualBarcodeKeypadDialogState();
+}
+
+class _ManualBarcodeKeypadDialogState
+    extends State<_ManualBarcodeKeypadDialog> {
+  late String _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _value = widget.initialValue.replaceAll(RegExp(r'\D+'), '');
+  }
+
+  void _appendDigit(String digit) {
+    setState(() => _value = '$_value$digit');
+  }
+
+  void _deleteDigit() {
+    if (_value.isEmpty) return;
+    setState(() => _value = _value.substring(0, _value.length - 1));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isArabic = context.isArabicLocale;
+    const digits = <String>['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    final theme = Theme.of(context);
+    return AlertDialog(
+      key: const Key('manual-barcode-dialog'),
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      contentPadding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+      title: Text(isArabic ? 'إدخال يدوي' : 'Manual Type'),
+      content: SizedBox(
+        width: 320,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.primary.withValues(alpha: 0.08),
+                      AppTheme.accent.withValues(alpha: 0.10),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppTheme.surfaceAlt),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isArabic ? 'الباركود' : 'Barcode',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: AppTheme.textMuted,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _value.isEmpty
+                          ? (isArabic
+                              ? 'أدخل أرقام الباركود'
+                              : 'Enter barcode digits')
+                          : _value,
+                      textAlign: TextAlign.left,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                isArabic
+                    ? 'أدخل أرقام الباركود يدويًا إذا لم يستجب الماسح.'
+                    : 'Type the barcode digits manually if the scanner does not respond.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppTheme.textMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              GridView.count(
+                key: const Key('manual-barcode-grid'),
+                crossAxisCount: 3,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: 1.28,
+                children: [
+                  for (final digit in digits)
+                    _BarcodeKeyButton(
+                      key: Key('manual-barcode-digit-$digit'),
+                      label: digit,
+                      onPressed: () => _appendDigit(digit),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _BarcodeKeyButton(
+                      key: const Key('manual-barcode-delete'),
+                      label: isArabic ? 'حذف' : 'Del',
+                      onPressed: _deleteDigit,
+                      backgroundColor: AppTheme.surfaceAlt,
+                      foregroundColor: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _BarcodeKeyButton(
+                      key: const Key('manual-barcode-digit-0'),
+                      label: '0',
+                      onPressed: () => _appendDigit('0'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 56,
+                      child: FilledButton(
+                        key: const Key('manual-barcode-submit'),
+                        onPressed: _value.isEmpty
+                            ? null
+                            : () => Navigator.of(context).pop(_value),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          isArabic ? 'استخدام' : 'Use',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(isArabic ? 'إلغاء' : 'Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ManualLocationEntryDialog extends StatefulWidget {
+  const _ManualLocationEntryDialog({required this.initialValue});
+
+  final String initialValue;
+
+  @override
+  State<_ManualLocationEntryDialog> createState() =>
+      _ManualLocationEntryDialogState();
+}
+
+class _ManualLocationEntryDialogState
+    extends State<_ManualLocationEntryDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isArabic = context.isArabicLocale;
+    return AlertDialog(
+      key: const Key('manual-location-dialog'),
+      title: Text(isArabic ? 'إدخال يدوي' : 'Manual Type'),
+      content: TextField(
+        key: const Key('manual-location-dialog-field'),
+        controller: _controller,
+        autofocus: true,
+        decoration: InputDecoration(
+          labelText: isArabic ? 'الموقع' : 'Location',
+          prefixIcon: const Icon(Icons.location_on_outlined),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(isArabic ? 'إلغاء' : 'Cancel'),
+        ),
+        FilledButton(
+          key: const Key('manual-location-submit'),
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: Text(isArabic ? 'استخدام الموقع' : 'Use Location'),
+        ),
+      ],
+    );
+  }
+}
+
+class _BarcodeKeyButton extends StatelessWidget {
+  const _BarcodeKeyButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.backgroundColor,
+    this.foregroundColor,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      height: 56,
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: backgroundColor ?? Colors.white,
+          foregroundColor: foregroundColor ?? AppTheme.primary,
+          elevation: 0,
+          side: BorderSide(
+            color: (backgroundColor ?? Colors.white) == Colors.white
+                ? AppTheme.primary.withValues(alpha: 0.18)
+                : AppTheme.surfaceAlt,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoRow extends StatelessWidget {
   const _InfoRow({required this.label, required this.value});
 
@@ -3580,31 +4807,84 @@ class _InfoRow extends StatelessWidget {
 
 class _ValidationMessage extends StatelessWidget {
   const _ValidationMessage({
+    super.key,
     required this.message,
     required this.isPositive,
+    this.supportingText,
   });
 
   final String message;
   final bool isPositive;
+  final String? supportingText;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final color = isPositive ? AppTheme.success : AppTheme.error;
+    final backgroundColor = color.withValues(alpha: 0.08);
+    final borderColor = color.withValues(alpha: 0.18);
+    final iconBackgroundColor = color.withValues(alpha: 0.14);
     return Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          Icon(
-            isPositive ? Icons.check_circle_outline : Icons.error_outline,
-            color: color,
-            size: 17,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            message,
-            style: TextStyle(fontWeight: FontWeight.w700, color: color),
-          ),
-        ],
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.textPrimary.withValues(alpha: 0.04),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: iconBackgroundColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isPositive ? Icons.check_circle_rounded : Icons.error_rounded,
+                color: color,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  ),
+                  if (supportingText != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      supportingText!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textMuted,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

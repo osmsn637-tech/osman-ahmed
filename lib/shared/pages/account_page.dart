@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/errors/app_exception.dart';
+import '../../core/utils/result.dart';
 import '../../features/auth/domain/entities/user.dart';
+import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/presentation/providers/session_provider.dart';
 import '../l10n/l10n.dart';
 import '../providers/locale_controller.dart';
@@ -190,7 +193,7 @@ String _roleLabel(AppLocalizations l10n, String role) {
   return switch (User.canonicalizeRole(role)) {
     'supervisor' => l10n.roleSupervisor,
     'inbound' => l10n.roleInbound,
-    _ => l10n.roleWorker,
+    _ => 'PUTAWAY',
   };
 }
 
@@ -244,11 +247,7 @@ class _ActionsPanel extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(l10n.accountComingSoon)),
-                );
-              },
+              onPressed: () => _showChangePasswordDialog(context, l10n),
               icon: const Icon(Icons.lock_outline_rounded),
               label: Text(l10n.accountChangePassword),
             ),
@@ -267,6 +266,141 @@ class _ActionsPanel extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+Future<void> _showChangePasswordDialog(
+  BuildContext context,
+  AppLocalizations l10n,
+) {
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => _ChangePasswordDialog(l10n: l10n),
+  );
+}
+
+class _ChangePasswordDialog extends StatefulWidget {
+  const _ChangePasswordDialog({required this.l10n});
+
+  final AppLocalizations l10n;
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  late final TextEditingController _currentPasswordController;
+  late final TextEditingController _newPasswordController;
+
+  bool _isSubmitting = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentPasswordController = TextEditingController();
+    _newPasswordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final currentPassword = _currentPasswordController.text.trim();
+    final newPassword = _newPasswordController.text.trim();
+    if (currentPassword.isEmpty || newPassword.isEmpty) {
+      setState(() {
+        _errorMessage = 'Both password fields are required';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    final result = await context.read<AuthRepository>().changePassword(
+          currentPassword: currentPassword,
+          newPassword: newPassword,
+        );
+
+    if (!mounted) return;
+
+    switch (result) {
+      case Success<void>():
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password updated successfully'),
+          ),
+        );
+      case Failure<void>(error: final error):
+        setState(() {
+          _isSubmitting = false;
+          _errorMessage =
+              error is AppException ? error.message : error.toString();
+        });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.l10n.accountChangePassword),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _currentPasswordController,
+            enabled: !_isSubmitting,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Current Password',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _newPasswordController,
+            enabled: !_isSubmitting,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'New Password',
+            ),
+          ),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(
+                color: AppTheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Update Password'),
+        ),
+      ],
     );
   }
 }

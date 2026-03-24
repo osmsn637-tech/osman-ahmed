@@ -174,16 +174,13 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                     const SizedBox(height: 12),
                     _AdjustmentPanel(
                       state: adjustmentState!,
-                      reasons: adjustmentController!.reasons,
                       isArabic: isArabic,
-                      onIncrement: adjustmentController.increment,
-                      onDecrement: adjustmentController.decrement,
-                      onReasonChanged: (value) {
-                        if (value != null) {
-                          adjustmentController.setReason(value);
-                        }
-                      },
-                      onNoteChanged: adjustmentController.setNote,
+                      onLocationCodeChanged: (value) =>
+                          adjustmentController.updateSelectedLocationCode(
+                        value,
+                        knownLocations: summary.locations,
+                      ),
+                      onQuantityChanged: adjustmentController!.setQuantityText,
                       onConfirm: adjustmentState.canSubmit
                           ? () => adjustmentController.submitForItem(summary)
                           : null,
@@ -529,126 +526,243 @@ class _LocationSection extends StatelessWidget {
   }
 }
 
-class _AdjustmentPanel extends StatelessWidget {
+class _AdjustmentPanel extends StatefulWidget {
   const _AdjustmentPanel({
     required this.state,
-    required this.reasons,
     required this.isArabic,
-    required this.onIncrement,
-    required this.onDecrement,
-    required this.onReasonChanged,
-    required this.onNoteChanged,
+    required this.onLocationCodeChanged,
+    required this.onQuantityChanged,
     required this.onConfirm,
   });
 
   final ItemAdjustmentState state;
-  final List<String> reasons;
   final bool isArabic;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
-  final ValueChanged<String?> onReasonChanged;
-  final ValueChanged<String> onNoteChanged;
+  final ValueChanged<String> onLocationCodeChanged;
+  final ValueChanged<String> onQuantityChanged;
   final VoidCallback? onConfirm;
+
+  @override
+  State<_AdjustmentPanel> createState() => _AdjustmentPanelState();
+}
+
+class _AdjustmentPanelState extends State<_AdjustmentPanel> {
+  late final TextEditingController _locationController;
+  late final TextEditingController _quantityController;
+
+  @override
+  void initState() {
+    super.initState();
+    _locationController = TextEditingController(
+      text: widget.state.selectedLocationCode ?? '',
+    );
+    _quantityController = TextEditingController(
+      text: widget.state.hasQuantityInput ? '${widget.state.quantity}' : '',
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _AdjustmentPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final nextLocation = widget.state.selectedLocationCode ?? '';
+    if (_locationController.text != nextLocation) {
+      _locationController.value = TextEditingValue(
+        text: nextLocation,
+        selection: TextSelection.collapsed(offset: nextLocation.length),
+      );
+    }
+
+    final nextQuantity =
+        widget.state.hasQuantityInput ? '${widget.state.quantity}' : '';
+    if (_quantityController.text != nextQuantity) {
+      _quantityController.value = TextEditingValue(
+        text: nextQuantity,
+        selection: TextSelection.collapsed(offset: nextQuantity.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _locationController.dispose();
+    _quantityController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final surfaceTint = theme.colorScheme.primary.withValues(alpha: 0.05);
+    final outline = theme.colorScheme.outlineVariant.withValues(alpha: 0.65);
+    final mutedText = theme.colorScheme.onSurfaceVariant;
 
     return Card(
+      elevation: 0,
+      color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              isArabic ? 'تعديل المخزون' : 'Adjustment',
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              state.selectedLocationCode == null
-                  ? (isArabic
-                      ? 'اختر موقعًا لإجراء التعديل.'
-                      : 'Select a location to adjust.')
-                  : (isArabic
-                      ? 'الموقع المحدد: ${state.selectedLocationCode}'
-                      : 'Selected location: ${state.selectedLocationCode}'),
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                IconButton(
-                  key: const Key('adjust_quantity_decrement'),
-                  onPressed: onDecrement,
-                  icon: const Icon(Icons.remove_circle_outline),
-                ),
-                Expanded(
-                  child: Center(
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: surfaceTint,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: outline),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.tune_rounded,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: Text(
-                      '${state.quantity}',
-                      key: const Key('adjust_quantity_value'),
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
+                      widget.isArabic ? 'تفاصيل التعديل' : 'Adjustment Details',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                   ),
-                ),
-                IconButton(
-                  key: const Key('adjust_quantity_increment'),
-                  onPressed: onIncrement,
-                  icon: const Icon(Icons.add_circle_outline),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              key: const Key('adjust_reason_field'),
-              initialValue: state.reason,
-              decoration: InputDecoration(
-                labelText: isArabic ? 'السبب' : 'Reason',
+                ],
               ),
-              items: reasons
-                  .map(
-                    (reason) => DropdownMenuItem<String>(
-                      value: reason,
-                      child: Text(reason),
-                    ),
-                  )
-                  .toList(),
-              onChanged: onReasonChanged,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.state.selectedLocationCode == null
+                  ? (widget.isArabic
+                      ? 'اختر موقعًا لإجراء التعديل.'
+                      : 'Select a location to adjust.')
+                  : (widget.isArabic
+                      ? 'الموقع المحدد: ${widget.state.selectedLocationCode}'
+                      : 'Selected location: ${widget.state.selectedLocationCode}'),
+              style: TextStyle(
+                color: mutedText,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 12),
+            Text(
+              widget.isArabic ? 'الموقع' : 'Location',
+              style: TextStyle(
+                color: mutedText,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
             TextField(
-              key: const Key('adjust_note_field'),
-              onChanged: onNoteChanged,
-              minLines: 2,
-              maxLines: 3,
+              key: const Key('adjust_location_code_field'),
+              controller: _locationController,
+              onChanged: widget.onLocationCodeChanged,
               decoration: InputDecoration(
-                labelText: isArabic ? 'ملاحظة' : 'Note',
-                hintText: isArabic
-                    ? 'لماذا تقوم بتعديل هذا الموقع؟'
-                    : 'Why are you adjusting this location?',
+                hintText: widget.isArabic
+                    ? 'أدخل موقع الرف أو التخزين'
+                    : 'Enter shelf or bulk location',
+                filled: true,
+                fillColor: surfaceTint,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: outline),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: outline),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.primary,
+                    width: 1.4,
+                  ),
+                ),
+                prefixIcon: const Icon(Icons.location_on_outlined),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
               ),
             ),
-            if (state.errorMessage != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                state.errorMessage!,
-                style: TextStyle(color: theme.colorScheme.error),
-              ),
-            ],
             const SizedBox(height: 12),
+            Text(
+              widget.isArabic ? 'الكمية الجديدة' : 'New Quantity',
+              style: TextStyle(
+                color: mutedText,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              key: const Key('adjust_quantity_field'),
+              controller: _quantityController,
+              keyboardType: TextInputType.number,
+              onChanged: widget.onQuantityChanged,
+              decoration: InputDecoration(
+                hintText:
+                    widget.isArabic ? 'أدخل الكمية المعدلة' : 'Enter adjusted quantity',
+                filled: true,
+                fillColor: surfaceTint,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: outline),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: outline),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.primary,
+                    width: 1.4,
+                  ),
+                ),
+                prefixIcon: const Icon(Icons.numbers_rounded),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+              ),
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (widget.state.errorMessage != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  widget.state.errorMessage!,
+                  style: TextStyle(
+                    color: theme.colorScheme.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 key: const Key('adjust_confirm_button'),
-                onPressed: onConfirm,
+                onPressed: widget.onConfirm,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
                 child: Text(
-                  state.isSubmitting
-                      ? (isArabic ? 'جارٍ التأكيد...' : 'Confirming...')
-                      : (isArabic ? 'تأكيد' : 'Confirm'),
+                  widget.state.isSubmitting
+                      ? (widget.isArabic ? 'جارٍ التأكيد...' : 'Confirming...')
+                      : (widget.isArabic ? 'تأكيد' : 'Confirm'),
                 ),
               ),
             ),

@@ -61,7 +61,7 @@ String taskTypeLabelForContext(
   final isArabic = context.isArabicLocale;
   switch (type) {
     case TaskType.receive:
-      return isArabic ? '??????' : (isPutaway ? 'PUTAWAY' : 'RECEIVE');
+      return isArabic ? 'استلام' : (isPutaway ? 'PUTAWAY' : 'RECEIVE');
     case TaskType.move:
       return isArabic ? 'نقل' : 'MOVE';
     case TaskType.returnTask:

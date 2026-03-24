@@ -35,7 +35,17 @@ class MorePage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.tune),
             title: Text(l10n.moreStockAdjustment),
-            onTap: () => context.go('/adjustment'),
+            onTap: () async {
+              final barcode = await showItemLookupScanDialog(
+                context,
+                showKeyboard: false,
+              );
+              final normalized = barcode?.trim() ?? '';
+              if (!context.mounted || normalized.isEmpty) return;
+              context.push(
+                '/item-lookup/result/${Uri.encodeComponent(normalized)}?mode=adjust',
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.report_problem_outlined),

@@ -44,6 +44,30 @@ void main() {
       isTrue,
     );
   });
+
+  test('submitAdjustmentCount posts actualQuantity payload to count endpoint',
+      () async {
+    final client = _FakeApiClient();
+    final dataSource = TaskRemoteDataSource(client);
+
+    await dataSource.submitAdjustmentCount(
+      adjustmentItemId: 'adj-item-77',
+      quantity: 12,
+      notes: 'counted from mobile',
+    );
+
+    expect(
+      client.lastPostPath,
+      '/mobile/v1/adjustment-items/adj-item-77/count',
+    );
+    expect(
+      client.lastPostData,
+      <String, dynamic>{
+        'actualQuantity': 12,
+        'notes': 'counted from mobile',
+      },
+    );
+  });
 }
 
 class _FakeApiClient extends ApiClient {

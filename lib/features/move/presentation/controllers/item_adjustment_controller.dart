@@ -10,9 +10,9 @@ class ItemAdjustmentState {
   const ItemAdjustmentState({
     this.selectedLocationId,
     this.selectedLocationCode,
+    this.selectedLocationType,
     this.quantity = 0,
-    this.reason,
-    this.note = '',
+    this.hasQuantityInput = false,
     this.isSubmitting = false,
     this.errorMessage,
     this.success = false,
@@ -22,26 +22,25 @@ class ItemAdjustmentState {
 
   final int? selectedLocationId;
   final String? selectedLocationCode;
+  final String? selectedLocationType;
   final int quantity;
-  final String? reason;
-  final String note;
+  final bool hasQuantityInput;
   final bool isSubmitting;
   final String? errorMessage;
   final bool success;
 
   bool get canSubmit =>
-      selectedLocationId != null &&
-      quantity > 0 &&
-      reason != null &&
-      reason!.trim().isNotEmpty &&
+      selectedLocationCode != null &&
+      selectedLocationCode!.trim().isNotEmpty &&
+      hasQuantityInput &&
       !isSubmitting;
 
   ItemAdjustmentState copyWith({
     Object? selectedLocationId = _unset,
     Object? selectedLocationCode = _unset,
+    Object? selectedLocationType = _unset,
     int? quantity,
-    Object? reason = _unset,
-    String? note,
+    bool? hasQuantityInput,
     bool? isSubmitting,
     Object? errorMessage = _unset,
     bool? success,
@@ -53,9 +52,11 @@ class ItemAdjustmentState {
       selectedLocationCode: selectedLocationCode == _unset
           ? this.selectedLocationCode
           : selectedLocationCode as String?,
+      selectedLocationType: selectedLocationType == _unset
+          ? this.selectedLocationType
+          : selectedLocationType as String?,
       quantity: quantity ?? this.quantity,
-      reason: reason == _unset ? this.reason : reason as String?,
-      note: note ?? this.note,
+      hasQuantityInput: hasQuantityInput ?? this.hasQuantityInput,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       errorMessage:
           errorMessage == _unset ? this.errorMessage : errorMessage as String?,
@@ -75,65 +76,55 @@ class ItemAdjustmentController extends ChangeNotifier {
   final Future<Result<void>> Function(StockAdjustmentParams params) _adjustStock;
   final SessionController _session;
 
-  static const List<String> defaultReasons = <String>[
-    'Damaged',
-    'Return',
-    'Count Correction',
-    'Cycle Count',
-    'Other',
-  ];
+  static const String _defaultReason = 'Count Correction';
 
   ItemAdjustmentState _state = const ItemAdjustmentState();
   ItemAdjustmentState get state => _state;
-
-  List<String> get reasons => defaultReasons;
 
   void selectLocation(ItemLocationEntity location) {
     _setState(
       _state.copyWith(
         selectedLocationId: location.locationId,
         selectedLocationCode: location.code,
+        selectedLocationType: location.type,
         errorMessage: null,
         success: false,
       ),
     );
   }
 
-  void increment() {
-    _setState(
-      _state.copyWith(
-        quantity: _state.quantity + 1,
-        errorMessage: null,
-        success: false,
-      ),
-    );
-  }
-
-  void decrement() {
-    _setState(
-      _state.copyWith(
-        quantity: _state.quantity > 0 ? _state.quantity - 1 : 0,
-        errorMessage: null,
-        success: false,
-      ),
-    );
-  }
-
-  void setReason(String value) {
+  void updateSelectedLocationCode(
+    String value, {
+    List<ItemLocationEntity> knownLocations = const <ItemLocationEntity>[],
+  }) {
     final normalized = value.trim();
+    final matched = knownLocations.cast<ItemLocationEntity?>().firstWhere(
+          (location) =>
+              location?.code.trim().toUpperCase() == normalized.toUpperCase(),
+          orElse: () => null,
+        );
+
     _setState(
       _state.copyWith(
-        reason: normalized.isEmpty ? null : normalized,
+        selectedLocationCode: value,
+        selectedLocationId: matched?.locationId ?? _stableIntFromString(normalized),
+        selectedLocationType:
+            matched?.type.isNotEmpty == true ? matched!.type : _inferType(normalized),
         errorMessage: null,
         success: false,
       ),
     );
   }
 
-  void setNote(String value) {
+  void setQuantityText(String value) {
+    final normalized = value.trim();
+    final parsed = int.tryParse(normalized);
+    final hasExplicitQuantity =
+        normalized.isNotEmpty && parsed != null && parsed >= 0;
     _setState(
       _state.copyWith(
-        note: value,
+        quantity: hasExplicitQuantity ? parsed : 0,
+        hasQuantityInput: hasExplicitQuantity,
         errorMessage: null,
         success: false,
       ),
@@ -157,7 +148,7 @@ class ItemAdjustmentController extends ChangeNotifier {
     if (!_state.canSubmit) {
       _setState(
         _state.copyWith(
-          errorMessage: 'Select a location, quantity, and reason.',
+          errorMessage: 'Select a location and quantity.',
           success: false,
         ),
       );
@@ -176,10 +167,10 @@ class ItemAdjustmentController extends ChangeNotifier {
       StockAdjustmentParams(
         itemId: summary.itemId,
         locationId: _state.selectedLocationId!,
+        locationBarcode: (_state.selectedLocationCode ?? '').trim(),
         newQuantity: _state.quantity,
-        reason: _state.reason!,
+        reason: _defaultReason,
         workerId: workerId,
-        note: _state.note.trim().isEmpty ? null : _state.note.trim(),
       ),
     );
 
@@ -208,5 +199,21 @@ class ItemAdjustmentController extends ChangeNotifier {
   void _setState(ItemAdjustmentState nextState) {
     _state = nextState;
     notifyListeners();
+  }
+
+  static int? _stableIntFromString(String value) {
+    if (value.isEmpty) return null;
+    var hash = 0;
+    for (final unit in value.toUpperCase().codeUnits) {
+      hash = ((hash * 31) + unit) & 0x7fffffff;
+    }
+    return hash == 0 ? null : hash;
+  }
+
+  static String _inferType(String code) {
+    final upper = code.toUpperCase();
+    if (upper.contains('BLK')) return 'bulk';
+    if (upper.isEmpty) return '';
+    return 'shelf';
   }
 }

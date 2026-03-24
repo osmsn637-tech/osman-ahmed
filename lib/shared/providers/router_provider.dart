@@ -11,7 +11,6 @@ import '../../features/move/domain/usecases/lookup_item_by_barcode_usecase.dart'
 import '../../features/move/presentation/controllers/item_lookup_controller.dart';
 import '../../features/move/presentation/pages/item_lookup_result_page.dart';
 import '../../features/move/presentation/pages/move_item_page.dart';
-import '../../features/move/presentation/pages/stock_adjustment_page.dart';
 import '../../features/inbound/presentation/pages/create_inbound_page.dart';
 import '../../features/inbound/domain/entities/inbound_entities.dart';
 import '../../features/inbound/presentation/controllers/inbound_receipt_controller.dart';
@@ -89,10 +88,6 @@ GoRouter buildRouter(
       GoRoute(
         path: '/move',
         builder: (context, state) => const MoveItemPage(),
-      ),
-      GoRoute(
-        path: '/adjustment',
-        builder: (context, state) => const StockAdjustmentPage(),
       ),
       GoRoute(
         path: '/item-lookup/result/:barcode',

@@ -19,6 +19,7 @@ void main() {
     required FakeInboundRepository repository,
     required String receiptId,
     InboundReceiptScanResult? initialScanResult,
+    Locale locale = const Locale('en'),
   }) {
     return ChangeNotifierProvider<InboundReceiptController>(
       create: (_) => InboundReceiptController(
@@ -27,6 +28,7 @@ void main() {
         initialScanResult: initialScanResult,
       ),
       child: MaterialApp(
+        locale: locale,
         supportedLocales: const [Locale('en'), Locale('ar')],
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -109,8 +111,30 @@ void main() {
     expect(find.text('PO-SCANNED-1001'), findsOneWidget);
     expect(find.text('Blue Mug'), findsOneWidget);
     expect(find.text('SKU-001'), findsOneWidget);
+    expect(find.text('Received Items'), findsOneWidget);
+    expect(find.text('0 of 2 received'), findsOneWidget);
+    expect(find.text('Scan item barcode'), findsOneWidget);
     expect(find.text('Expected Qty: 4'), findsOneWidget);
     expect(find.text('Expected Qty: 2'), findsOneWidget);
+  });
+
+  testWidgets('receipt page renders receive flow copy in Arabic',
+      (tester) async {
+    await tester.pumpWidget(
+      buildReceiptPage(
+        repository: FakeInboundRepository(),
+        receiptId: 'receipt-1001',
+        initialScanResult: buildScanResult(poNumber: 'PO-SCANNED-1001'),
+        locale: const Locale('ar'),
+      ),
+    );
+    await pumpUi(tester);
+
+    expect(find.text('استلام'), findsWidgets);
+    expect(find.text('العناصر المستلمة'), findsOneWidget);
+    expect(find.text('0 من 2 تم استلامها'), findsOneWidget);
+    expect(find.text('امسح باركود الصنف'), findsOneWidget);
+    expect(find.text('الكمية المتوقعة: 4'), findsOneWidget);
   });
 
   testWidgets('receipt page shows item image from the scan response',
@@ -178,8 +202,7 @@ void main() {
     expect(scanField.enabled, isFalse);
   });
 
-  testWidgets('start receiving stays below the receipt items',
-      (tester) async {
+  testWidgets('start receiving stays below the receipt items', (tester) async {
     await tester.pumpWidget(
       buildReceiptPage(
         repository: buildRepository(),
@@ -225,6 +248,39 @@ void main() {
     expect(editableText.focusNode.hasFocus, isTrue);
   });
 
+  testWidgets('receipt list scanner re-focuses after app resume', (tester) async {
+    await tester.pumpWidget(
+      buildReceiptPage(
+        repository: buildRepository(),
+        receiptId: 'receipt-1001',
+        initialScanResult: buildScanResult(),
+      ),
+    );
+    await pumpUi(tester);
+
+    await tester.tap(find.byKey(const Key('inbound-receipt-start-button')));
+    await pumpUi(tester);
+
+    final editableFinder = find.descendant(
+      of: find.byKey(const Key('inbound-receipt-hidden-scan-field')),
+      matching: find.byType(EditableText),
+    );
+
+    var editableText = tester.widget<EditableText>(editableFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+
+    editableText.focusNode.unfocus();
+    await tester.pump();
+    editableText = tester.widget<EditableText>(editableFinder);
+    expect(editableText.focusNode.hasFocus, isFalse);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await pumpUi(tester);
+
+    editableText = tester.widget<EditableText>(editableFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+  });
+
   testWidgets('tapping an item locks quantity until barcode is scanned',
       (tester) async {
     await tester.pumpWidget(
@@ -241,6 +297,9 @@ void main() {
 
     await tester.tap(find.text('Blue Mug'));
     await pumpUi(tester);
+
+    expect(find.text('Receive Item'), findsOneWidget);
+    expect(find.text('Scan or type barcode'), findsOneWidget);
 
     var quantityField = tester.widget<TextField>(
       find.byKey(const Key('inbound-receipt-detail-quantity-field')),
@@ -324,8 +383,7 @@ void main() {
     expect(find.text('5 received'), findsOneWidget);
   });
 
-  testWidgets('matching quantity turns the receipt row green',
-      (tester) async {
+  testWidgets('matching quantity turns the receipt row green', (tester) async {
     await tester.pumpWidget(
       buildReceiptPage(
         repository: buildRepository(),

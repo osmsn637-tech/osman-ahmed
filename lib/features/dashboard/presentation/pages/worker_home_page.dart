@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 
 import '../../../../shared/l10n/l10n.dart';
 import '../../../../shared/theme/app_theme.dart';
-import '../../../../shared/widgets/app_logo.dart';
 import '../../../auth/presentation/providers/session_provider.dart';
 import '../../../move/domain/usecases/lookup_item_by_barcode_usecase.dart';
 import '../../../move/presentation/pages/item_lookup_result_page.dart';
@@ -116,14 +115,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const AppLogo(size: 24),
-                const SizedBox(width: 8),
-                Text(l10n.zoneWithCode(user?.zone ?? '--')),
-              ],
-            ),
+            title: Text(l10n.zoneWithCode(user?.zone ?? '--')),
             actions: [
               IconButton(
                 onPressed: ctrl.refresh,

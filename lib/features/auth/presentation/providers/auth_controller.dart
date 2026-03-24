@@ -7,14 +7,21 @@ import '../../domain/entities/user.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/repositories/auth_repository.dart';
 import 'auth_state.dart';
+import 'session_provider.dart';
 
 class AuthController extends ChangeNotifier {
-  AuthController({required LoginUseCase loginUseCase, required AuthRepository authRepository})
+  AuthController({
+    required LoginUseCase loginUseCase,
+    required AuthRepository authRepository,
+    required SessionController session,
+  })
       : _loginUseCase = loginUseCase,
-        _authRepository = authRepository;
+        _authRepository = authRepository,
+        _session = session;
 
   final LoginUseCase _loginUseCase;
   final AuthRepository _authRepository;
+  final SessionController _session;
   bool _initialized = false;
   AuthState _state = const AuthState();
 
@@ -31,10 +38,12 @@ class AuthController extends ChangeNotifier {
     switch (result) {
       case Success<User?>(data: final user):
         if (user != null) {
+          _session.setUser(user);
           _setState(state.copyWith(user: user));
         }
       case Failure<User?>(error: _):
         await _authRepository.logout();
+        _session.clear();
         _setState(const AuthState());
     }
   }
@@ -46,6 +55,7 @@ class AuthController extends ChangeNotifier {
     final result = await _loginUseCase.execute(LoginParams(phone: phone, password: password));
     switch (result) {
       case Success<User>(data: final user):
+        _session.setUser(user);
         _setState(state.copyWith(isLoading: false, user: user, errorMessage: null));
       case Failure<User>(error: final error):
         final message = _messageFor(error);
@@ -55,11 +65,13 @@ class AuthController extends ChangeNotifier {
 
   Future<void> logout() async {
     await _authRepository.logout();
+    _session.clear();
     _setState(const AuthState());
   }
 
   void forceLogout() {
     _authRepository.logout();
+    _session.clear();
     _setState(const AuthState());
   }
 

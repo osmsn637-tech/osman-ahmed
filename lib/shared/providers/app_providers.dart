@@ -38,7 +38,6 @@ import '../../features/move/data/repositories/item_repository_impl.dart';
 import '../../features/receive/domain/usecases/receive_item_usecase.dart';
 import '../../features/receive/presentation/controllers/receive_controller.dart';
 import '../../features/move/presentation/controllers/move_controller.dart';
-import '../../features/move/presentation/controllers/stock_adjustment_controller.dart';
 import '../../features/move/domain/repositories/item_repository.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/domain/usecases/login_usecase.dart';
@@ -196,17 +195,12 @@ List<SingleChildWidget> appProviders(AppConfig config) {
         session: context.read<SessionController>(),
       ),
     ),
-    ChangeNotifierProvider<StockAdjustmentController>(
-      create: (context) => StockAdjustmentController(
-        adjustStockUseCase: context.read<AdjustStockUseCase>(),
-        session: context.read<SessionController>(),
-      ),
-    ),
     ChangeNotifierProvider<AuthController>(
       create: (context) {
         final controller = AuthController(
           loginUseCase: context.read<LoginUseCase>(),
           authRepository: context.read<AuthRepository>(),
+          session: context.read<SessionController>(),
         );
         controller.init();
         return controller;

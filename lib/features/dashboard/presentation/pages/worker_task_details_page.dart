@@ -71,7 +71,10 @@ class WorkerTaskDetailsPage extends StatefulWidget {
   State<WorkerTaskDetailsPage> createState() => _WorkerTaskDetailsPageState();
 }
 
-class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
+class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
+    with WidgetsBindingObserver {
+  static const _scannerFocusRetryDelay = Duration(milliseconds: 250);
+  static const _scannerFocusRetryCount = 6;
   late final TextEditingController _productController;
   late final TextEditingController _locationController;
   late final TextEditingController _bulkLocationController;
@@ -82,7 +85,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   late final TextEditingController _cycleCountScanController;
   late final TextEditingController _cycleCountDetailQuantityController;
   late final TextEditingController _cycleCountDetailBarcodeController;
-  late final TextEditingController _adjustmentNoteController;
+  late final TextEditingController _adjustmentQuantityController;
   late final TextEditingController _unexpectedItemNameController;
   late final TextEditingController _unexpectedItemQuantityController;
   late final FocusNode _productScanFocusNode;
@@ -117,7 +120,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   bool _submittingAdjustment = false;
   bool _savingCycleCountProgress = false;
   bool _cycleCountDetailOpenedManually = false;
-  int _adjustmentDelta = 0;
   String? _refillLookupError;
   String? _adjustmentErrorMessage;
   String? _cycleCountScanError;
@@ -125,12 +127,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   String? _selectedCycleCountItemKey;
   ItemLocationSummaryEntity? _refillSummary;
   AdjustmentTaskLocationScan? _adjustmentScan;
-  _AdjustmentMode _adjustmentMode = _AdjustmentMode.decrease;
   late final List<_CycleCountItemState> _cycleCountItems;
   Timer? _cycleCountScanDebounce;
   Timer? _productValidationDebounce;
   Timer? _locationValidationDebounce;
   Timer? _returnValidationDebounce;
+  Timer? _scannerFocusRetryTimer;
   Timer? _productFailureClearTimer;
   Timer? _locationFailureClearTimer;
   Timer? _cycleCountDetailBarcodeClearTimer;
@@ -173,6 +175,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final task = widget.task;
     _productController = TextEditingController();
     _locationController = TextEditingController(
@@ -189,7 +192,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     _cycleCountScanController = TextEditingController();
     _cycleCountDetailQuantityController = TextEditingController();
     _cycleCountDetailBarcodeController = TextEditingController();
-    _adjustmentNoteController = TextEditingController();
+    _adjustmentQuantityController = TextEditingController();
     _unexpectedItemNameController = TextEditingController();
     _unexpectedItemQuantityController = TextEditingController();
     _productScanFocusNode = FocusNode(debugLabel: 'task-product-scan');
@@ -227,6 +230,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _productController.dispose();
     _locationController.dispose();
     _bulkLocationController.dispose();
@@ -234,6 +238,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     _quantityController.dispose();
     _returnToteController.dispose();
     _returnValidationDebounce?.cancel();
+    _scannerFocusRetryTimer?.cancel();
     _productFailureClearTimer?.cancel();
     _locationFailureClearTimer?.cancel();
     _cycleCountDetailBarcodeClearTimer?.cancel();
@@ -245,7 +250,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     _cycleCountScanController.dispose();
     _cycleCountDetailQuantityController.dispose();
     _cycleCountDetailBarcodeController.dispose();
-    _adjustmentNoteController.dispose();
+    _adjustmentQuantityController.dispose();
     _unexpectedItemNameController.dispose();
     _unexpectedItemQuantityController.dispose();
     _productScanFocusNode.dispose();
@@ -263,6 +268,18 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _restoreActiveValidationFocus();
+      _restoreCycleCountScannerFocus();
+    });
   }
 
   @override
@@ -316,7 +333,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
               key: const Key('report-task-button'),
               onPressed: _openReportTaskDialog,
               icon: const Icon(Icons.report_problem_outlined),
-              tooltip: _tr('Report Problem', '????? ?? ?????'),
+              tooltip: _tr('Report Problem', 'الإبلاغ عن مشكلة'),
             ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -1312,12 +1329,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     required AdjustmentTaskProduct product,
     required bool selected,
   }) {
-    final previewActive = selected && _adjustmentDelta > 0;
     final previewQuantity =
-        previewActive ? _adjustmentPreviewQuantity : product.systemQuantity;
-    final modeLabel = _adjustmentMode == _AdjustmentMode.decrease
-        ? _tr('Decrease', 'تقليل')
-        : _tr('Increase', 'زيادة');
+        selected ? (_adjustmentEnteredQuantity ?? product.systemQuantity) : product.systemQuantity;
+    final previewActive = selected && previewQuantity != product.systemQuantity;
 
     return InkWell(
       key: Key('adjustment-product-${product.adjustmentItemId}'),
@@ -1383,14 +1397,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
               const SizedBox(height: 4),
               Text(
                 _tr(
-                  '$modeLabel by $_adjustmentDelta -> $previewQuantity',
-                  '$modeLabel بمقدار $_adjustmentDelta -> $previewQuantity',
+                  'New quantity: ${widget.task.formatQuantity(previewQuantity)}',
+                  'الكمية الجديدة: ${widget.task.formatQuantity(previewQuantity)}',
                 ),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: _adjustmentMode == _AdjustmentMode.decrease
-                          ? AppTheme.warning
-                          : AppTheme.success,
+                      color: AppTheme.primary,
                     ),
               ),
             ],
@@ -1404,16 +1416,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     BuildContext context,
     AdjustmentTaskProduct product,
   ) {
-    final previewQuantity = _adjustmentPreviewQuantity;
-    final canRaiseDelta = _adjustmentMode == _AdjustmentMode.increase ||
-        _adjustmentDelta < product.systemQuantity;
-    final canLowerDelta = _adjustmentDelta > 0;
-    final canUseDecrementButton = _adjustmentMode == _AdjustmentMode.decrease
-        ? canRaiseDelta
-        : canLowerDelta;
-    final canUseIncrementButton = _adjustmentMode == _AdjustmentMode.increase
-        ? canRaiseDelta
-        : canLowerDelta;
+    final previewQuantity = _adjustmentEnteredQuantity ?? product.systemQuantity;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1435,65 +1438,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
                 ),
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            children: [
-              ChoiceChip(
-                key: const Key('adjustment-mode-decrease'),
-                label: Text(_tr('Decrease', 'تقليل')),
-                selected: _adjustmentMode == _AdjustmentMode.decrease,
-                onSelected: (_) => _setAdjustmentMode(_AdjustmentMode.decrease),
-              ),
-              ChoiceChip(
-                key: const Key('adjustment-mode-increase'),
-                label: Text(_tr('Increase', 'زيادة')),
-                selected: _adjustmentMode == _AdjustmentMode.increase,
-                onSelected: (_) => _setAdjustmentMode(_AdjustmentMode.increase),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              IconButton(
-                key: const Key('adjustment-delta-decrement'),
-                onPressed:
-                    canUseDecrementButton ? _decrementAdjustmentDelta : null,
-                icon: const Icon(Icons.remove_circle_outline),
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    '$_adjustmentDelta',
-                    key: const Key('adjustment-delta-value'),
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-              IconButton(
-                key: const Key('adjustment-delta-increment'),
-                onPressed:
-                    canUseIncrementButton ? _incrementAdjustmentDelta : null,
-                icon: const Icon(Icons.add_circle_outline),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
           Text(
             _tr(
               'Current: ${widget.task.formatQuantity(product.systemQuantity)}',
               'الحالي: ${widget.task.formatQuantity(product.systemQuantity)}',
-            ),
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _tr(
-              'Change: ${_adjustmentMode == _AdjustmentMode.decrease ? '-' : '+'}${widget.task.formatQuantity(_adjustmentDelta)}',
-              'التغيير: ${_adjustmentMode == _AdjustmentMode.decrease ? '-' : '+'}${widget.task.formatQuantity(_adjustmentDelta)}',
             ),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
@@ -1507,19 +1455,15 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           ),
           const SizedBox(height: 12),
           TextField(
-            key: const Key('adjustment-note-field'),
-            controller: _adjustmentNoteController,
-            minLines: 2,
-            maxLines: 3,
+            key: const Key('adjustment-quantity-field'),
+            controller: _adjustmentQuantityController,
+            keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: _tr('Note', 'ملاحظة'),
-              hintText: _tr(
-                  'Add note for this adjustment', 'أضف ملاحظة لهذا التعديل'),
+              labelText: _tr('New quantity', 'الكمية الجديدة'),
+              hintText: _tr('Enter counted quantity', 'أدخل الكمية المعدودة'),
             ),
             onChanged: (_) {
-              if (_adjustmentErrorMessage != null) {
-                setState(() => _adjustmentErrorMessage = null);
-              }
+              setState(() => _adjustmentErrorMessage = null);
             },
           ),
           const SizedBox(height: 12),
@@ -1527,7 +1471,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
             width: double.infinity,
             child: ElevatedButton(
               key: const Key('adjustment-submit-button'),
-              onPressed: _submittingAdjustment || _adjustmentDelta <= 0
+              onPressed: _submittingAdjustment || _adjustmentEnteredQuantity == null
                   ? null
                   : _submitAdjustmentChange,
               child: Text(
@@ -2149,7 +2093,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           _cycleCountScanFocusNode.hasFocus) {
         return;
       }
-      _cycleCountScanFocusNode.requestFocus();
+      _requestScannerFocus(_cycleCountScanFocusNode);
     });
   }
 
@@ -2303,7 +2247,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     setState(() {
       _cycleCountScanError = _tr(
         'Scanned item is not in this cycle count list.',
-        '????? ??????? ??? ????? ?? ????? ????? ???.',
+        'الصنف الممسوح غير موجود في قائمة الجرد هذه.',
       );
     });
     _restoreCycleCountScannerFocus();
@@ -2492,9 +2436,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       setState(() {
         _adjustmentScan = result;
         _selectedAdjustmentItemId = null;
-        _adjustmentDelta = 0;
-        _adjustmentMode = _AdjustmentMode.decrease;
-        _adjustmentNoteController.clear();
+        _adjustmentQuantityController.clear();
       });
     } catch (_) {
       if (!mounted) return;
@@ -2514,57 +2456,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   void _selectAdjustmentProduct(AdjustmentTaskProduct product) {
     setState(() {
       _selectedAdjustmentItemId = product.adjustmentItemId;
-      _adjustmentDelta = 0;
-      _adjustmentMode = _AdjustmentMode.decrease;
-      _adjustmentNoteController.clear();
-      _adjustmentErrorMessage = null;
-    });
-  }
-
-  void _setAdjustmentMode(_AdjustmentMode mode) {
-    final selected = _selectedAdjustmentProduct;
-    setState(() {
-      _adjustmentMode = mode;
-      if (selected != null &&
-          _adjustmentMode == _AdjustmentMode.decrease &&
-          _adjustmentDelta > selected.systemQuantity) {
-        _adjustmentDelta = selected.systemQuantity;
-      }
-      _adjustmentErrorMessage = null;
-    });
-  }
-
-  void _incrementAdjustmentDelta() {
-    final selected = _selectedAdjustmentProduct;
-    if (selected == null) return;
-    if (_adjustmentMode == _AdjustmentMode.decrease) {
-      if (_adjustmentDelta <= 0) return;
-      setState(() {
-        _adjustmentDelta -= 1;
-        _adjustmentErrorMessage = null;
-      });
-      return;
-    }
-    setState(() {
-      _adjustmentDelta += 1;
-      _adjustmentErrorMessage = null;
-    });
-  }
-
-  void _decrementAdjustmentDelta() {
-    final selected = _selectedAdjustmentProduct;
-    if (selected == null) return;
-    if (_adjustmentMode == _AdjustmentMode.decrease) {
-      if (_adjustmentDelta >= selected.systemQuantity) return;
-      setState(() {
-        _adjustmentDelta += 1;
-        _adjustmentErrorMessage = null;
-      });
-      return;
-    }
-    if (_adjustmentDelta <= 0) return;
-    setState(() {
-      _adjustmentDelta -= 1;
+      _adjustmentQuantityController.text = '${product.systemQuantity}';
       _adjustmentErrorMessage = null;
     });
   }
@@ -2574,22 +2466,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     final selected = _selectedAdjustmentProduct;
     if (submitter == null || selected == null || _submittingAdjustment) return;
 
-    if (_adjustmentDelta <= 0) {
+    final quantity = _adjustmentEnteredQuantity;
+    if (quantity == null) {
       setState(() {
         _adjustmentErrorMessage = _tr(
           'Enter an adjustment quantity.',
           'أدخل كمية التعديل.',
-        );
-      });
-      return;
-    }
-
-    final quantity = _adjustmentPreviewQuantity;
-    if (quantity < 0) {
-      setState(() {
-        _adjustmentErrorMessage = _tr(
-          'Decrease amount cannot make quantity negative.',
-          'قيمة التخفيض لا يمكن أن تجعل الكمية سالبة.',
         );
       });
       return;
@@ -2604,9 +2486,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       await submitter(
         adjustmentItemId: selected.adjustmentItemId,
         quantity: quantity,
-        notes: _adjustmentNoteController.text.trim().isEmpty
-            ? null
-            : _adjustmentNoteController.text.trim(),
       );
       if (!mounted) return;
       final scan = _adjustmentScan;
@@ -2627,8 +2506,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
           locationCode: scan.locationCode,
           products: updatedProducts,
         );
-        _adjustmentDelta = 0;
-        _adjustmentNoteController.clear();
+        _adjustmentQuantityController.clear();
       });
     } catch (_) {
       if (!mounted) return;
@@ -2955,14 +2833,8 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
     return null;
   }
 
-  int get _adjustmentPreviewQuantity {
-    final product = _selectedAdjustmentProduct;
-    if (product == null) return 0;
-    if (_adjustmentMode == _AdjustmentMode.increase) {
-      return product.systemQuantity + _adjustmentDelta;
-    }
-    return product.systemQuantity - _adjustmentDelta;
-  }
+  int? get _adjustmentEnteredQuantity =>
+      _parseNonNegativeInt(_adjustmentQuantityController.text);
 
   bool _isCycleCountFlowComplete() {
     final task = widget.task;
@@ -3007,6 +2879,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
   int? _parsePositiveInt(String value) {
     final parsed = int.tryParse(value.trim());
     if (parsed == null || parsed <= 0) return null;
+    return parsed;
+  }
+
+  int? _parseNonNegativeInt(String value) {
+    final parsed = int.tryParse(value.trim());
+    if (parsed == null || parsed < 0) return null;
     return parsed;
   }
 
@@ -3222,28 +3100,46 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
       if (!mounted) return;
       switch (_activeValidationTarget) {
         case _ActiveValidationTarget.barcode:
-          if (!_productScanFocusNode.hasFocus) {
-            _productScanFocusNode.requestFocus();
-          }
+          _ensureScannerFocus(_productScanFocusNode);
           break;
         case _ActiveValidationTarget.location:
-          if (!_locationScanFocusNode.hasFocus) {
-            _locationScanFocusNode.requestFocus();
-          }
+          _ensureScannerFocus(_locationScanFocusNode);
           break;
         case _ActiveValidationTarget.returnBarcode:
-          if (!_returnScanFocusNode.hasFocus) {
-            _returnScanFocusNode.requestFocus();
-          }
+          _ensureScannerFocus(_returnScanFocusNode);
           break;
         case _ActiveValidationTarget.cycleCountDetailBarcode:
-          if (!_cycleCountDetailBarcodeFocusNode.hasFocus) {
-            _cycleCountDetailBarcodeFocusNode.requestFocus();
-          }
+          _ensureScannerFocus(_cycleCountDetailBarcodeFocusNode);
           break;
         case _ActiveValidationTarget.none:
           break;
       }
+    });
+  }
+
+  void _requestScannerFocus(FocusNode focusNode) {
+    FocusScope.of(context).requestFocus(focusNode);
+    focusNode.requestFocus();
+    focusNode.consumeKeyboardToken();
+    SystemChannels.textInput.invokeMethod('TextInput.hide');
+  }
+
+  void _ensureScannerFocus(FocusNode focusNode) {
+    _scannerFocusRetryTimer?.cancel();
+    var retriesLeft = focusNode.hasFocus ? 0 : _scannerFocusRetryCount;
+    _requestScannerFocus(focusNode);
+    _scannerFocusRetryTimer =
+        Timer.periodic(_scannerFocusRetryDelay, (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (focusNode.hasFocus || retriesLeft <= 0) {
+        timer.cancel();
+        return;
+      }
+      retriesLeft -= 1;
+      _requestScannerFocus(focusNode);
     });
   }
 
@@ -3287,7 +3183,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage> {
         content: Text(
           _tr(
             'Problem report sent successfully.',
-            '?? ??? ?????? ?????.',
+            'تم إرسال البلاغ بنجاح.',
           ),
         ),
       ),
@@ -4153,8 +4049,6 @@ class _CycleCountItemState {
   }
 }
 
-enum _AdjustmentMode { decrease, increase }
-
 class _ReturnItemThumb extends StatelessWidget {
   const _ReturnItemThumb({this.imageUrl});
 
@@ -4303,7 +4197,7 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
         message,
       _ => _tr(
           'Failed to send the problem report. Please try again.',
-          '??? ????? ?????? ?? ?????. ???? ??? ????.',
+          'فشل إرسال البلاغ. حاول مرة أخرى.',
         ),
     };
   }
@@ -4368,7 +4262,7 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
 
     return AlertDialog(
       key: const Key('report-task-dialog'),
-      title: Text(_tr('Report Problem', '????? ?? ?????')),
+      title: Text(_tr('Report Problem', 'الإبلاغ عن مشكلة')),
       content: SizedBox(
         width: 360,
         child: SingleChildScrollView(
@@ -4379,7 +4273,7 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
               Text(
                 _tr(
                   'Describe the issue so the team can review this task.',
-                  '???? ??????? ????? ??? ??????? ????? ??????.',
+                  'صف المشكلة حتى يتمكن الفريق من مراجعة هذه المهمة.',
                 ),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: AppTheme.textMuted,
@@ -4395,10 +4289,10 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
                 autofocus: true,
                 textInputAction: TextInputAction.done,
                 decoration: InputDecoration(
-                  labelText: _tr('Note', '??????'),
+                  labelText: _tr('Note', 'ملاحظة'),
                   hintText: _tr(
                     'Write what went wrong',
-                    '???? ?? ???',
+                    'اكتب ما حدث',
                   ),
                   alignLabelWithHint: true,
                   prefixIcon: const Padding(
@@ -4430,10 +4324,10 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
                         ),
                   label: Text(
                     _capturingPhoto
-                        ? _tr('Opening camera...', '???? ??? ?????...')
+                        ? _tr('Opening camera...', 'جارٍ فتح الكاميرا...')
                         : _photo == null
-                            ? _tr('Take Photo', '???? ?????')
-                            : _tr('Retake Photo', '????? ?????'),
+                            ? _tr('Take Photo', 'التقاط صورة')
+                            : _tr('Retake Photo', 'إعادة التقاط الصورة'),
                   ),
                 ),
               ),
@@ -4458,7 +4352,7 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
                         ? null
                         : () => setState(() => _photo = null),
                     icon: const Icon(Icons.delete_outline_rounded),
-                    label: Text(_tr('Remove Photo', '??? ?????')),
+                    label: Text(_tr('Remove Photo', 'إزالة الصورة')),
                   ),
                 ),
               ],
@@ -4478,7 +4372,7 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
         TextButton(
           onPressed:
               _submitting ? null : () => Navigator.of(context).pop(false),
-          child: Text(isArabic ? '?????' : 'Cancel'),
+          child: Text(isArabic ? 'إلغاء' : 'Cancel'),
         ),
         FilledButton(
           key: const Key('report-task-submit-button'),
@@ -4489,7 +4383,7 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Text(_tr('Submit Report', '???? ??????')),
+              : Text(_tr('Submit Report', 'إرسال البلاغ')),
         ),
       ],
     );

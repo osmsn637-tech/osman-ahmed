@@ -52,33 +52,53 @@ class _ScanBarcodeDialog extends StatefulWidget {
   State<_ScanBarcodeDialog> createState() => _ScanBarcodeDialogState();
 }
 
-class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
+class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
+    with WidgetsBindingObserver {
   static const _scanEndDebounceDelay = Duration(milliseconds: 120);
+  static const _focusRefreshInterval = Duration(seconds: 1);
   static const _manualDigits = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
+  late FocusNode _focusNode;
   final TextEditingController _controller = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
   Timer? _scanEndDebounce;
+  Timer? _focusRefreshTimer;
 
   String _value = '';
   String? _error;
   bool _manualKeypadOpen = false;
+  int _scannerFieldEpoch = 0;
 
   @override
   void initState() {
     super.initState();
+    _focusNode = FocusNode(debugLabel: 'lookup-scan-field');
+    WidgetsBinding.instance.addObserver(this);
+    _focusRefreshTimer =
+        Timer.periodic(_focusRefreshInterval, (_) => _refreshScannerFocus());
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
       _focusForScannerInput();
     });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     _focusNode.dispose();
+    _controller.dispose();
     _scanEndDebounce?.cancel();
+    _focusRefreshTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _resetScannerAttachment();
+    });
   }
 
   void _hideKeyboardIfNeeded() {
@@ -87,9 +107,43 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
 
   void _focusForScannerInput() {
     _focusNode.requestFocus();
-    // Keep the editable field focused for wedge scanners without opening IME.
     _focusNode.consumeKeyboardToken();
     _hideKeyboardIfNeeded();
+  }
+
+  void _resetScannerAttachment() {
+    if (!mounted) return;
+
+    final previousFocusNode = _focusNode;
+    final nextFocusNode = FocusNode(debugLabel: 'lookup-scan-field');
+
+    setState(() {
+      _focusNode = nextFocusNode;
+      _scannerFieldEpoch += 1;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      previousFocusNode.dispose();
+      if (!mounted || _manualKeypadOpen) return;
+      _focusForScannerInput();
+    });
+  }
+
+  void _refreshScannerFocus() {
+    if (!mounted || _manualKeypadOpen) return;
+    if (_controller.text.isEmpty) {
+      _resetScannerAttachment();
+      return;
+    }
+    _focusForScannerInput();
+  }
+
+  void _handlePopupPointerDown() {
+    if (_manualKeypadOpen) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _manualKeypadOpen) return;
+      _resetScannerAttachment();
+    });
   }
 
   void _openManualKeypad() {
@@ -163,7 +217,9 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
     if (barcode.isEmpty) {
       setState(
         () => _error = widget.emptyErrorMessage ??
-            (widget.isArabic ? '???? ?????? ????' : 'Enter a valid barcode'),
+            (widget.isArabic
+                ? 'أدخل باركودًا صالحًا'
+                : 'Enter a valid barcode'),
       );
       return;
     }
@@ -209,17 +265,19 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
   @override
   Widget build(BuildContext context) {
     final dialogTitle =
-        widget.title ?? (widget.isArabic ? '??? ????????' : 'Scan barcode');
+        widget.title ?? (widget.isArabic ? 'امسح الباركود' : 'Scan barcode');
     final dialogHint = widget.hintText ??
-        (widget.isArabic ? '???? ????? ???' : 'Scanner stays ready');
-    final manualEntryLabel = widget.isArabic ? '???? ?????' : 'Manual Type';
-    final confirmLabel = widget.isArabic ? '?????' : 'Confirm';
-    final deleteLabel = widget.isArabic ? '???' : 'Delete';
+        (widget.isArabic ? 'الماسح يبقى جاهزًا' : 'Scanner stays ready');
+    final manualEntryLabel = widget.isArabic ? 'إدخال يدوي' : 'Manual Type';
+    final confirmLabel = widget.isArabic ? 'تأكيد' : 'Confirm';
+    final deleteLabel = widget.isArabic ? 'حذف' : 'Delete';
     final statusLabel = widget.isArabic
-        ? '????? ???????? ??????'
+        ? 'إدخال الماسح جاهز'
         : 'Hidden scanner input is active';
     final statusValue = _value.isEmpty
-        ? (widget.isArabic ? '???? ????? ??????' : 'Waiting for barcode scan')
+        ? (widget.isArabic
+            ? 'بانتظار مسح الباركود'
+            : 'Waiting for barcode scan')
         : _value;
     final theme = Theme.of(context);
     const cardColor = AppTheme.primary;
@@ -232,55 +290,62 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: DecoratedBox(
-          key: const Key('lookup_dialog_card'),
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x220F172A),
-                blurRadius: 30,
-                offset: Offset(0, 16),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Opacity(
-                    opacity: 0,
-                    child: SizedBox(
-                      width: 1,
-                      height: 1,
-                      child: TextField(
-                        key: const Key('scan_barcode_field'),
-                        controller: _controller,
-                        focusNode: _focusNode,
-                        autofocus: true,
-                        showCursor: false,
-                        readOnly: false,
-                        keyboardType: TextInputType.none,
-                        textInputAction: TextInputAction.search,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        decoration: const InputDecoration(
-                          isCollapsed: true,
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _handlePopupPointerDown(),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: DecoratedBox(
+            key: const Key('lookup_dialog_card'),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x220F172A),
+                  blurRadius: 30,
+                  offset: Offset(0, 16),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Opacity(
+                      opacity: 0,
+                      child: SizedBox(
+                        key: ValueKey<int>(_scannerFieldEpoch),
+                        width: 1,
+                        height: 1,
+                        child: EditableText(
+                          key: const Key('scan_barcode_field'),
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          autofocus: true,
+                          showCursor: false,
+                          readOnly: false,
+                          keyboardType: TextInputType.none,
+                          textInputAction: TextInputAction.search,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          style: const TextStyle(
+                            color: Colors.transparent,
+                            fontSize: 1,
+                            height: 1,
+                          ),
+                          cursorColor: Colors.transparent,
+                          backgroundCursorColor: Colors.transparent,
+                          selectionColor: Colors.transparent,
+                          onChanged: _onTextChanged,
+                          onSubmitted: (_) => _searchProduct(),
                         ),
-                        onChanged: _onTextChanged,
-                        onSubmitted: (_) => _searchProduct(),
                       ),
                     ),
-                  ),
-                  Row(
+                    Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Container(
@@ -308,7 +373,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.close_rounded),
-                        tooltip: 'Close',
+                        tooltip: widget.isArabic ? 'إغلاق' : 'Close',
                         color: contentColor,
                         visualDensity: VisualDensity.compact,
                         constraints: const BoxConstraints.tightFor(
@@ -319,7 +384,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
                       ),
                     ],
                   ),
-                  if (!_manualKeypadOpen) ...[
+                    if (!_manualKeypadOpen) ...[
                     const SizedBox(height: 12),
                     DecoratedBox(
                       decoration: BoxDecoration(
@@ -384,7 +449,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
                               IconButton(
                                 key: const Key('lookup_clear_button'),
                                 icon: const Icon(Icons.close_rounded),
-                                tooltip: 'Clear',
+                                tooltip: widget.isArabic ? 'مسح' : 'Clear',
                                 color: mutedContentColor,
                                 onPressed: _clearField,
                               ),
@@ -393,7 +458,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
                       ),
                     ),
                   ],
-                  if (_error != null) ...[
+                    if (_error != null) ...[
                     const SizedBox(height: 10),
                     Text(
                       _error!,
@@ -403,7 +468,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
                       ),
                     ),
                   ],
-                  if (!_manualKeypadOpen) ...[
+                    if (!_manualKeypadOpen) ...[
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
@@ -426,7 +491,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
                       ),
                     ),
                   ],
-                  if (_manualKeypadOpen) ...[
+                    if (_manualKeypadOpen) ...[
                     const SizedBox(height: 14),
                     Container(
                       key: const Key('lookup_manual_keypad'),
@@ -449,7 +514,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
                         children: [
                           Text(
                             widget.isArabic
-                                ? '???? ????? ??????'
+                                ? 'أدخل الباركود يدويًا'
                                 : 'Type barcode manually',
                             style: theme.textTheme.titleSmall?.copyWith(
                               color: contentColor,
@@ -471,7 +536,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
                             child: Text(
                               _value.isEmpty
                                   ? (widget.isArabic
-                                      ? '???? ????? ????????'
+                                      ? 'أدخل أرقام الباركود'
                                       : 'Enter barcode digits')
                                   : _value,
                               textAlign: TextAlign.center,
@@ -555,8 +620,9 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog> {
                         ],
                       ),
                     ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

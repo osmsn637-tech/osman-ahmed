@@ -4,14 +4,52 @@ import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/providers/session_provider.dart';
 import '../theme/app_theme.dart';
 import 'global_error_listener.dart';
 import 'global_loading_listener.dart';
 import '../l10n/l10n.dart';
 import '../providers/locale_controller.dart';
 
-class PutawayApp extends StatelessWidget {
+class PutawayApp extends StatefulWidget {
   const PutawayApp({super.key});
+
+  @override
+  State<PutawayApp> createState() => _PutawayAppState();
+}
+
+class _PutawayAppState extends State<PutawayApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) {
+      return;
+    }
+    _redirectWorkerHomeIfNeeded();
+  }
+
+  void _redirectWorkerHomeIfNeeded() {
+    final session = context.read<SessionController>().state;
+    if (!session.isAuthenticated || session.user?.isWorker != true) {
+      return;
+    }
+    final router = context.read<GoRouter>();
+    if (router.routeInformationProvider.value.uri.path == '/home') {
+      return;
+    }
+    router.replace('/home');
+  }
 
   @override
   Widget build(BuildContext context) {

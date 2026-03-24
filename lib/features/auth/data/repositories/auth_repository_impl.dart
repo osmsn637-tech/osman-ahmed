@@ -32,6 +32,17 @@ class AuthRepositoryImpl implements AuthRepository {
     };
   }
 
+  @override
+  Future<Result<void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) {
+    return _remoteDataSource.changePassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+  }
+
   Future<Result<User>> _persistAndReturnUser(LoginResponseDto dto) async {
     await _tokenRepository.saveTokens(
       accessToken: dto.tokens.accessToken,

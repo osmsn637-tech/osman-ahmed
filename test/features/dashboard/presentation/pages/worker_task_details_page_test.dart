@@ -276,7 +276,7 @@ void main() {
               'expectedQuantity': 12,
             },
           ),
-          onCompleteTask: (taskId, {quantity, locationId}) async {
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
             throw const ValidationException('complete endpoint rejected');
           },
         ),
@@ -571,7 +571,7 @@ void main() {
         WorkerTaskDetailsPage(
           task: task,
           onStartTask: () async {},
-          onCompleteTask: (taskId, {quantity, locationId}) async {},
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -618,7 +618,7 @@ void main() {
             toLocation: 'BULK-01-02',
           ),
           onStartTask: () async {},
-          onCompleteTask: (taskId, {quantity, locationId}) async {},
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -677,7 +677,7 @@ void main() {
             fromLocation: null,
             toLocation: 'BULK-01-02',
           ),
-          onCompleteTask: (taskId, {quantity, locationId}) async {},
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -716,7 +716,7 @@ void main() {
             fromLocation: null,
             toLocation: 'BULK-01-02',
           ),
-          onCompleteTask: (taskId, {quantity, locationId}) async {},
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -775,7 +775,7 @@ void main() {
             validateCalls += 1;
             return <String, dynamic>{'valid': true};
           },
-          onCompleteTask: (taskId, {quantity, locationId}) async {
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
             completedLocation = locationId;
           },
         ),
@@ -832,7 +832,7 @@ void main() {
             toLocation: null,
           ),
           onLookupItem: (_) => lookupCompleter.future,
-          onCompleteTask: (taskId, {quantity, locationId}) async {
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
             completedTaskId = taskId;
             completedQuantity = quantity;
             completedLocation = locationId;
@@ -980,7 +980,7 @@ void main() {
               ],
             },
           ),
-          onCompleteTask: (taskId, {quantity, locationId}) async {
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
             completedQuantity = quantity;
             completedLocation = locationId;
           },
@@ -1083,7 +1083,6 @@ void main() {
     String? scannedBarcode;
     String? submittedAdjustmentItemId;
     int? submittedQuantity;
-    String? submittedNotes;
     var completed = false;
 
     await tester.pumpWidget(
@@ -1129,9 +1128,8 @@ void main() {
           }) async {
             submittedAdjustmentItemId = adjustmentItemId;
             submittedQuantity = quantity;
-            submittedNotes = notes;
           },
-          onCompleteTask: (taskId, {quantity, locationId}) async {
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
             completed = true;
           },
         ),
@@ -1165,29 +1163,20 @@ void main() {
     expect(find.text('Current: 10 pc'), findsNWidgets(2));
     expect(find.text('New: 10 pc'), findsOneWidget);
 
-    await scrollTo(tester, find.byKey(const Key('adjustment-mode-decrease')));
-    await tester.tap(find.byKey(const Key('adjustment-mode-decrease')));
-    await tester.pumpAndSettle();
-    await scrollTo(tester, find.byKey(const Key('adjustment-delta-decrement')));
-    await tester.tap(find.byKey(const Key('adjustment-delta-decrement')));
-    await tester.tap(find.byKey(const Key('adjustment-delta-decrement')));
-    await tester.tap(find.byKey(const Key('adjustment-delta-decrement')));
+    await tester.enterText(
+      find.byKey(const Key('adjustment-quantity-field')),
+      '7',
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Change: -3 pc'), findsOneWidget);
     expect(find.text('New: 7 pc'), findsOneWidget);
 
-    await tester.enterText(
-      find.byKey(const Key('adjustment-note-field')),
-      'damaged box',
-    );
     await scrollTo(tester, find.byKey(const Key('adjustment-submit-button')));
     await tester.tap(find.byKey(const Key('adjustment-submit-button')));
     await tester.pumpAndSettle();
 
     expect(submittedAdjustmentItemId, 'adj-item-1');
     expect(submittedQuantity, 7);
-    expect(submittedNotes, 'damaged box');
     expect(find.text('Counted'), findsNWidgets(2));
     expect(
       isElevatedButtonEnabled(tester, const Key('complete-task-button')),
@@ -1219,7 +1208,7 @@ void main() {
               'expectedQuantity': 12,
             },
           ),
-          onCompleteTask: (taskId, {quantity, locationId}) async {
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
             completedQuantity = quantity;
             completedLocation = locationId;
           },
@@ -1529,7 +1518,7 @@ void main() {
           onSaveCycleCountProgress: (taskId, {required progress}) async {
             savedProgress = progress;
           },
-          onCompleteTask: (taskId, {quantity, locationId}) async {},
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -1596,7 +1585,7 @@ void main() {
           onSaveCycleCountProgress: (taskId, {required progress}) async {
             savedProgress = progress;
           },
-          onCompleteTask: (taskId, {quantity, locationId}) async {},
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -1718,7 +1707,10 @@ void main() {
   testWidgets('task details renders Arabic labels', (tester) async {
     await tester.pumpWidget(
       wrap(
-        WorkerTaskDetailsPage(task: buildTask()),
+        WorkerTaskDetailsPage(
+          task: buildTask(),
+          onReportTaskIssue: ({required note, photoPath}) async {},
+        ),
         locale: const Locale('ar'),
       ),
     );
@@ -1726,5 +1718,12 @@ void main() {
 
     expect(find.text('إدخال يدوي'), findsWidgets);
     expect(find.text('الكمية'), findsWidgets);
+
+    await tester.tap(find.byKey(const Key('report-task-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('الإبلاغ عن مشكلة'), findsWidgets);
+    expect(find.text('ملاحظة'), findsOneWidget);
+    expect(find.text('إرسال البلاغ'), findsOneWidget);
   });
 }

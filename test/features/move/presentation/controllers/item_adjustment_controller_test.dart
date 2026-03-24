@@ -43,15 +43,6 @@ void main() {
     expect(controller.state.quantity, 0);
   });
 
-  test('decrement never goes below zero', () {
-    final session = SessionController();
-    final controller = buildController(session, _FakeAdjustStockGateway());
-
-    controller.decrement();
-
-    expect(controller.state.quantity, 0);
-  });
-
   test('selecting a location stores its id', () {
     final session = SessionController();
     final controller = buildController(session, _FakeAdjustStockGateway());
@@ -63,7 +54,7 @@ void main() {
     expect(controller.state.selectedLocationCode, location.code);
   });
 
-  test('canSubmit stays false until location quantity and reason are present', () {
+  test('canSubmit stays false until location and explicit quantity are present', () {
     final session = SessionController();
     final controller = buildController(session, _FakeAdjustStockGateway());
     final location = buildSummary().locations.first;
@@ -73,14 +64,22 @@ void main() {
     controller.selectLocation(location);
     expect(controller.state.canSubmit, isFalse);
 
-    controller.increment();
-    expect(controller.state.canSubmit, isFalse);
-
-    controller.setReason('Damaged');
+    controller.setQuantityText('0');
     expect(controller.state.canSubmit, isTrue);
   });
 
-  test('submit sends selected location item reason and optional note', () async {
+  test('blank quantity stays invalid after selecting a location', () {
+    final session = SessionController();
+    final controller = buildController(session, _FakeAdjustStockGateway());
+    final location = buildSummary().locations.first;
+
+    controller.selectLocation(location);
+    controller.setQuantityText('');
+
+    expect(controller.state.canSubmit, isFalse);
+  });
+
+  test('submit allows zero quantity corrections', () async {
     final session = SessionController();
     session.setUser(
       const User(
@@ -96,10 +95,33 @@ void main() {
     final summary = buildSummary();
 
     controller.selectLocation(summary.locations.first);
-    controller.increment();
-    controller.increment();
-    controller.setReason('Damaged');
-    controller.setNote('box torn');
+    controller.setQuantityText('0');
+
+    await controller.submitForItem(summary);
+
+    expect(gateway.lastParams, isNotNull);
+    expect(gateway.lastParams!.newQuantity, 0);
+    expect(controller.state.success, isTrue);
+  });
+
+  test('positive quantities still submit', () async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+    final gateway = _FakeAdjustStockGateway();
+    final controller = buildController(session, gateway);
+    final summary = buildSummary();
+
+    controller.selectLocation(summary.locations.first);
+    controller.setQuantityText('1');
+    expect(controller.state.canSubmit, isTrue);
 
     await controller.submitForItem(summary);
 
@@ -109,11 +131,42 @@ void main() {
     );
     expect(gateway.lastParams!.itemId, summary.itemId);
     expect(gateway.lastParams!.locationId, summary.locations.first.locationId);
-    expect(gateway.lastParams!.newQuantity, 2);
-    expect(gateway.lastParams!.reason, 'Damaged');
+    expect(
+      gateway.lastParams!.locationBarcode,
+      summary.locations.first.code,
+    );
+    expect(gateway.lastParams!.newQuantity, 1);
+    expect(gateway.lastParams!.reason, 'Count Correction');
     expect(gateway.lastParams!.workerId, 'worker-1');
-    expect(gateway.lastParams!.note, 'box torn');
+    expect(gateway.lastParams!.note, isNull);
     expect(controller.state.success, isTrue);
+  });
+
+  test('editing selected location code updates the resolved location id', () async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+    final gateway = _FakeAdjustStockGateway();
+    final controller = buildController(session, gateway);
+    final summary = buildSummary();
+
+    controller.selectLocation(summary.locations.first);
+    controller.updateSelectedLocationCode('Z012-BLK-A01-L02-P05');
+    controller.setQuantityText('3');
+
+    await controller.submitForItem(summary);
+
+    expect(gateway.lastParams, isNotNull);
+    expect(gateway.lastParams!.locationId, 1111014889);
+    expect(gateway.lastParams!.locationBarcode, 'Z012-BLK-A01-L02-P05');
+    expect(gateway.lastParams!.newQuantity, 3);
   });
 }
 

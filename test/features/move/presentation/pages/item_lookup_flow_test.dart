@@ -125,6 +125,7 @@ void main() {
     const params = StockAdjustmentParams(
       itemId: 1001,
       locationId: 1,
+      locationBarcode: 'Z012-C01-L02-P02',
       newQuantity: 2,
       reason: 'Damaged',
       workerId: 'worker-1',
@@ -145,12 +146,13 @@ void main() {
 
     expect(find.text('Adjust Item'), findsOneWidget);
     expect(find.byKey(const Key('location-row-1-0')), findsOneWidget);
-    await scrollTo(tester, find.byKey(const Key('adjust_quantity_value')));
-    expect(find.byKey(const Key('adjust_quantity_value')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('adjust_reason_field')));
-    await tester.pumpAndSettle();
-    expect(find.text('Damaged'), findsWidgets);
-    expect(find.text('Return'), findsWidgets);
+    await scrollTo(tester, find.byKey(const Key('adjust_quantity_field')));
+    expect(find.byKey(const Key('adjust_location_code_field')), findsOneWidget);
+    expect(find.byKey(const Key('adjust_quantity_field')), findsOneWidget);
+    expect(find.byKey(const Key('adjust_reason_field')), findsNothing);
+    expect(find.byKey(const Key('adjust_note_field')), findsNothing);
+    expect(find.byKey(const Key('adjust_quantity_increment')), findsNothing);
+    expect(find.byKey(const Key('adjust_quantity_decrement')), findsNothing);
     expect(
       tester
           .widget<ElevatedButton>(
@@ -179,31 +181,6 @@ void main() {
     expect(find.text('Z012-C01-L02-P03'), findsOneWidget);
   });
 
-  testWidgets('adjust mode quantity stepper never goes negative',
-      (tester) async {
-    await tester.pumpWidget(
-      buildApp(buildRouter(mode: ItemLookupPageMode.adjust)),
-    );
-    await tester.pumpAndSettle();
-
-    await scrollTo(tester, find.byKey(const Key('location-row-1-0')));
-    await tester.tap(find.byKey(const Key('location-row-1-0')));
-    await tester.pump();
-    await scrollTo(tester, find.byKey(const Key('adjust_quantity_decrement')));
-
-    await tester.tap(find.byKey(const Key('adjust_quantity_decrement')));
-    await tester.pump();
-    expect(find.text('0'), findsWidgets);
-
-    await scrollTo(tester, find.byKey(const Key('adjust_quantity_increment')));
-    await tester.tap(find.byKey(const Key('adjust_quantity_increment')));
-    await tester.pump();
-    expect(
-      tester.widget<Text>(find.byKey(const Key('adjust_quantity_value'))).data,
-      '1',
-    );
-  });
-
   testWidgets('adjust mode confirm success returns after submit',
       (tester) async {
     final gateway = _FakeAdjustStockGateway();
@@ -221,25 +198,66 @@ void main() {
     await scrollTo(tester, find.byKey(const Key('location-row-1-0')));
     await tester.tap(find.byKey(const Key('location-row-1-0')));
     await tester.pump();
-    await scrollTo(tester, find.byKey(const Key('adjust_quantity_increment')));
-    await tester.tap(find.byKey(const Key('adjust_quantity_increment')));
-    await tester.pump();
-    await scrollTo(tester, find.byKey(const Key('adjust_reason_field')));
-    await tester.tap(find.byKey(const Key('adjust_reason_field')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Damaged').last);
-    await tester.pumpAndSettle();
-    await scrollTo(tester, find.byKey(const Key('adjust_note_field')));
+    await scrollTo(tester, find.byKey(const Key('adjust_location_code_field')));
     await tester.enterText(
-        find.byKey(const Key('adjust_note_field')), 'box torn');
-    await tester.pump();
+      find.byKey(const Key('adjust_location_code_field')),
+      'Z012-BLK-A01-L02-P05',
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('adjust_quantity_field')),
+      '3',
+    );
+    await tester.pumpAndSettle();
     await scrollTo(tester, find.byKey(const Key('adjust_confirm_button')));
     await tester.tap(find.byKey(const Key('adjust_confirm_button')));
     await tester.pumpAndSettle();
 
     expect(find.text('Home'), findsOneWidget);
     expect(gateway.lastParams, isNotNull);
-    expect(gateway.lastParams!.note, 'box torn');
+    expect(gateway.lastParams!.locationId, 2);
+    expect(gateway.lastParams!.locationBarcode, 'Z012-BLK-A01-L02-P05');
+    expect(gateway.lastParams!.newQuantity, 3);
+    expect(gateway.lastParams!.note, isNull);
+    expect(gateway.lastParams!.reason, 'Count Correction');
+  });
+
+  testWidgets('adjust mode allows submitting zero quantity', (tester) async {
+    final gateway = _FakeAdjustStockGateway();
+
+    await tester.pumpWidget(
+      buildApp(
+        buildRouter(
+          mode: ItemLookupPageMode.adjust,
+          gateway: gateway,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await scrollTo(tester, find.byKey(const Key('location-row-1-0')));
+    await tester.tap(find.byKey(const Key('location-row-1-0')));
+    await tester.pump();
+    await scrollTo(tester, find.byKey(const Key('adjust_quantity_field')));
+    await tester.enterText(
+      find.byKey(const Key('adjust_quantity_field')),
+      '0',
+    );
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('adjust_confirm_button')));
+    expect(
+      tester
+          .widget<ElevatedButton>(find.byKey(const Key('adjust_confirm_button')))
+          .onPressed,
+      isNotNull,
+    );
+
+    await tester.tap(find.byKey(const Key('adjust_confirm_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Home'), findsOneWidget);
+    expect(gateway.lastParams, isNotNull);
+    expect(gateway.lastParams!.newQuantity, 0);
   });
 
   testWidgets('adjust mode failure shows inline error and keeps form state', (
@@ -261,13 +279,8 @@ void main() {
     await scrollTo(tester, find.byKey(const Key('location-row-1-0')));
     await tester.tap(find.byKey(const Key('location-row-1-0')));
     await tester.pump();
-    await scrollTo(tester, find.byKey(const Key('adjust_quantity_increment')));
-    await tester.tap(find.byKey(const Key('adjust_quantity_increment')));
-    await tester.pump();
-    await scrollTo(tester, find.byKey(const Key('adjust_reason_field')));
-    await tester.tap(find.byKey(const Key('adjust_reason_field')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Damaged').last);
+    await scrollTo(tester, find.byKey(const Key('adjust_quantity_field')));
+    await tester.enterText(find.byKey(const Key('adjust_quantity_field')), '1');
     await tester.pumpAndSettle();
     await scrollTo(tester, find.byKey(const Key('adjust_confirm_button')));
     await tester.tap(find.byKey(const Key('adjust_confirm_button')));
@@ -275,10 +288,7 @@ void main() {
 
     expect(find.text('Adjust Item'), findsOneWidget);
     expect(find.text('Exception: adjust failed'), findsOneWidget);
-    expect(
-      tester.widget<Text>(find.byKey(const Key('adjust_quantity_value'))).data,
-      '1',
-    );
+    expect(find.text('1'), findsWidgets);
   });
 
   testWidgets('lookup mode remains read only', (tester) async {

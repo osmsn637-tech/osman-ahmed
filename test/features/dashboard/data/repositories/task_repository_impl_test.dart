@@ -1614,6 +1614,7 @@ class _FakeTaskRemoteDataSource implements TaskRemoteDataSource {
     required String locationId,
     String? locationCode,
     String? targetLocationCode,
+    List<Map<String, Object?>>? cycleCountItems,
   }) async {
     submittedTaskId = taskId;
     submittedTaskType = taskType;

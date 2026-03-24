@@ -11,9 +11,13 @@ void main() {
         matching: find.byType(FilledButton),
       );
 
-  Future<void> openDialog(WidgetTester tester) async {
+  Future<void> openDialog(
+    WidgetTester tester, {
+    Locale locale = const Locale('en'),
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
+        locale: locale,
         supportedLocales: const [Locale('en'), Locale('ar')],
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
@@ -45,8 +49,7 @@ void main() {
     await openDialog(tester);
 
     final fieldFinder = find.byKey(const Key('scan_barcode_field'));
-    final textField = tester.widget<TextField>(fieldFinder);
-    final editableText = tester.widget<EditableText>(find.byType(EditableText));
+    final editableText = tester.widget<EditableText>(fieldFinder);
     final fieldSize = tester.getSize(fieldFinder);
 
     expect(find.byType(Dialog), findsOneWidget);
@@ -54,12 +57,155 @@ void main() {
     expect(find.text('Scan or enter barcode'), findsNothing);
     expect(find.widgetWithText(TextButton, 'Cancel'), findsNothing);
     expect(find.widgetWithText(ElevatedButton, 'Continue'), findsNothing);
-    expect(textField.readOnly, isFalse);
-    expect(textField.autofocus, isTrue);
-    expect(textField.keyboardType, TextInputType.none);
+    expect(editableText.autofocus, isTrue);
     expect(editableText.focusNode.hasFocus, isTrue);
     expect(fieldSize.width, greaterThan(0));
     expect(fieldSize.height, greaterThan(0));
+  });
+
+  testWidgets('tapping the popup re-focuses the scanner field', (tester) async {
+    await openDialog(tester);
+
+    final fieldFinder = find.byKey(const Key('scan_barcode_field'));
+    var editableText = tester.widget<EditableText>(fieldFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+
+    editableText.focusNode.unfocus();
+    await tester.pump();
+    editableText = tester.widget<EditableText>(fieldFinder);
+    expect(editableText.focusNode.hasFocus, isFalse);
+
+    await tester.tap(find.byKey(const Key('lookup_dialog_card')));
+    await tester.pump();
+    await tester.pump();
+
+    editableText = tester.widget<EditableText>(fieldFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('popup scanner focus survives an app-level unfocus tap wrapper',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        supportedLocales: const [Locale('en'), Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        builder: (context, child) => GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: child ?? const SizedBox.shrink(),
+        ),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  showItemLookupScanDialog(context, showKeyboard: false);
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    final fieldFinder = find.byKey(const Key('scan_barcode_field'));
+    var editableText = tester.widget<EditableText>(fieldFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+
+    editableText.focusNode.unfocus();
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('lookup_dialog_card')));
+    await tester.pump();
+    await tester.pump();
+
+    editableText = tester.widget<EditableText>(fieldFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('scanner field re-focuses automatically every second',
+      (tester) async {
+    await openDialog(tester);
+
+    final fieldFinder = find.byKey(const Key('scan_barcode_field'));
+    var editableText = tester.widget<EditableText>(fieldFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+
+    editableText.focusNode.unfocus();
+    await tester.pump();
+    editableText = tester.widget<EditableText>(fieldFinder);
+    expect(editableText.focusNode.hasFocus, isFalse);
+
+    await tester.pump(const Duration(seconds: 1));
+
+    editableText = tester.widget<EditableText>(fieldFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('app resume rebuilds the hidden scanner field attachment',
+      (tester) async {
+    await openDialog(tester);
+
+    final firstFieldFinder = find.byKey(const Key('scan_barcode_field'));
+    final firstEditableText = tester.widget<EditableText>(firstFieldFinder);
+    final firstFocusNode = firstEditableText.focusNode;
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(seconds: 1));
+
+    final secondFieldFinder = find.byKey(const Key('scan_barcode_field'));
+    final secondEditableText = tester.widget<EditableText>(secondFieldFinder);
+
+    expect(secondEditableText.focusNode, isNot(same(firstFocusNode)));
+    expect(secondEditableText.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('reopening the dialog creates a fresh active scanner focus node',
+      (tester) async {
+    await openDialog(tester);
+
+    final firstFieldFinder = find.byKey(const Key('scan_barcode_field'));
+    final firstEditableText = tester.widget<EditableText>(firstFieldFinder);
+    final firstFocusNode = firstEditableText.focusNode;
+
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    final secondFieldFinder = find.byKey(const Key('scan_barcode_field'));
+    final secondEditableText = tester.widget<EditableText>(secondFieldFinder);
+
+    expect(secondEditableText.focusNode, isNot(same(firstFocusNode)));
+    expect(secondEditableText.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets(
+      'arabic lookup popup shows readable text instead of question marks',
+      (tester) async {
+    await openDialog(tester, locale: const Locale('ar'));
+
+    expect(find.text('امسح الباركود'), findsOneWidget);
+    expect(find.text('إدخال الماسح جاهز'), findsOneWidget);
+    expect(find.text('بانتظار مسح الباركود'), findsOneWidget);
+    expect(find.text('إدخال يدوي'), findsOneWidget);
+    expect(find.text('????'), findsNothing);
   });
 
   testWidgets(

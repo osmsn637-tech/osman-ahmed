@@ -78,15 +78,17 @@ class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
   @override
   Future<Result<void>> adjustStock(StockAdjustmentParams params) {
     return _client.post<void>(
-      '/inventory/adjust',
+      AppEndpoints.correctProductAdjustment,
       data: {
-        'item_id': params.itemId,
-        'location_id': params.locationId,
-        'new_quantity': params.newQuantity,
-        'reason': params.reason,
-        'worker_id': params.workerId,
+        'product_id': params.itemId,
+        'corrections': [
+          {
+            'location_barcode': params.locationBarcode,
+            'actual_quantity': params.newQuantity,
+          }
+        ],
         if (params.note != null && params.note!.trim().isNotEmpty)
-          'note': params.note!.trim(),
+          'notes': params.note!.trim(),
       },
     );
   }

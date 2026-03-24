@@ -173,7 +173,7 @@ class TaskRemoteDataSource {
     final response = await _client.post<void>(
       AppEndpoints.adjustmentItemCount(adjustmentItemId),
       data: {
-        'quantity': quantity,
+        'actualQuantity': quantity,
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
       },
     );

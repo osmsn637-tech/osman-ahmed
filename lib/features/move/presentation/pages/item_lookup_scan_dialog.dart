@@ -56,27 +56,33 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
     with WidgetsBindingObserver {
   static const _scanEndDebounceDelay = Duration(milliseconds: 120);
   static const _focusRefreshInterval = Duration(seconds: 1);
-  static const _manualDigits = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
+  final GlobalKey<EditableTextState> _scannerEditableTextKey =
+      GlobalKey<EditableTextState>();
   late FocusNode _focusNode;
   final TextEditingController _controller = TextEditingController();
+  final TextEditingController _manualController = TextEditingController();
+  final FocusNode _manualFocusNode = FocusNode(debugLabel: 'lookup-manual-field');
   Timer? _scanEndDebounce;
   Timer? _focusRefreshTimer;
+  Timer? _initialScannerRecoveryTimer;
 
   String _value = '';
   String? _error;
   bool _manualKeypadOpen = false;
   int _scannerFieldEpoch = 0;
+  bool _scannerFocused = false;
 
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode(debugLabel: 'lookup-scan-field');
+    _focusNode = _buildFocusNode();
     WidgetsBinding.instance.addObserver(this);
     _focusRefreshTimer =
         Timer.periodic(_focusRefreshInterval, (_) => _refreshScannerFocus());
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusForScannerInput();
+      _focusForScannerInput(primeInputMethod: true);
+      _scheduleInitialScannerRecovery();
     });
   }
 
@@ -84,9 +90,12 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _focusNode.dispose();
+    _manualFocusNode.dispose();
     _controller.dispose();
+    _manualController.dispose();
     _scanEndDebounce?.cancel();
     _focusRefreshTimer?.cancel();
+    _initialScannerRecoveryTimer?.cancel();
     super.dispose();
   }
 
@@ -95,66 +104,132 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
     if (state != AppLifecycleState.resumed || !mounted) {
       return;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _resetScannerAttachment();
-    });
+    if (_manualKeypadOpen) {
+      _manualFocusNode.requestFocus();
+      return;
+    }
+    _resetScannerAttachment(primeInputMethod: true);
   }
 
   void _hideKeyboardIfNeeded() {
     SystemChannels.textInput.invokeMethod('TextInput.hide');
   }
 
-  void _focusForScannerInput() {
-    _focusNode.requestFocus();
-    _focusNode.consumeKeyboardToken();
-    _hideKeyboardIfNeeded();
+  void _scheduleInitialScannerRecovery() {
+    _initialScannerRecoveryTimer?.cancel();
+    _initialScannerRecoveryTimer = Timer(
+      const Duration(milliseconds: 300),
+      () {
+        if (!mounted || _manualKeypadOpen || _value.isNotEmpty) {
+          return;
+        }
+        _resetScannerAttachment(primeInputMethod: true);
+      },
+    );
   }
 
-  void _resetScannerAttachment() {
+  void _focusForScannerInput({bool primeInputMethod = false}) {
+    FocusScope.of(context).requestFocus(_focusNode);
+    _focusNode.requestFocus();
+    _focusNode.consumeKeyboardToken();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _manualKeypadOpen) return;
+      _scannerEditableTextKey.currentState?.requestKeyboard();
+      if (primeInputMethod) {
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+      }
+      _hideKeyboardIfNeeded();
+    });
+  }
+
+  FocusNode _buildFocusNode() {
+    final node = FocusNode(debugLabel: 'lookup-scan-field');
+    node.addListener(_handleScannerFocusChanged);
+    return node;
+  }
+
+  void _handleScannerFocusChanged() {
+    if (!mounted) return;
+    final hasFocus = _focusNode.hasFocus;
+    if (_scannerFocused == hasFocus) return;
+    setState(() {
+      _scannerFocused = hasFocus;
+    });
+  }
+
+  void _resetScannerAttachment({bool primeInputMethod = false}) {
     if (!mounted) return;
 
     final previousFocusNode = _focusNode;
-    final nextFocusNode = FocusNode(debugLabel: 'lookup-scan-field');
+    previousFocusNode.removeListener(_handleScannerFocusChanged);
+    final nextFocusNode = _buildFocusNode();
 
     setState(() {
       _focusNode = nextFocusNode;
       _scannerFieldEpoch += 1;
+      _scannerFocused = nextFocusNode.hasFocus;
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       previousFocusNode.dispose();
       if (!mounted || _manualKeypadOpen) return;
-      _focusForScannerInput();
+      _focusForScannerInput(primeInputMethod: primeInputMethod);
     });
   }
 
   void _refreshScannerFocus() {
     if (!mounted || _manualKeypadOpen) return;
-    if (_controller.text.isEmpty) {
-      _resetScannerAttachment();
+    if (_focusNode.context == null || !_focusNode.hasFocus) {
+      _resetScannerAttachment(primeInputMethod: true);
       return;
     }
     _focusForScannerInput();
   }
 
   void _handlePopupPointerDown() {
-    if (_manualKeypadOpen) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _manualKeypadOpen) return;
-      _resetScannerAttachment();
+      if (!mounted) return;
+      if (_manualKeypadOpen) {
+        _manualFocusNode.requestFocus();
+        return;
+      }
+      _resetScannerAttachment(primeInputMethod: true);
     });
   }
 
   void _openManualKeypad() {
     if (!mounted) return;
+    _scanEndDebounce?.cancel();
+    _scanEndDebounce = null;
+    _initialScannerRecoveryTimer?.cancel();
     setState(() {
       _manualKeypadOpen = true;
       _value = '';
       _error = null;
       _controller.clear();
+      _manualController.clear();
     });
-    _focusForScannerInput();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_manualKeypadOpen) return;
+      _manualFocusNode.requestFocus();
+    });
+  }
+
+  void _closeManualKeypad() {
+    if (!mounted) return;
+    _scanEndDebounce?.cancel();
+    _scanEndDebounce = null;
+    _initialScannerRecoveryTimer?.cancel();
+    setState(() {
+      _manualKeypadOpen = false;
+      _value = '';
+      _error = null;
+      _manualController.clear();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _manualKeypadOpen) return;
+      _resetScannerAttachment(primeInputMethod: true);
+    });
   }
 
   void _clearField() {
@@ -164,6 +239,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
       _value = '';
       _error = null;
       _controller.clear();
+      _manualController.clear();
     });
   }
 
@@ -180,6 +256,9 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
   }
 
   void _onTextChanged(String rawValue) {
+    if (_normalizeBarcode(rawValue).isNotEmpty) {
+      _initialScannerRecoveryTimer?.cancel();
+    }
     if (_error != null) {
       setState(() => _error = null);
     }
@@ -196,6 +275,25 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
     }
 
     _scheduleAutoSearch();
+  }
+
+  void _onManualTextChanged(String rawValue) {
+    final normalized = _normalizeBarcode(rawValue);
+    if (normalized.isNotEmpty) {
+      _initialScannerRecoveryTimer?.cancel();
+    }
+    if (_error != null) {
+      setState(() => _error = null);
+    }
+    if (normalized == _value && normalized == _manualController.text) return;
+
+    setState(() {
+      _value = normalized;
+      _manualController.value = TextEditingValue(
+        text: normalized,
+        selection: TextSelection.collapsed(offset: normalized.length),
+      );
+    });
   }
 
   void _scheduleAutoSearch() {
@@ -224,42 +322,12 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
       return;
     }
 
-    // Clear immediately after successful detection and return the value.
-    // This keeps the field reset while still closing the dialog for the caller.
     _clearField();
     Navigator.of(context).pop(barcode);
   }
 
   String _normalizeBarcode(String value) {
     return value.replaceAll(RegExp(r'[^\x20-\x7E]'), '').trim();
-  }
-
-  void _appendManualDigit(String digit) {
-    _scanEndDebounce?.cancel();
-    _scanEndDebounce = null;
-    setState(() {
-      _error = null;
-      _value += digit;
-      _controller.value = TextEditingValue(
-        text: _value,
-        selection: TextSelection.collapsed(offset: _value.length),
-      );
-    });
-  }
-
-  void _deleteManualDigit() {
-    if (_value.isEmpty) return;
-    _scanEndDebounce?.cancel();
-    _scanEndDebounce = null;
-    final nextValue = _value.substring(0, _value.length - 1);
-    setState(() {
-      _error = null;
-      _value = nextValue;
-      _controller.value = TextEditingValue(
-        text: nextValue,
-        selection: TextSelection.collapsed(offset: nextValue.length),
-      );
-    });
   }
 
   @override
@@ -270,15 +338,22 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
         (widget.isArabic ? 'الماسح يبقى جاهزًا' : 'Scanner stays ready');
     final manualEntryLabel = widget.isArabic ? 'إدخال يدوي' : 'Manual Type';
     final confirmLabel = widget.isArabic ? 'تأكيد' : 'Confirm';
-    final deleteLabel = widget.isArabic ? 'حذف' : 'Delete';
-    final statusLabel = widget.isArabic
-        ? 'إدخال الماسح جاهز'
-        : 'Hidden scanner input is active';
+    final cancelManualLabel = widget.isArabic ? 'إلغاء' : 'Cancel';
+    final scannerReadyLabel =
+        widget.isArabic ? 'تركيز الماسح نشط' : 'Scanner focus active';
+    final scannerLostLabel =
+        widget.isArabic ? 'الماسح غير متصل' : 'Scanner lost focus';
+    final statusLabel = _scannerFocused ? scannerReadyLabel : scannerLostLabel;
     final statusValue = _value.isEmpty
         ? (widget.isArabic
             ? 'بانتظار مسح الباركود'
             : 'Waiting for barcode scan')
         : _value;
+    final statusHint = _scannerFocused
+        ? dialogHint
+        : (widget.isArabic
+            ? 'اضغط على النافذة لإعادة تفعيل الماسح'
+            : 'Tap the popup to reconnect the scanner');
     final theme = Theme.of(context);
     const cardColor = AppTheme.primary;
     const insetColor = Color(0xFF184E77);
@@ -286,6 +361,8 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
     const panelAccentColor = Color(0xFF3A78A8);
     const contentColor = Colors.white;
     const mutedContentColor = Color(0xFFD9E8F5);
+    const readyColor = Color(0xFFB8F7C8);
+    const lostColor = Color(0xFFFFD2A8);
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -318,11 +395,13 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                     Opacity(
                       opacity: 0,
                       child: SizedBox(
-                        key: ValueKey<int>(_scannerFieldEpoch),
+                        key: Key('scan_barcode_field_$_scannerFieldEpoch'),
                         width: 1,
                         height: 1,
-                        child: EditableText(
+                        child: KeyedSubtree(
                           key: const Key('scan_barcode_field'),
+                          child: EditableText(
+                          key: _scannerEditableTextKey,
                           controller: _controller,
                           focusNode: _focusNode,
                           autofocus: true,
@@ -342,328 +421,294 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                           selectionColor: Colors.transparent,
                           onChanged: _onTextChanged,
                           onSubmitted: (_) => _searchProduct(),
+                          ),
                         ),
                       ),
                     ),
                     Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.14),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.qr_code_scanner_rounded,
-                          color: contentColor,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          dialogTitle,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: contentColor,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded),
-                        tooltip: widget.isArabic ? 'إغلاق' : 'Close',
-                        color: contentColor,
-                        visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints.tightFor(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
                           width: 36,
                           height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.14),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.qr_code_scanner_rounded,
+                            color: contentColor,
+                            size: 18,
+                          ),
                         ),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
-                    if (!_manualKeypadOpen) ...[
-                    const SizedBox(height: 12),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: insetColor,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: panelAccentColor),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 14,
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(
-                                Icons.center_focus_strong_rounded,
-                                color: contentColor,
-                                size: 20,
-                              ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            dialogTitle,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: contentColor,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    statusLabel,
-                                    style:
-                                        theme.textTheme.labelMedium?.copyWith(
-                                      color: mutedContentColor,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    statusValue,
-                                    style:
-                                        theme.textTheme.titleMedium?.copyWith(
-                                      color: contentColor,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    dialogHint,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: mutedContentColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (_value.isNotEmpty)
-                              IconButton(
-                                key: const Key('lookup_clear_button'),
-                                icon: const Icon(Icons.close_rounded),
-                                tooltip: widget.isArabic ? 'مسح' : 'Clear',
-                                color: mutedContentColor,
-                                onPressed: _clearField,
-                              ),
-                          ],
+                          ),
                         ),
-                      ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          tooltip: widget.isArabic ? 'إغلاق' : 'Close',
+                          color: contentColor,
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 36,
+                            height: 36,
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ],
                     ),
-                  ],
-                    if (_error != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: const Color(0xFFFFD2D2),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
                     if (!_manualKeypadOpen) ...[
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        key: const Key('lookup_manual_entry_button'),
-                        onPressed: _openManualKeypad,
-                        icon: const Icon(Icons.keyboard_alt_rounded),
-                        label: Text(manualEntryLabel),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: secondaryButtonColor,
-                          foregroundColor: contentColor,
+                      const SizedBox(height: 12),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: insetColor,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: panelAccentColor),
+                        ),
+                        child: Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
+                            horizontal: 14,
                             vertical: 14,
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.center_focus_strong_rounded,
+                                  color: contentColor,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      statusLabel,
+                                      key: const Key('lookup_scanner_status_label'),
+                                      style:
+                                          theme.textTheme.labelMedium?.copyWith(
+                                        color: _scannerFocused
+                                            ? readyColor
+                                            : lostColor,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      statusValue,
+                                      style:
+                                          theme.textTheme.titleMedium?.copyWith(
+                                        color: contentColor,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      statusHint,
+                                      key: const Key('lookup_scanner_status_hint'),
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
+                                        color: mutedContentColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (_value.isNotEmpty)
+                                IconButton(
+                                  key: const Key('lookup_clear_button'),
+                                  icon: const Icon(Icons.close_rounded),
+                                  tooltip: widget.isArabic ? 'مسح' : 'Clear',
+                                  color: mutedContentColor,
+                                  onPressed: _clearField,
+                                )
+                              else
+                                IconButton(
+                                  key: const Key('lookup_reconnect_button'),
+                                  onPressed: () => _resetScannerAttachment(
+                                    primeInputMethod: true,
+                                  ),
+                                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                                  tooltip: widget.isArabic
+                                      ? 'إعادة تفعيل الماسح'
+                                      : 'Reconnect scanner',
+                                  color:
+                                      _scannerFocused ? readyColor : lostColor,
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 36,
+                                    height: 36,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                    if (_manualKeypadOpen) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      key: const Key('lookup_manual_keypad'),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: insetColor,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: panelAccentColor),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x16000000),
-                            blurRadius: 18,
-                            offset: Offset(0, 8),
-                          ),
-                        ],
+                    ],
+                    if (_error != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _error!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFFFFD2D2),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.isArabic
-                                ? 'أدخل الباركود يدويًا'
-                                : 'Type barcode manually',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: contentColor,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Container(
-                            width: double.infinity,
+                    ],
+                    if (!_manualKeypadOpen) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          key: const Key('lookup_manual_entry_button'),
+                          onPressed: _openManualKeypad,
+                          icon: const Icon(Icons.keyboard_alt_rounded),
+                          label: Text(manualEntryLabel),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: secondaryButtonColor,
+                            foregroundColor: contentColor,
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
+                              horizontal: 18,
                               vertical: 14,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: panelAccentColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Text(
-                              _value.isEmpty
-                                  ? (widget.isArabic
-                                      ? 'أدخل أرقام الباركود'
-                                      : 'Enter barcode digits')
-                                  : _value,
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.titleMedium?.copyWith(
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (_manualKeypadOpen) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        key: const Key('lookup_manual_entry_card'),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: insetColor,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: panelAccentColor),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x16000000),
+                              blurRadius: 18,
+                              offset: Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.isArabic
+                                  ? 'أدخل الباركود يدويًا'
+                                  : 'Type barcode manually',
+                              style: theme.textTheme.titleSmall?.copyWith(
                                 color: contentColor,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Table(
-                            key: const Key('lookup_manual_digit_grid'),
-                            defaultVerticalAlignment:
-                                TableCellVerticalAlignment.middle,
-                            children: [
-                              for (var row = 0; row < 3; row++)
-                                TableRow(
-                                  children: [
-                                    for (var column = 0; column < 3; column++)
-                                      Padding(
-                                        padding: EdgeInsets.only(
-                                          right: column == 2 ? 0 : 8,
-                                          bottom: row == 2 ? 0 : 8,
-                                        ),
-                                        child: _LookupKeypadButton(
-                                          key: Key(
-                                            'lookup_manual_digit_${_manualDigits[(row * 3) + column]}',
-                                          ),
-                                          label:
-                                              _manualDigits[(row * 3) + column],
-                                          onPressed: () => _appendManualDigit(
-                                            _manualDigits[(row * 3) + column],
-                                          ),
-                                          backgroundColor: secondaryButtonColor,
-                                        ),
-                                      ),
-                                  ],
+                            const SizedBox(height: 10),
+                            TextField(
+                              key: const Key('lookup_manual_text_field'),
+                              controller: _manualController,
+                              focusNode: _manualFocusNode,
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.done,
+                              autofocus: true,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: contentColor,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: widget.isArabic
+                                    ? 'أدخل أرقام الباركود'
+                                    : 'Enter barcode digits',
+                                hintStyle: theme.textTheme.titleSmall?.copyWith(
+                                  color: mutedContentColor,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                flex: 10,
-                                child: _LookupActionButton(
-                                  key: const Key('lookup_manual_delete_button'),
-                                  label: deleteLabel,
-                                  onPressed: _deleteManualDigit,
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: AppTheme.primary,
+                                filled: true,
+                                fillColor: Colors.white.withValues(alpha: 0.12),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide:
+                                      const BorderSide(color: panelAccentColor),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide:
+                                      const BorderSide(color: panelAccentColor),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(
+                                    color: readyColor,
+                                    width: 1.4,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                flex: 12,
-                                child: _LookupActionButton(
-                                  key: const Key('lookup_manual_digit_0'),
-                                  label: '0',
-                                  onPressed: () => _appendManualDigit('0'),
-                                  backgroundColor: secondaryButtonColor,
-                                  foregroundColor: contentColor,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              onChanged: _onManualTextChanged,
+                              onSubmitted: (_) {
+                                if (_value.isNotEmpty) {
+                                  _searchProduct();
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _LookupActionButton(
+                                    key: const Key('lookup_manual_cancel_button'),
+                                    label: cancelManualLabel,
+                                    onPressed: _closeManualKeypad,
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: AppTheme.primary,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                flex: 10,
-                                child: _LookupActionButton(
-                                  key:
-                                      const Key('lookup_manual_confirm_button'),
-                                  label: confirmLabel,
-                                  onPressed:
-                                      _value.isEmpty ? null : _searchProduct,
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: AppTheme.primary,
-                                  emphasized: true,
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _LookupActionButton(
+                                    key:
+                                        const Key('lookup_manual_confirm_button'),
+                                    label: confirmLabel,
+                                    onPressed:
+                                        _value.isEmpty ? null : _searchProduct,
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: AppTheme.primary,
+                                    emphasized: true,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
                     ],
                   ],
                 ),
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LookupKeypadButton extends StatelessWidget {
-  const _LookupKeypadButton({
-    super.key,
-    required this.label,
-    required this.onPressed,
-    this.backgroundColor = AppTheme.primary,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final Color backgroundColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: FilledButton(
-        onPressed: onPressed,
-        style: ButtonStyle(
-          backgroundColor: WidgetStatePropertyAll(backgroundColor),
-          foregroundColor: const WidgetStatePropertyAll(Colors.white),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
           ),
         ),
       ),

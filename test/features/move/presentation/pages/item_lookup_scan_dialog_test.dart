@@ -6,6 +6,11 @@ import 'package:wherehouse/features/move/presentation/pages/item_lookup_scan_dia
 import 'package:wherehouse/shared/theme/app_theme.dart';
 
 void main() {
+  Finder scannerFieldFinder() => find.descendant(
+        of: find.byKey(const Key('scan_barcode_field')),
+        matching: find.byType(EditableText),
+      );
+
   Finder confirmButtonFinder() => find.descendant(
         of: find.byKey(const Key('lookup_manual_confirm_button')),
         matching: find.byType(FilledButton),
@@ -48,7 +53,7 @@ void main() {
   ) async {
     await openDialog(tester);
 
-    final fieldFinder = find.byKey(const Key('scan_barcode_field'));
+    final fieldFinder = scannerFieldFinder();
     final editableText = tester.widget<EditableText>(fieldFinder);
     final fieldSize = tester.getSize(fieldFinder);
 
@@ -61,12 +66,20 @@ void main() {
     expect(editableText.focusNode.hasFocus, isTrue);
     expect(fieldSize.width, greaterThan(0));
     expect(fieldSize.height, greaterThan(0));
+    expect(find.byKey(const Key('lookup_scanner_status_label')), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('lookup_scanner_status_label')))
+          .data,
+      'Scanner focus active',
+    );
+    expect(find.byKey(const Key('lookup_reconnect_button')), findsOneWidget);
   });
 
   testWidgets('tapping the popup re-focuses the scanner field', (tester) async {
     await openDialog(tester);
 
-    final fieldFinder = find.byKey(const Key('scan_barcode_field'));
+    final fieldFinder = scannerFieldFinder();
     var editableText = tester.widget<EditableText>(fieldFinder);
     expect(editableText.focusNode.hasFocus, isTrue);
 
@@ -115,7 +128,7 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    final fieldFinder = find.byKey(const Key('scan_barcode_field'));
+    final fieldFinder = scannerFieldFinder();
     var editableText = tester.widget<EditableText>(fieldFinder);
     expect(editableText.focusNode.hasFocus, isTrue);
 
@@ -134,7 +147,7 @@ void main() {
       (tester) async {
     await openDialog(tester);
 
-    final fieldFinder = find.byKey(const Key('scan_barcode_field'));
+    final fieldFinder = scannerFieldFinder();
     var editableText = tester.widget<EditableText>(fieldFinder);
     expect(editableText.focusNode.hasFocus, isTrue);
 
@@ -149,13 +162,27 @@ void main() {
     expect(editableText.focusNode.hasFocus, isTrue);
   });
 
-  testWidgets('app resume rebuilds the hidden scanner field attachment',
+  testWidgets(
+      'auto focus refresh does not rebuild the scanner field while it is already focused and idle',
       (tester) async {
     await openDialog(tester);
 
-    final firstFieldFinder = find.byKey(const Key('scan_barcode_field'));
-    final firstEditableText = tester.widget<EditableText>(firstFieldFinder);
+    final fieldFinder = scannerFieldFinder();
+    final firstEditableText = tester.widget<EditableText>(fieldFinder);
     final firstFocusNode = firstEditableText.focusNode;
+
+    expect(firstFocusNode.hasFocus, isTrue);
+
+    await tester.pump(const Duration(seconds: 1));
+
+    final secondEditableText = tester.widget<EditableText>(fieldFinder);
+    expect(secondEditableText.focusNode, same(firstFocusNode));
+    expect(secondEditableText.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('app resume keeps the hidden scanner field ready for scanning',
+      (tester) async {
+    await openDialog(tester);
 
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     await tester.pump();
@@ -168,9 +195,165 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump(const Duration(seconds: 1));
 
-    final secondFieldFinder = find.byKey(const Key('scan_barcode_field'));
-    final secondEditableText = tester.widget<EditableText>(secondFieldFinder);
+    final fieldFinder = scannerFieldFinder();
+    final editableText = tester.widget<EditableText>(fieldFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+  });
 
+  testWidgets(
+      'app resume primes the scanner input method for the popup',
+      (tester) async {
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.textInput,
+      (call) async {
+        calls.add(call);
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.textInput,
+        null,
+      );
+    });
+
+    await openDialog(tester);
+    final firstEditableText = tester.widget<EditableText>(scannerFieldFinder());
+    final firstFocusNode = firstEditableText.focusNode;
+    calls.clear();
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    final secondEditableText = tester.widget<EditableText>(scannerFieldFinder());
+    expect(secondEditableText.focusNode, isNot(same(firstFocusNode)));
+    final showCalls = calls.where((call) => call.method == 'TextInput.show').length;
+    final hideCalls = calls.where((call) => call.method == 'TextInput.hide').length;
+    expect(showCalls, greaterThan(0));
+    expect(hideCalls, greaterThan(0));
+  });
+
+  testWidgets(
+      'first popup open after app resume primes the scanner input method',
+      (tester) async {
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.textInput,
+      (call) async {
+        calls.add(call);
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.textInput,
+        null,
+      );
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        supportedLocales: const [Locale('en'), Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  showItemLookupScanDialog(context, showKeyboard: false);
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    calls.clear();
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    final showCalls = calls.where((call) => call.method == 'TextInput.show').length;
+    final hideCalls = calls.where((call) => call.method == 'TextInput.hide').length;
+    expect(showCalls, greaterThan(0));
+    expect(hideCalls, greaterThan(0));
+  });
+
+  testWidgets(
+      'first popup open after app resume performs a delayed scanner reattach',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        supportedLocales: const [Locale('en'), Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  showItemLookupScanDialog(context, showKeyboard: false);
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    await tester.tap(find.text('Open'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 150));
+
+    final firstEditableText = tester.widget<EditableText>(scannerFieldFinder());
+    final firstFocusNode = firstEditableText.focusNode;
+
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    final secondEditableText = tester.widget<EditableText>(scannerFieldFinder());
     expect(secondEditableText.focusNode, isNot(same(firstFocusNode)));
     expect(secondEditableText.focusNode.hasFocus, isTrue);
   });
@@ -179,7 +362,7 @@ void main() {
       (tester) async {
     await openDialog(tester);
 
-    final firstFieldFinder = find.byKey(const Key('scan_barcode_field'));
+    final firstFieldFinder = scannerFieldFinder();
     final firstEditableText = tester.widget<EditableText>(firstFieldFinder);
     final firstFocusNode = firstEditableText.focusNode;
 
@@ -189,7 +372,7 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    final secondFieldFinder = find.byKey(const Key('scan_barcode_field'));
+    final secondFieldFinder = scannerFieldFinder();
     final secondEditableText = tester.widget<EditableText>(secondFieldFinder);
 
     expect(secondEditableText.focusNode, isNot(same(firstFocusNode)));
@@ -202,16 +385,13 @@ void main() {
     await openDialog(tester, locale: const Locale('ar'));
 
     expect(find.text('امسح الباركود'), findsOneWidget);
-    expect(find.text('إدخال الماسح جاهز'), findsOneWidget);
+    expect(find.text('تركيز الماسح نشط'), findsOneWidget);
     expect(find.text('بانتظار مسح الباركود'), findsOneWidget);
     expect(find.text('إدخال يدوي'), findsOneWidget);
     expect(find.text('????'), findsNothing);
   });
 
-  testWidgets(
-      'manual keypad mode does not trigger an additional soft keyboard open', (
-    tester,
-  ) async {
+  testWidgets('manual mode opens a system numeric text field', (tester) async {
     final calls = <MethodCall>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.textInput,
@@ -229,18 +409,25 @@ void main() {
 
     await openDialog(tester);
 
-    final initialShowCount =
-        calls.where((call) => call.method == 'TextInput.show').length;
-
+    await tester.ensureVisible(
+      find.byKey(const Key('lookup_manual_entry_button')),
+    );
     await tester.tap(find.byKey(const Key('lookup_manual_entry_button')));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    final showCountAfterManualTap =
+    expect(find.byKey(const Key('lookup_manual_text_field')), findsOneWidget);
+
+    final textField = tester.widget<TextField>(
+      find.byKey(const Key('lookup_manual_text_field')),
+    );
+    expect(textField.keyboardType, TextInputType.number);
+
+    final showCount =
         calls.where((call) => call.method == 'TextInput.show').length;
-    expect(showCountAfterManualTap, initialShowCount);
+    expect(showCount, greaterThan(0));
   });
 
-  testWidgets('manual mode opens a dark-blue keypad and waits for confirm', (
+  testWidgets('manual mode accepts typed digits and waits for confirm', (
     tester,
   ) async {
     String? result;
@@ -274,12 +461,15 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('lookup_manual_keypad')), findsNothing);
+    expect(find.byKey(const Key('lookup_manual_text_field')), findsNothing);
 
+    await tester.ensureVisible(
+      find.byKey(const Key('lookup_manual_entry_button')),
+    );
     await tester.tap(find.byKey(const Key('lookup_manual_entry_button')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('lookup_manual_keypad')), findsOneWidget);
+    expect(find.byKey(const Key('lookup_manual_text_field')), findsOneWidget);
 
     final dialogCard = tester.widget<DecoratedBox>(
       find.byKey(const Key('lookup_dialog_card')),
@@ -287,27 +477,15 @@ void main() {
     final cardDecoration = dialogCard.decoration as BoxDecoration;
     expect(cardDecoration.color, AppTheme.primary);
 
-    final digit1 =
-        tester.getCenter(find.byKey(const Key('lookup_manual_digit_1')));
-    final digit2 =
-        tester.getCenter(find.byKey(const Key('lookup_manual_digit_2')));
-    final digit3 =
-        tester.getCenter(find.byKey(const Key('lookup_manual_digit_3')));
-    final digit4 =
-        tester.getCenter(find.byKey(const Key('lookup_manual_digit_4')));
-
-    expect(digit1.dy, moreOrLessEquals(digit2.dy, epsilon: 1));
-    expect(digit2.dy, moreOrLessEquals(digit3.dy, epsilon: 1));
-    expect(digit1.dy, isNot(moreOrLessEquals(digit4.dy, epsilon: 1)));
-
     final confirmBeforeDigits = tester.widget<FilledButton>(
       confirmButtonFinder(),
     );
     expect(confirmBeforeDigits.onPressed, isNull);
 
-    await tester.tap(find.byKey(const Key('lookup_manual_digit_1')));
-    await tester.tap(find.byKey(const Key('lookup_manual_digit_2')));
-    await tester.tap(find.byKey(const Key('lookup_manual_digit_3')));
+    await tester.enterText(
+      find.byKey(const Key('lookup_manual_text_field')),
+      '123',
+    );
     await tester.pump();
 
     expect(result, isNull);
@@ -326,59 +504,78 @@ void main() {
     expect(find.byType(Dialog), findsNothing);
   });
 
-  testWidgets('keypad action labels fit on a narrow width without overflow', (
+  testWidgets('manual entry actions fit on a narrow width without overflow', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(320, 720));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await openDialog(tester);
+    await tester.ensureVisible(
+      find.byKey(const Key('lookup_manual_entry_button')),
+    );
     await tester.tap(find.byKey(const Key('lookup_manual_entry_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Delete'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Confirm'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-      'manual keypad bottom row keeps 0 larger and side buttons symmetric', (
-    tester,
-  ) async {
+  testWidgets('manual entry can be cancelled back to scan mode', (tester) async {
     await openDialog(tester);
+    await tester.ensureVisible(
+      find.byKey(const Key('lookup_manual_entry_button')),
+    );
     await tester.tap(find.byKey(const Key('lookup_manual_entry_button')));
     await tester.pumpAndSettle();
 
-    final deleteFinder = find.byKey(const Key('lookup_manual_delete_button'));
-    final zeroFinder = find.byKey(const Key('lookup_manual_digit_0'));
-    final confirmFinder = find.byKey(const Key('lookup_manual_confirm_button'));
+    expect(find.byKey(const Key('lookup_manual_text_field')), findsOneWidget);
 
-    final deleteRect = tester.getRect(deleteFinder);
-    final zeroRect = tester.getRect(zeroFinder);
-    final confirmRect = tester.getRect(confirmFinder);
+    await tester.tap(find.byKey(const Key('lookup_manual_cancel_button')));
+    await tester.pumpAndSettle();
 
-    expect(zeroRect.width, greaterThan(deleteRect.width));
-    expect(zeroRect.width, greaterThan(confirmRect.width));
-    expect(deleteRect.width, moreOrLessEquals(confirmRect.width, epsilon: 1));
-    expect(deleteRect.top, moreOrLessEquals(zeroRect.top, epsilon: 1));
-    expect(zeroRect.top, moreOrLessEquals(confirmRect.top, epsilon: 1));
+    expect(find.byKey(const Key('lookup_manual_text_field')), findsNothing);
+    expect(find.text('Scanner focus active'), findsOneWidget);
   });
 
-  testWidgets('manual keypad hides scan-mode sections while open', (
+  testWidgets('manual entry hides scan-mode sections while open', (
     tester,
   ) async {
     await openDialog(tester);
 
-    expect(find.text('Hidden scanner input is active'), findsOneWidget);
+    expect(find.text('Scanner focus active'), findsOneWidget);
     expect(find.byKey(const Key('lookup_manual_entry_button')), findsOneWidget);
     expect(find.byKey(const Key('lookup_manual_cancel_button')), findsNothing);
 
+    await tester.ensureVisible(
+      find.byKey(const Key('lookup_manual_entry_button')),
+    );
     await tester.tap(find.byKey(const Key('lookup_manual_entry_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Hidden scanner input is active'), findsNothing);
+    expect(find.text('Scanner focus active'), findsNothing);
     expect(find.byKey(const Key('lookup_manual_entry_button')), findsNothing);
-    expect(find.byKey(const Key('lookup_manual_cancel_button')), findsNothing);
-    expect(find.byKey(const Key('lookup_manual_keypad')), findsOneWidget);
+    expect(find.byKey(const Key('lookup_manual_cancel_button')), findsOneWidget);
+    expect(find.byKey(const Key('lookup_manual_text_field')), findsOneWidget);
+  });
+
+  testWidgets('reconnect button rebuilds scanner attachment', (tester) async {
+    await openDialog(tester);
+
+    final fieldFinder = scannerFieldFinder();
+    final firstEditableText = tester.widget<EditableText>(fieldFinder);
+    final firstFocusNode = firstEditableText.focusNode;
+
+    final reconnectButton = tester.widget<IconButton>(
+      find.byKey(const Key('lookup_reconnect_button')),
+    );
+    reconnectButton.onPressed!.call();
+    await tester.pump();
+    await tester.pump();
+
+    final secondEditableText = tester.widget<EditableText>(fieldFinder);
+    expect(secondEditableText.focusNode, isNot(same(firstFocusNode)));
+    expect(secondEditableText.focusNode.hasFocus, isTrue);
   });
 }

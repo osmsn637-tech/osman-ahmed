@@ -28,6 +28,10 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
   static const _matchedItemBorderColor = Color(0xFF1F9D55);
   static const _focusRetryDelay = Duration(milliseconds: 250);
   static const _focusRetryCount = 6;
+  static const _pageBackground = Color(0xFFF5F7FB);
+  static const _panelColor = Colors.white;
+  static const _panelBorderColor = Color(0xFFE6EBF2);
+  static const _panelTint = Color(0xFFF8FAFD);
 
   late final TextEditingController _listScanController;
   late final TextEditingController _detailBarcodeController;
@@ -147,6 +151,7 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
     }
 
     return Scaffold(
+      backgroundColor: _pageBackground,
       bottomNavigationBar: selectedItem == null && receipt != null
           ? _buildListBottomBar(context, controller)
           : null,
@@ -259,12 +264,41 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
                 color: AppTheme.textPrimary,
               ),
         ),
-        const SizedBox(height: 8),
-        const _InfoRow(
-          label: 'PO',
-          icon: Icons.receipt_long_rounded,
+        const SizedBox(height: 6),
+        Text(
+          _tr(
+            context,
+            'Scan and confirm inbound items with less friction.',
+            'امسح عناصر الاستلام وأكدها بشكل أوضح وأسهل.',
+          ),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.textMuted,
+                fontWeight: FontWeight.w600,
+              ),
         ),
-        _ValueRow(value: receipt.poNumber),
+        const SizedBox(height: 14),
+        _SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _InfoRow(
+                label: 'PO',
+                icon: Icons.receipt_long_rounded,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                receipt.poNumber,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textPrimary,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         _buildHiddenScanField(
           key: const Key('inbound-receipt-hidden-scan-field'),
           controller: _listScanController,
@@ -282,15 +316,17 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
             );
           },
         ),
-        const SizedBox(height: 12),
-        _ScanCaptureSummary(
-          icon: Icons.qr_code_scanner_rounded,
-          emptyText: _tr(context, 'Scan item barcode', 'امسح باركود الصنف'),
-          currentValue: _listScanController.text,
-          enabled: controller.canReceiveItems,
+        _SectionCard(
+          child: _ScanCaptureSummary(
+            icon: Icons.qr_code_scanner_rounded,
+            emptyText: _tr(context, 'Scan item barcode', 'امسح باركود الصنف'),
+            currentValue: _listScanController.text,
+            enabled: controller.canReceiveItems,
+          ),
         ),
         const SizedBox(height: 16),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
               child: Text(
@@ -301,16 +337,12 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
                     ),
               ),
             ),
-            Text(
-              _tr(
+            _ProgressPill(
+              label: _tr(
                 context,
                 '$receivedCount of $totalCount received',
                 '$receivedCount من $totalCount تم استلامها',
               ),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textMuted,
-                  ),
             ),
           ],
         ),
@@ -355,22 +387,25 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: _pageBackground,
           border: Border(
             top: BorderSide(color: AppTheme.surfaceAlt),
           ),
         ),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            key: const Key('inbound-receipt-start-button'),
-            onPressed: controller.canReceiveItems || controller.isStarting
-                ? null
-                : controller.startReceiving,
-            child: Text(
-              controller.isStarting
-                  ? _tr(context, 'Starting...', 'جارٍ البدء...')
-                  : _tr(context, 'Start receiving', 'ابدأ الاستلام'),
+        child: _SectionCard(
+          padding: const EdgeInsets.all(12),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              key: const Key('inbound-receipt-start-button'),
+              onPressed: controller.canReceiveItems || controller.isStarting
+                  ? null
+                  : controller.startReceiving,
+              child: Text(
+                controller.isStarting
+                    ? _tr(context, 'Starting...', 'جارٍ البدء...')
+                    : _tr(context, 'Start receiving', 'ابدأ الاستلام'),
+              ),
             ),
           ),
         ),
@@ -429,62 +464,102 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        const _InfoRow(
-          label: 'PO',
-          icon: Icons.receipt_long_rounded,
-        ),
-        _ValueRow(value: receipt.poNumber),
         const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ReceiptItemThumbnail(
-              imageKey: const Key('inbound-receipt-detail-item-image'),
-              imageUrl: item.imageUrl,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.itemName,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.textPrimary,
-                        ),
-                  ),
-                  if (item.barcode.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+        _SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _InfoRow(
+                label: 'PO',
+                icon: Icons.receipt_long_rounded,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                receipt.poNumber,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textPrimary,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _SectionCard(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ReceiptItemThumbnail(
+                imageKey: const Key('inbound-receipt-detail-item-image'),
+                imageUrl: item.imageUrl,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      item.barcode,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textMuted,
+                      item.itemName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.textPrimary,
                           ),
                     ),
+                    if (item.barcode.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        item.barcode,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textMuted,
+                            ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            expectedQtyLabel,
+                            style:
+                                Theme.of(context).textTheme.labelLarge?.copyWith(
+                                      color: AppTheme.textMuted,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _panelTint,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: _panelBorderColor),
+                          ),
+                          child: Text(
+                            item.expectedQuantity.toString(),
+                            style:
+                                Theme.of(context).textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.textPrimary,
+                                    ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
-                  const SizedBox(height: 8),
-                  Text(
-                    expectedQtyLabel,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppTheme.textMuted,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.expectedQuantity.toString(),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.textPrimary,
-                        ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         if (!controller.detailOpenedByScan) ...[
@@ -501,73 +576,79 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
               );
             },
           ),
-          _ScanCaptureSummary(
-            icon: Icons.qr_code_scanner_rounded,
-            emptyText: scanOrTypeLabel,
-            currentValue: _detailBarcodeController.text,
+          _SectionCard(
+            child: _ScanCaptureSummary(
+              icon: Icons.qr_code_scanner_rounded,
+              emptyText: scanOrTypeLabel,
+              currentValue: _detailBarcodeController.text,
+            ),
           ),
           const SizedBox(height: 12),
         ],
-        TextField(
-          key: const Key('inbound-receipt-detail-quantity-field'),
-          controller: _quantityController,
-          enabled: quantityEnabled,
-          keyboardType: TextInputType.number,
-          onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            labelText: 'Received quantity',
-            prefixIcon: Icon(Icons.inventory_2_outlined),
-            filled: true,
-            fillColor: Colors.white,
-          ).copyWith(labelText: receivedQuantityLabel),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          key: const Key('inbound-receipt-detail-expiration-field'),
-          controller: _expirationDateController,
-          readOnly: true,
-          enabled: quantityEnabled,
-          onTap: () {
-            if (!quantityEnabled) return;
-            _pickExpirationDate(context);
-          },
-          decoration: InputDecoration(
-            labelText: expirationDateLabel,
-            prefixIcon: const Icon(Icons.event_outlined),
-            suffixIcon: const Icon(Icons.calendar_today_rounded),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            key: const Key('inbound-receipt-detail-confirm-button'),
-            onPressed: !canConfirm
-                ? null
-                : () async {
-                    final expirationDate = _selectedExpirationDate;
-                    if (quantityValue == null || expirationDate == null) return;
-                    final succeeded =
-                        await controller.confirmSelectedItemQuantity(
-                      quantityValue,
-                      expirationDate: expirationDate,
-                    );
-                    if (!mounted || !succeeded) return;
-                    _detailBarcodeController.clear();
-                    _quantityController.clear();
-                    setState(() {
-                      _setExpirationDate(context, null);
-                    });
-                  },
-            child: controller.isSubmitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(confirmQuantityLabel),
+        _SectionCard(
+          child: Column(
+            children: [
+              TextField(
+                key: const Key('inbound-receipt-detail-quantity-field'),
+                controller: _quantityController,
+                enabled: quantityEnabled,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Received quantity',
+                  prefixIcon: Icon(Icons.inventory_2_outlined),
+                  filled: true,
+                  fillColor: Colors.white,
+                ).copyWith(labelText: receivedQuantityLabel),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('inbound-receipt-detail-expiration-field'),
+                controller: _expirationDateController,
+                readOnly: true,
+                enabled: quantityEnabled,
+                onTap: () {
+                  if (!quantityEnabled) return;
+                  _pickExpirationDate(context);
+                },
+                decoration: InputDecoration(
+                  labelText: expirationDateLabel,
+                  prefixIcon: const Icon(Icons.event_outlined),
+                  suffixIcon: const Icon(Icons.calendar_today_rounded),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  key: const Key('inbound-receipt-detail-confirm-button'),
+                  onPressed: !canConfirm
+                      ? null
+                      : () async {
+                          final succeeded =
+                              await controller.confirmSelectedItemQuantity(
+                            quantityValue,
+                            expirationDate: _selectedExpirationDate!,
+                          );
+                          if (!mounted || !succeeded) return;
+                          _detailBarcodeController.clear();
+                          _quantityController.clear();
+                          setState(() {
+                            _setExpirationDate(context, null);
+                          });
+                        },
+                  child: controller.isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(confirmQuantityLabel),
+                ),
+              ),
+            ],
           ),
         ),
         if (controller.scanErrorMessage != null) ...[
@@ -639,20 +720,59 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _ValueRow extends StatelessWidget {
-  const _ValueRow({required this.value});
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+  });
 
-  final String value;
+  final Widget child;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: _InboundReceiptPageState._panelColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _InboundReceiptPageState._panelBorderColor),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A0F172A),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _ProgressPill extends StatelessWidget {
+  const _ProgressPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: _InboundReceiptPageState._panelTint,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _InboundReceiptPageState._panelBorderColor),
+      ),
       child: Text(
-        value,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        label,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppTheme.textPrimary,
+              color: AppTheme.textMuted,
             ),
       ),
     );
@@ -676,25 +796,60 @@ class _ScanCaptureSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final isEmpty = currentValue.trim().isEmpty;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: enabled ? Colors.white : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.surfaceAlt),
+        color: enabled
+            ? _InboundReceiptPageState._panelTint
+            : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _InboundReceiptPageState._panelBorderColor),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: enabled ? AppTheme.primary : AppTheme.textMuted),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: enabled ? Colors.white : const Color(0xFFEFF3F8),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              icon,
+              color: enabled ? AppTheme.primary : AppTheme.textMuted,
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              isEmpty ? emptyText : currentValue.trim(),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: isEmpty ? FontWeight.w600 : FontWeight.w800,
-                    color: enabled
-                        ? (isEmpty ? AppTheme.textMuted : AppTheme.textPrimary)
-                        : AppTheme.textMuted,
-                  ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  enabled
+                      ? (context.isArabicLocale
+                          ? 'حالة الماسح'
+                          : 'Scanner status')
+                      : (context.isArabicLocale ? 'الماسح متوقف' : 'Scanner off'),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textMuted,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isEmpty ? emptyText : currentValue.trim(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: isEmpty ? FontWeight.w600 : FontWeight.w800,
+                        color: enabled
+                            ? (isEmpty
+                                ? AppTheme.textMuted
+                                : AppTheme.textPrimary)
+                            : AppTheme.textMuted,
+                      ),
+                ),
+              ],
             ),
           ),
         ],
@@ -791,13 +946,14 @@ class _ReceiptItemCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: Ink(
           key: containerKey,
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: backgroundColor,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: borderColor),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _ReceiptItemThumbnail(
                 imageKey: imageKey,
@@ -810,6 +966,8 @@ class _ReceiptItemCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.w800,
                             color: AppTheme.textPrimary,
@@ -819,6 +977,8 @@ class _ReceiptItemCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         barcode,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.w700,
                               color: AppTheme.textMuted,
@@ -829,24 +989,41 @@ class _ReceiptItemCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Icon(
-                    isMatched
-                        ? Icons.check_circle_rounded
-                        : Icons.pending_outlined,
-                    color: statusColor,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    quantityLabel,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: statusColor,
-                        ),
-                  ),
-                ],
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 112),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: isMatched
+                            ? const Color(0xFFDDF3E6)
+                            : const Color(0xFFF1F5F9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isMatched
+                            ? Icons.check_circle_rounded
+                            : Icons.pending_outlined,
+                        color: statusColor,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      quantityLabel,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: statusColor,
+                          ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

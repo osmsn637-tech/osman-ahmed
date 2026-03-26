@@ -1,8 +1,4 @@
 import 'package:wherehouse/core/utils/result.dart';
-import 'package:wherehouse/features/cycle/domain/entities/cycle_count.dart';
-import 'package:wherehouse/features/cycle/domain/entities/cycle_count_item.dart'
-    as cycle;
-import 'package:wherehouse/features/cycle/domain/entities/submit_cycle_count_params.dart';
 import 'package:wherehouse/features/dashboard/domain/entities/adjustment_task_entities.dart';
 import 'package:wherehouse/features/dashboard/domain/entities/ai_alert_entity.dart';
 import 'package:wherehouse/features/dashboard/domain/entities/dashboard_summary_entity.dart';
@@ -14,12 +10,10 @@ import 'package:wherehouse/features/inbound/domain/repositories/inbound_reposito
 import 'package:wherehouse/features/move/domain/entities/item_detail.dart';
 import 'package:wherehouse/features/move/domain/entities/item_location_entity.dart';
 import 'package:wherehouse/features/move/domain/entities/item_location_summary_entity.dart';
+import 'package:wherehouse/features/move/domain/entities/location_lookup_summary_entity.dart';
 import 'package:wherehouse/features/move/domain/entities/location_stock.dart';
-import 'package:wherehouse/features/move/domain/entities/move_item_params.dart';
-import 'package:wherehouse/features/move/domain/entities/movement.dart';
 import 'package:wherehouse/features/move/domain/entities/stock_adjustment_params.dart';
 import 'package:wherehouse/features/move/domain/repositories/item_repository.dart';
-import 'package:wherehouse/features/receive/domain/entities/receive_item_params.dart';
 
 class FakeTaskRepository implements TaskRepository {
   FakeTaskRepository({List<TaskEntity>? tasks}) {
@@ -278,6 +272,7 @@ TaskEntity buildTestTask({
 class FakeItemRepository implements ItemRepository {
   const FakeItemRepository({
     this.summary = _defaultSummary,
+    this.locationLookupSummary = _defaultLocationSummary,
     this.adjustStockResult = const Success<void>(null),
   });
 
@@ -306,7 +301,23 @@ class FakeItemRepository implements ItemRepository {
     ],
   );
 
+  static const LocationLookupSummaryEntity _defaultLocationSummary =
+      LocationLookupSummaryEntity(
+    locationId: 'loc-1',
+    locationCode: 'A10.2',
+    items: <LocationLookupItemEntity>[
+      LocationLookupItemEntity(
+        itemId: 1001,
+        itemName: 'Hajer Water',
+        barcode: '6287009170024',
+        quantity: 12,
+        imageUrl: 'assets/images/hajer_water.jpg',
+      ),
+    ],
+  );
+
   final ItemLocationSummaryEntity summary;
+  final LocationLookupSummaryEntity locationLookupSummary;
   final Result<void> adjustStockResult;
 
   @override
@@ -329,46 +340,15 @@ class FakeItemRepository implements ItemRepository {
   }
 
   @override
-  Future<Result<Movement>> moveItem(MoveItemParams params) async {
-    return Success<Movement>(
-      Movement(
-        barcode: params.barcode,
-        fromLocationId: params.fromLocationId,
-        toLocationId: params.toLocationId,
-        quantity: params.quantity,
-        movementId: 1,
-        movedAt: DateTime(2026, 3, 15),
-      ),
-    );
-  }
-
-  @override
-  Future<Result<void>> receiveItem(ReceiveItemParams params) async {
-    return const Success<void>(null);
-  }
-
-  @override
-  Future<Result<List<cycle.CycleCountItem>>> fetchLocationItems(
-    int locationId,
-  ) async {
-    return const Success<List<cycle.CycleCountItem>>(
-      <cycle.CycleCountItem>[],
-    );
-  }
-
-  @override
-  Future<Result<CycleCount>> submitCycleCount(
-    SubmitCycleCountParams params,
-  ) async {
-    return const Success<CycleCount>(
-      CycleCount(items: <cycle.CycleCountItem>[]),
-    );
-  }
-
-  @override
   Future<Result<ItemLocationSummaryEntity>> getItemLocations(
       String barcode) async {
     return Success<ItemLocationSummaryEntity>(summary);
+  }
+
+  @override
+  Future<Result<LocationLookupSummaryEntity>> scanLocation(
+      String barcode) async {
+    return Success<LocationLookupSummaryEntity>(locationLookupSummary);
   }
 
   @override

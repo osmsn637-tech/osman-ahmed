@@ -6,10 +6,6 @@ class AppEndpoints {
   static const changePassword = '/inventory/change-password';
   static const refresh = '/auth/refresh';
 
-  static const receiveItems = '/inventory/receive';
-  static const moveItems = '/inventory/move';
-  static const itemsByLocation = '/inventory/locations';
-  static const cycleCount = '/inventory/cycle-count';
   static const items = '/inventory/items';
   static const workerTasks = '/mobile/v1/worker/tasks';
   static String workerTaskDetail(String taskId) =>
@@ -38,9 +34,8 @@ class AppEndpoints {
       '/mobile/v1/adjustments/$adjustmentId/finish';
   static String lookupProductByBarcode(String barcode) =>
       'https://api.qeu.info/mobile/v1/products/barcode/${Uri.encodeComponent(barcode)}';
+  static const locationScan = '/mobile/v1/locations/scan';
   static String itemStock(String barcode) => '/inventory/items/$barcode/stock';
-  static String locationItems(int locationId) =>
-      '/inventory/locations/$locationId/items';
   static const inboundReceiptScanByPo =
       '/mobile/v1/inbound/receipts/scan-by-po';
   static String inboundReceiptDetail(String receiptId) =>

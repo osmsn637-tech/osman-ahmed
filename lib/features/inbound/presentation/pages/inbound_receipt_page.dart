@@ -221,6 +221,8 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
     return DateFormat('yyyy-MM-dd', locale).format(date);
   }
 
+  String get _manualTypeLabel => _tr(context, 'Manual Type', 'إدخال يدوي');
+
   void _setExpirationDate(BuildContext context, DateTime? date) {
     _selectedExpirationDate = date;
     _expirationDateController.text =
@@ -244,6 +246,46 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
     });
   }
 
+  Future<void> _openListManualBarcodeDialog(
+    BuildContext context,
+    InboundReceiptController controller,
+  ) async {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _InboundManualBarcodeDialog(
+        initialValue: _listScanController.text,
+      ),
+    );
+    if (!mounted || value == null) {
+      _ensureScannerFocus(_listScanFocusNode);
+      return;
+    }
+    _listScanController.text = value;
+    await controller.scanReceiptItem(value);
+    if (!mounted || controller.selectedItem != null) return;
+    _ensureScannerFocus(_listScanFocusNode);
+  }
+
+  Future<void> _openDetailManualBarcodeDialog(
+    BuildContext context,
+    InboundReceiptController controller,
+  ) async {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _InboundManualBarcodeDialog(
+        initialValue: _detailBarcodeController.text,
+      ),
+    );
+    if (!mounted || value == null) {
+      _ensureScannerFocus(_detailScanFocusNode);
+      return;
+    }
+    _detailBarcodeController.text = value;
+    controller.validateSelectedItemBarcode(value);
+    if (!mounted || controller.isQuantityEnabled) return;
+    _ensureScannerFocus(_detailScanFocusNode);
+  }
+
   Widget _buildListPage(
     BuildContext context,
     InboundReceiptController controller,
@@ -257,12 +299,26 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
       key: const Key('inbound-receipt-list-page'),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
-        Text(
-          _tr(context, 'Receive', 'استلام'),
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: AppTheme.textPrimary,
+        Row(
+          children: [
+            if (!controller.canReceiveItems) ...[
+              IconButton(
+                key: const Key('inbound-receipt-back-button'),
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.arrow_back_rounded),
               ),
+              const SizedBox(width: 4),
+            ],
+            Expanded(
+              child: Text(
+                _tr(context, 'Receive', 'استلام'),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textPrimary,
+                    ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 6),
         Text(
@@ -277,26 +333,11 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
               ),
         ),
         const SizedBox(height: 14),
-        _SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _InfoRow(
-                label: 'PO',
-                icon: Icons.receipt_long_rounded,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                receipt.poNumber,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.textPrimary,
-                    ),
-              ),
-            ],
-          ),
+        _PoHighlightCard(
+          key: const Key('inbound-receipt-po-card'),
+          valueKey: const Key('inbound-receipt-po-value'),
+          label: 'PO',
+          value: receipt.poNumber,
         ),
         const SizedBox(height: 12),
         _buildHiddenScanField(
@@ -319,9 +360,16 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
         _SectionCard(
           child: _ScanCaptureSummary(
             icon: Icons.qr_code_scanner_rounded,
-            emptyText: _tr(context, 'Scan item barcode', 'امسح باركود الصنف'),
+            emptyText: '',
             currentValue: _listScanController.text,
             enabled: controller.canReceiveItems,
+            statusLabel: '',
+            manualButtonText: _manualTypeLabel,
+            manualButtonKey:
+                const Key('inbound-receipt-list-manual-type-button'),
+            onManualType: controller.canReceiveItems
+                ? () => _openListManualBarcodeDialog(context, controller)
+                : null,
           ),
         ),
         const SizedBox(height: 16),
@@ -465,26 +513,11 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
           ],
         ),
         const SizedBox(height: 12),
-        _SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _InfoRow(
-                label: 'PO',
-                icon: Icons.receipt_long_rounded,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                receipt.poNumber,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.textPrimary,
-                    ),
-              ),
-            ],
-          ),
+        _PoHighlightCard(
+          key: const Key('inbound-receipt-detail-po-card'),
+          valueKey: const Key('inbound-receipt-detail-po-value'),
+          label: 'PO',
+          value: receipt.poNumber,
         ),
         const SizedBox(height: 12),
         _SectionCard(
@@ -581,6 +614,13 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
               icon: Icons.qr_code_scanner_rounded,
               emptyText: scanOrTypeLabel,
               currentValue: _detailBarcodeController.text,
+              manualButtonText: _manualTypeLabel,
+              manualButtonKey:
+                  const Key('inbound-receipt-detail-manual-type-button'),
+              onManualType: () => _openDetailManualBarcodeDialog(
+                context,
+                controller,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -693,33 +733,6 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.icon,
-  });
-
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: AppTheme.textMuted),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: AppTheme.textMuted,
-              ),
-        ),
-      ],
-    );
-  }
-}
-
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.child,
@@ -779,22 +792,117 @@ class _ProgressPill extends StatelessWidget {
   }
 }
 
+class _PoHighlightCard extends StatelessWidget {
+  const _PoHighlightCard({
+    super.key,
+    required this.valueKey,
+    required this.label,
+    required this.value,
+  });
+
+  final Key valueKey;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppTheme.primary, Color(0xFF184E77)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFF2C6A98)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x220F172A),
+            blurRadius: 22,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white.withValues(alpha: 0.78),
+                        letterSpacing: 0.4,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  key: valueKey,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        height: 1.08,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ScanCaptureSummary extends StatelessWidget {
   const _ScanCaptureSummary({
     required this.icon,
     required this.emptyText,
     required this.currentValue,
     this.enabled = true,
+    this.statusLabel,
+    this.manualButtonText,
+    this.manualButtonKey,
+    this.onManualType,
   });
 
   final IconData icon;
   final String emptyText;
   final String currentValue;
   final bool enabled;
+  final String? statusLabel;
+  final String? manualButtonText;
+  final Key? manualButtonKey;
+  final VoidCallback? onManualType;
 
   @override
   Widget build(BuildContext context) {
     final isEmpty = currentValue.trim().isEmpty;
+    final effectiveStatusLabel = statusLabel ??
+        (enabled
+            ? (context.isArabicLocale ? 'حالة الماسح' : 'Scanner status')
+            : (context.isArabicLocale ? 'الماسح متوقف' : 'Scanner off'));
+    final displayValue = isEmpty ? emptyText : currentValue.trim();
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
@@ -804,56 +912,140 @@ class _ScanCaptureSummary extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _InboundReceiptPageState._panelBorderColor),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: enabled ? Colors.white : const Color(0xFFEFF3F8),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              icon,
-              color: enabled ? AppTheme.primary : AppTheme.textMuted,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  enabled
-                      ? (context.isArabicLocale
-                          ? 'حالة الماسح'
-                          : 'Scanner status')
-                      : (context.isArabicLocale ? 'الماسح متوقف' : 'Scanner off'),
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.textMuted,
-                      ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: enabled ? Colors.white : const Color(0xFFEFF3F8),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  isEmpty ? emptyText : currentValue.trim(),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: isEmpty ? FontWeight.w600 : FontWeight.w800,
-                        color: enabled
-                            ? (isEmpty
-                                ? AppTheme.textMuted
-                                : AppTheme.textPrimary)
-                            : AppTheme.textMuted,
-                      ),
+                child: Icon(
+                  icon,
+                  color: enabled ? AppTheme.primary : AppTheme.textMuted,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (effectiveStatusLabel.isNotEmpty) ...[
+                      Text(
+                        effectiveStatusLabel,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.textMuted,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                    if (displayValue.isNotEmpty)
+                      Text(
+                        displayValue,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight:
+                                  isEmpty ? FontWeight.w600 : FontWeight.w800,
+                              color: enabled
+                                  ? (isEmpty
+                                      ? AppTheme.textMuted
+                                      : AppTheme.textPrimary)
+                                  : AppTheme.textMuted,
+                            ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
+          if (manualButtonText != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                key: manualButtonKey,
+                onPressed: onManualType,
+                icon: const Icon(Icons.keyboard_alt_rounded),
+                label: Text(manualButtonText!),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(46),
+                  side: const BorderSide(color: AppTheme.surfaceAlt),
+                  foregroundColor: AppTheme.primary,
+                  textStyle: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _InboundManualBarcodeDialog extends StatefulWidget {
+  const _InboundManualBarcodeDialog({required this.initialValue});
+
+  final String initialValue;
+
+  @override
+  State<_InboundManualBarcodeDialog> createState() =>
+      _InboundManualBarcodeDialogState();
+}
+
+class _InboundManualBarcodeDialogState extends State<_InboundManualBarcodeDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isArabic = context.isArabicLocale;
+    return AlertDialog(
+      key: const Key('inbound-manual-barcode-dialog'),
+      title: Text(isArabic ? 'إدخال يدوي' : 'Manual Type'),
+      content: TextField(
+        key: const Key('inbound-manual-barcode-field'),
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          labelText: isArabic ? 'الباركود' : 'Barcode',
+          prefixIcon: const Icon(Icons.qr_code_rounded),
+          hintText: isArabic ? 'اكتب الباركود' : 'Type barcode',
+        ),
+        onSubmitted: (_) => Navigator.of(context).pop(_controller.text.trim()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(isArabic ? 'إلغاء' : 'Cancel'),
+        ),
+        FilledButton(
+          key: const Key('inbound-manual-barcode-submit'),
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: Text(isArabic ? 'استخدام الباركود' : 'Use Barcode'),
+        ),
+      ],
     );
   }
 }

@@ -23,13 +23,16 @@ class MorePage extends StatelessWidget {
             leading: const Icon(Icons.qr_code_scanner),
             title: Text(l10n.moreItemLookup),
             onTap: () async {
-              final barcode = await showItemLookupScanDialog(
+              final lookupResult = await showLookupScanDialog(
                 context,
                 showKeyboard: false,
               );
-              final normalized = barcode?.trim() ?? '';
+              final normalized = lookupResult?.value.trim() ?? '';
               if (!context.mounted || normalized.isEmpty) return;
-              context.push('/item-lookup/result/${Uri.encodeComponent(normalized)}');
+              final route = lookupResult!.kind == LookupScanKind.location
+                  ? '/location-lookup/result/${Uri.encodeComponent(normalized)}'
+                  : '/item-lookup/result/${Uri.encodeComponent(normalized)}';
+              context.push(route);
             },
           ),
           ListTile(

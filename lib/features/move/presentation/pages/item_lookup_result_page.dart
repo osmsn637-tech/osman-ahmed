@@ -25,6 +25,8 @@ class ItemLookupResultPage extends StatefulWidget {
 }
 
 class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
+  bool _showingAdjustmentSuccessDialog = false;
+
   @override
   void initState() {
     super.initState();
@@ -46,14 +48,15 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
     final summary = state.summary;
     final isArabic = context.isArabicLocale;
 
-    if (isAdjustMode && adjustmentState?.success == true) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (isAdjustMode &&
+        adjustmentState?.success == true &&
+        !_showingAdjustmentSuccessDialog) {
+      _showingAdjustmentSuccessDialog = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-          return;
-        }
-        context.go('/home');
+        await _showAdjustmentSuccessDialog(isArabic: isArabic);
+        if (!mounted) return;
+        _navigateAfterAdjustmentSuccess();
       });
     }
 
@@ -92,7 +95,9 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
               if (state.isLoading) {
                 return _StateMessage(
                   icon: Icons.hourglass_top_rounded,
-                  title: isArabic ? 'جارٍ تحميل تفاصيل الصنف' : 'Loading item details',
+                  title: isArabic
+                      ? 'جارٍ تحميل تفاصيل الصنف'
+                      : 'Loading item details',
                   subtitle: isArabic
                       ? 'جارٍ جلب أحدث بيانات المخزون...'
                       : 'Fetching latest inventory snapshot...',
@@ -111,7 +116,9 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                 return _StateMessage(
                   icon: Icons.wifi_off_rounded,
                   title: state.errorMessage ??
-                      (isArabic ? 'تعذر تحميل تفاصيل الصنف' : 'Could not load item details'),
+                      (isArabic
+                          ? 'تعذر تحميل تفاصيل الصنف'
+                          : 'Could not load item details'),
                   action: ElevatedButton(
                     onPressed: controller.retry,
                     child: Text(isArabic ? 'إعادة المحاولة' : 'Retry'),
@@ -129,7 +136,9 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
               if (summary == null) {
                 return _StateMessage(
                   icon: Icons.inventory_2_outlined,
-                  title: isArabic ? 'لا توجد بيانات للصنف' : 'No item data available',
+                  title: isArabic
+                      ? 'لا توجد بيانات للصنف'
+                      : 'No item data available',
                 );
               }
 
@@ -140,8 +149,8 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                     barcode: summary.barcode,
                     itemImageUrl: summary.itemImageUrl,
                     totalQuantity: summary.totalQuantity,
-                    totalLocations:
-                        summary.shelfLocations.length + summary.bulkLocations.length,
+                    totalLocations: summary.shelfLocations.length +
+                        summary.bulkLocations.length,
                     isArabic: isArabic,
                   ),
                   const SizedBox(height: 14),
@@ -193,6 +202,112 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _showAdjustmentSuccessDialog({required bool isArabic}) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        const successColor = Color(0xFF16A34A);
+
+        return Dialog(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 28,
+                  offset: const Offset(0, 16),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 84,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: successColor.withValues(alpha: 0.12),
+                    border: Border.all(
+                      color: successColor.withValues(alpha: 0.20),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    size: 42,
+                    color: successColor,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  isArabic ? 'تم التعديل بنجاح' : 'Adjust successful',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  isArabic
+                      ? 'تم تعديل كمية الصنف بنجاح.'
+                      : 'The item quantity was adjusted successfully.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    height: 1.45,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    key: const Key('adjust_success_confirm_button'),
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(58),
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    child: Text(isArabic ? 'تأكيد' : 'Confirm'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _navigateAfterAdjustmentSuccess() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+    context.go('/home');
   }
 }
 
@@ -249,7 +364,9 @@ class _ItemHeaderCard extends StatelessWidget {
                       _ItemImage(imageUrl: itemImageUrl),
                       const SizedBox(height: 8),
                       Text(
-                        itemName.isEmpty ? (isArabic ? 'صنف غير معروف' : 'Unknown Item') : itemName,
+                        itemName.isEmpty
+                            ? (isArabic ? 'صنف غير معروف' : 'Unknown Item')
+                            : itemName,
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -264,7 +381,8 @@ class _ItemHeaderCard extends StatelessWidget {
                 ),
                 Divider(
                   height: 14,
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
                 ),
                 const SizedBox(height: 8),
                 Container(
@@ -290,7 +408,8 @@ class _ItemHeaderCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Divider(
                   height: 14,
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
                 ),
                 SizedBox(
                   height: 92,
@@ -307,7 +426,8 @@ class _ItemHeaderCard extends StatelessWidget {
                       const SizedBox(width: 10),
                       Expanded(
                         child: _HeaderStatCard(
-                          label: isArabic ? 'إجمالي المواقع' : 'Total Locations',
+                          label:
+                              isArabic ? 'إجمالي المواقع' : 'Total Locations',
                           value: '$totalLocations',
                           icon: Icons.grid_view_rounded,
                           isArabic: isArabic,
@@ -477,10 +597,12 @@ class _LocationSection extends StatelessWidget {
               children: [
                 Icon(icon, size: 19, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primary.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(999),
@@ -501,8 +623,11 @@ class _LocationSection extends StatelessWidget {
             else
               for (var index = 0; index < locations.length; index++) ...[
                 LocationRow(
-                  key: Key('location-row-${locations[index].locationId}-$index'),
-                  code: locations[index].code.isEmpty ? '-' : locations[index].code,
+                  key:
+                      Key('location-row-${locations[index].locationId}-$index'),
+                  code: locations[index].code.isEmpty
+                      ? '-'
+                      : locations[index].code,
                   typeLabel: label,
                   quantity: '${locations[index].quantity}',
                   isShelfOverride: isShelf,
@@ -701,8 +826,9 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
               keyboardType: TextInputType.number,
               onChanged: widget.onQuantityChanged,
               decoration: InputDecoration(
-                hintText:
-                    widget.isArabic ? 'أدخل الكمية المعدلة' : 'Enter adjusted quantity',
+                hintText: widget.isArabic
+                    ? 'أدخل الكمية المعدلة'
+                    : 'Enter adjusted quantity',
                 filled: true,
                 fillColor: surfaceTint,
                 border: OutlineInputBorder(
@@ -733,9 +859,11 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
             if (widget.state.errorMessage != null) ...[
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.errorContainer.withValues(alpha: 0.55),
+                  color:
+                      theme.colorScheme.errorContainer.withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(

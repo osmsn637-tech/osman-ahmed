@@ -30,6 +30,14 @@ class _PendingAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<Result<void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    return const Success<void>(null);
+  }
+
+  @override
   Future<Result<void>> logout() async {
     return const Success<void>(null);
   }
@@ -55,6 +63,14 @@ class _RecordingAuthRepository implements AuthRepository {
   @override
   Future<Result<User?>> loadPersistedSession() async {
     return const Success<User?>(null);
+  }
+
+  @override
+  Future<Result<void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    return const Success<void>(null);
   }
 
   @override

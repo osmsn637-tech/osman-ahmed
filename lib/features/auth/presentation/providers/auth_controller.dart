@@ -34,7 +34,11 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> loadPersisted() async {
+    final hadAuthenticatedSessionBeforeLoad = _session.state.isAuthenticated;
     final result = await _authRepository.loadPersistedSession();
+    if (!hadAuthenticatedSessionBeforeLoad && _session.state.isAuthenticated) {
+      return;
+    }
     switch (result) {
       case Success<User?>(data: final user):
         if (user != null) {

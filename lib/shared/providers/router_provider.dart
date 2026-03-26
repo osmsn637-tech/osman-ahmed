@@ -8,15 +8,16 @@ import '../../features/dashboard/presentation/pages/exceptions_page.dart';
 import '../../features/move/domain/usecases/adjust_stock_usecase.dart';
 import '../../features/move/presentation/controllers/item_adjustment_controller.dart';
 import '../../features/move/domain/usecases/lookup_item_by_barcode_usecase.dart';
+import '../../features/move/domain/usecases/lookup_items_by_location_usecase.dart';
 import '../../features/move/presentation/controllers/item_lookup_controller.dart';
 import '../../features/move/presentation/pages/item_lookup_result_page.dart';
-import '../../features/move/presentation/pages/move_item_page.dart';
+import '../../features/move/presentation/controllers/location_lookup_controller.dart';
+import '../../features/move/presentation/pages/location_lookup_result_page.dart';
 import '../../features/inbound/presentation/pages/create_inbound_page.dart';
 import '../../features/inbound/domain/entities/inbound_entities.dart';
 import '../../features/inbound/presentation/controllers/inbound_receipt_controller.dart';
 import '../../features/inbound/presentation/pages/inbound_receipt_page.dart';
 import '../../features/inbound/domain/repositories/inbound_repository.dart';
-import '../../features/receive/presentation/pages/receive_page.dart';
 import '../../shared/widgets/main_scaffold.dart';
 import '../pages/account_page.dart';
 
@@ -36,11 +37,6 @@ GoRouter buildRouter(
       if (isAuthenticated && loggingIn) {
         return '/home';
       }
-
-      final isAdminRoute = subloc == '/admin';
-      if (isAdminRoute && sessionController.state.user?.isWorker == true) {
-        return '/receive';
-      }
       return null;
     },
     routes: [
@@ -51,13 +47,6 @@ GoRouter buildRouter(
       GoRoute(
         path: '/home',
         builder: (context, state) => const MainScaffold(),
-      ),
-      // Direct feature routes without tabs
-      GoRoute(
-        path: '/receive',
-        builder: (context, state) => ReceivePage(
-          initialBarcode: state.uri.queryParameters['barcode'],
-        ),
       ),
       GoRoute(
         path: '/inbound/create',
@@ -84,10 +73,6 @@ GoRouter buildRouter(
             child: InboundReceiptPage(receiptId: receiptId),
           );
         },
-      ),
-      GoRoute(
-        path: '/move',
-        builder: (context, state) => const MoveItemPage(),
       ),
       GoRoute(
         path: '/item-lookup/result/:barcode',
@@ -118,6 +103,21 @@ GoRouter buildRouter(
               barcode: barcode,
               mode: mode,
             ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/location-lookup/result/:barcode',
+        builder: (context, state) {
+          final barcode = Uri.decodeComponent(
+            state.pathParameters['barcode'] ?? '',
+          );
+          return ChangeNotifierProvider<LocationLookupController>(
+            create: (_) => LocationLookupController(
+              lookupItemsByLocation:
+                  context.read<LookupItemsByLocationUseCase>(),
+            ),
+            child: LocationLookupResultPage(locationCode: barcode),
           );
         },
       ),

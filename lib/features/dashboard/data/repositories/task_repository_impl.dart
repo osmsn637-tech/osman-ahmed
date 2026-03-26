@@ -7,6 +7,7 @@ import '../datasources/dashboard_remote_data_source.dart';
 import '../datasources/task_remote_data_source.dart';
 import '../../domain/entities/task_entity.dart';
 import '../../../../core/errors/app_exception.dart';
+import '../../../../shared/utils/location_codes.dart';
 
 class TaskRepositoryImpl implements TaskRepository {
   TaskRepositoryImpl(
@@ -930,31 +931,11 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   String? _zoneFromLocationText(String? value) {
-    if (value == null || value.trim().isEmpty) return null;
-
-    final upper = value.trim().toUpperCase();
-    final explicitZone = RegExp(r'\bZ(\d{1,3})\b').firstMatch(upper);
-    if (explicitZone != null) {
-      return 'Z${explicitZone.group(1)!.padLeft(2, '0')}';
-    }
-
-    final structuredLocation =
-        RegExp(r'^[A-Z_]+-(\d{1,3})(?:-\d{1,3})+').firstMatch(upper);
-    if (structuredLocation != null) {
-      return 'Z${structuredLocation.group(1)!.padLeft(2, '0')}';
-    }
-
-    return null;
+    return normalizeZoneCode(value);
   }
 
   String? _zoneFromExplicitZoneText(String? value) {
-    if (value == null || value.trim().isEmpty) return null;
-
-    final match =
-        RegExp(r'\bZ(\d{1,3})\b').firstMatch(value.trim().toUpperCase());
-    if (match == null) return null;
-
-    return 'Z${match.group(1)!.padLeft(2, '0')}';
+    return normalizeZoneCode(value);
   }
 
   String _remoteTaskIdFor(TaskEntity task) {
@@ -1059,6 +1040,7 @@ class TaskRepositoryImpl implements TaskRepository {
       case 'adjust':
       case 'adjustment':
         return TaskType.adjustment;
+      case 'restock':
       case 'refill':
       case 'replenishment':
         return TaskType.refill;
@@ -1073,13 +1055,7 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   String? _normalizeZone(String? zone) {
-    if (zone == null || zone.trim().isEmpty) return null;
-    final value = zone.trim().toUpperCase();
-    final match = RegExp(r'Z?\d+').firstMatch(value);
-    if (match == null) return value;
-    final matched = match.group(0)!;
-    if (matched.startsWith('Z')) return matched;
-    return 'Z${matched.padLeft(2, '0')}';
+    return normalizeZoneCode(zone);
   }
 
   String? _extractNextCursor(

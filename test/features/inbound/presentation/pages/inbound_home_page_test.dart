@@ -60,11 +60,16 @@ void main() {
     WidgetTester tester, {
     required String value,
   }) async {
+    final scannerField = find.descendant(
+      of: find.byKey(const Key('scan_barcode_field')),
+      matching: find.byType(EditableText),
+    );
     await tester.enterText(
-      find.byKey(const Key('scan_barcode_field')),
+      scannerField,
       '$value\n',
     );
     await tester.pumpAndSettle();
+    await pumpUi(tester);
   }
 
   testWidgets('inbound home shows the receive and lookup actions', (
@@ -154,10 +159,7 @@ void main() {
     await pumpUi(tester);
     await submitScanDialog(tester, value: 'RCV-1001');
 
-    expect(
-      router.routeInformationProvider.value.uri.toString(),
-      '/inbound/receipt/receipt-1001',
-    );
+    expect(find.text('Receipt receipt-1001'), findsOneWidget);
   });
 
   testWidgets('lookup scan still routes to item lookup result', (tester) async {

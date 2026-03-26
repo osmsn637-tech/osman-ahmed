@@ -79,6 +79,30 @@ void main() {
     expect(controller.state.canSubmit, isFalse);
   });
 
+  test('submit does not adjust when quantity is entered without a location', () async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+    final gateway = _FakeAdjustStockGateway();
+    final controller = buildController(session, gateway);
+
+    controller.setQuantityText('3');
+
+    await controller.submitForItem(buildSummary());
+
+    expect(controller.state.canSubmit, isFalse);
+    expect(controller.state.success, isFalse);
+    expect(controller.state.errorMessage, 'Select a location and quantity.');
+    expect(gateway.lastParams, isNull);
+  });
+
   test('submit allows zero quantity corrections', () async {
     final session = SessionController();
     session.setUser(
@@ -167,6 +191,17 @@ void main() {
     expect(gateway.lastParams!.locationId, 1111014889);
     expect(gateway.lastParams!.locationBarcode, 'Z012-BLK-A01-L02-P05');
     expect(gateway.lastParams!.newQuantity, 3);
+  });
+
+  test('typing new bulk location format marks the selection as bulk', () {
+    final session = SessionController();
+    final controller = buildController(session, _FakeAdjustStockGateway());
+
+    controller.updateSelectedLocationCode('BULK A2.2');
+
+    expect(controller.state.selectedLocationCode, 'BULK A2.2');
+    expect(controller.state.selectedLocationType, 'bulk');
+    expect(controller.state.selectedLocationId, isNotNull);
   });
 }
 

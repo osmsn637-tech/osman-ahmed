@@ -10,6 +10,7 @@ import '../../features/auth/presentation/providers/session_provider.dart';
 import '../l10n/l10n.dart';
 import '../providers/locale_controller.dart';
 import '../theme/app_theme.dart';
+import '../utils/location_codes.dart';
 
 class AccountPage extends StatelessWidget {
   const AccountPage({super.key});
@@ -24,6 +25,7 @@ class AccountPage extends StatelessWidget {
     final role = user?.canonicalRole ?? 'worker';
     final phone = user?.phone ?? '966533333333';
     final direction = locale == 'ar' ? TextDirection.rtl : TextDirection.ltr;
+    final zone = formatZoneForDisplay(user?.zone);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.accountMyAccount)),
@@ -50,6 +52,7 @@ class AccountPage extends StatelessWidget {
                   _InfoPanel(
                     phone: phone,
                     role: role,
+                    zone: zone,
                     l10n: l10n,
                   ),
                   const SizedBox(height: 14),
@@ -157,11 +160,13 @@ class _InfoPanel extends StatelessWidget {
   const _InfoPanel({
     required this.phone,
     required this.role,
+    required this.zone,
     required this.l10n,
   });
 
   final String phone;
   final String role;
+  final String zone;
   final AppLocalizations l10n;
 
   @override
@@ -183,6 +188,12 @@ class _InfoPanel extends StatelessWidget {
             value: _roleLabel(l10n, role),
           ),
           const SizedBox(height: 10),
+          _InfoRow(
+            icon: Icons.location_on_outlined,
+            label: l10n.accountZone,
+            value: zone,
+          ),
+          const SizedBox(height: 10),
         ],
       ),
     );
@@ -193,7 +204,7 @@ String _roleLabel(AppLocalizations l10n, String role) {
   return switch (User.canonicalizeRole(role)) {
     'supervisor' => l10n.roleSupervisor,
     'inbound' => l10n.roleInbound,
-    _ => 'PUTAWAY',
+    _ => l10n.roleWorker,
   };
 }
 
@@ -259,7 +270,7 @@ class _ActionsPanel extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.error,
               ),
-              onPressed: () => context.read<SessionController>().clear(),
+              onPressed: () => _signOut(context),
               icon: const Icon(Icons.logout_rounded),
               label: Text(l10n.accountSignOut),
             ),
@@ -267,6 +278,22 @@ class _ActionsPanel extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final repository = context.read<AuthRepository>();
+    final session = context.read<SessionController>();
+    final result = await repository.logout();
+
+    switch (result) {
+      case Success<void>():
+        session.clear();
+      case Failure<void>(error: final error):
+        messenger.showSnackBar(
+          SnackBar(content: Text(error.toString())),
+        );
+    }
   }
 }
 
@@ -296,6 +323,27 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
   bool _isSubmitting = false;
   String? _errorMessage;
 
+  bool get _isArabic => Localizations.localeOf(context).languageCode == 'ar';
+
+  String get _requiredFieldsMessage => _isArabic
+      ? 'حقلا كلمة المرور مطلوبان'
+      : 'Both password fields are required';
+
+  String get _passwordUpdatedMessage => _isArabic
+      ? 'تم تحديث كلمة المرور بنجاح'
+      : 'Password updated successfully';
+
+  String get _currentPasswordLabel =>
+      _isArabic ? 'كلمة المرور الحالية' : 'Current Password';
+
+  String get _newPasswordLabel =>
+      _isArabic ? 'كلمة المرور الجديدة' : 'New Password';
+
+  String get _cancelLabel => _isArabic ? 'إلغاء' : 'Cancel';
+
+  String get _updatePasswordLabel =>
+      _isArabic ? 'تحديث كلمة المرور' : 'Update Password';
+
   @override
   void initState() {
     super.initState();
@@ -315,7 +363,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
     final newPassword = _newPasswordController.text.trim();
     if (currentPassword.isEmpty || newPassword.isEmpty) {
       setState(() {
-        _errorMessage = 'Both password fields are required';
+        _errorMessage = _requiredFieldsMessage;
       });
       return;
     }
@@ -336,8 +384,8 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
       case Success<void>():
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password updated successfully'),
+          SnackBar(
+            content: Text(_passwordUpdatedMessage),
           ),
         );
       case Failure<void>(error: final error):
@@ -360,8 +408,8 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
             controller: _currentPasswordController,
             enabled: !_isSubmitting,
             obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'Current Password',
+            decoration: InputDecoration(
+              labelText: _currentPasswordLabel,
             ),
           ),
           const SizedBox(height: 12),
@@ -369,8 +417,8 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
             controller: _newPasswordController,
             enabled: !_isSubmitting,
             obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'New Password',
+            decoration: InputDecoration(
+              labelText: _newPasswordLabel,
             ),
           ),
           if (_errorMessage != null) ...[
@@ -388,7 +436,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(_cancelLabel),
         ),
         ElevatedButton(
           onPressed: _isSubmitting ? null : _submit,
@@ -398,7 +446,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Update Password'),
+              : Text(_updatePasswordLabel),
         ),
       ],
     );

@@ -108,7 +108,10 @@ class LoginFormController extends ChangeNotifier {
 
   Future<void> _handleLogin() async {
     final result = await _loginUseCase.execute(
-      LoginParams(phone: _state.username, password: _state.password),
+      LoginParams(
+        phone: _normalizePhoneForSubmit(_state.username),
+        password: _state.password,
+      ),
     );
 
     switch (result) {
@@ -128,5 +131,19 @@ class LoginFormController extends ChangeNotifier {
   void dispose() {
     _session.removeListener(_handleSessionChanged);
     super.dispose();
+  }
+
+  static String _normalizePhoneForSubmit(String rawValue) {
+    var normalized = rawValue.replaceAll(RegExp(r'\D'), '');
+    if (normalized.startsWith('00') && normalized.length > 2) {
+      normalized = normalized.substring(2);
+    }
+    if (normalized.startsWith('966') && normalized.length > 3) {
+      normalized = normalized.substring(3);
+    }
+    if (normalized.startsWith('0') && normalized.length > 1) {
+      normalized = normalized.substring(1);
+    }
+    return normalized;
   }
 }

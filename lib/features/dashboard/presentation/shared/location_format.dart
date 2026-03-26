@@ -1,3 +1,5 @@
+import '../../../../shared/utils/location_codes.dart';
+
 enum LocationType { shelf, bulk, unknown }
 
 extension LocationTypeLabel on LocationType {
@@ -16,7 +18,15 @@ extension LocationTypeLabel on LocationType {
 LocationType detectLocationType(String? location) {
   if (location == null || location.trim().isEmpty) return LocationType.unknown;
 
-  final parts = location.toUpperCase().split('-');
+  final normalized = location.trim().toUpperCase();
+  if (isCompactShelfLocation(normalized)) {
+    return LocationType.shelf;
+  }
+  if (isBulkLocationCode(normalized)) {
+    return LocationType.bulk;
+  }
+
+  final parts = normalized.split('-');
   if (parts.length == 4 &&
       parts[0].startsWith('Z') &&
       parts[1].startsWith('C') &&

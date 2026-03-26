@@ -171,7 +171,7 @@ void main() {
     );
 
     expect(find.text('Unit Task'), findsOneWidget);
-    expect(find.text('Qty: 7 box'), findsOneWidget);
+    expect(find.text('Qty 7 box'), findsOneWidget);
   });
 
   testWidgets(

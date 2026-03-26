@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../shared/l10n/l10n.dart';
 import '../../../../shared/theme/app_theme.dart';
+import '../../../../shared/utils/location_codes.dart';
 import '../../../auth/presentation/providers/session_provider.dart';
 import '../../../move/domain/usecases/lookup_item_by_barcode_usecase.dart';
 import '../../../move/presentation/pages/item_lookup_result_page.dart';
@@ -65,6 +66,23 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
     BuildContext context, {
     required ItemLookupPageMode mode,
   }) async {
+    if (mode == ItemLookupPageMode.lookup) {
+      final lookupResult = await showLookupScanDialog(
+        context,
+        showKeyboard: false,
+      );
+      final normalized = lookupResult?.value.trim() ?? '';
+      if (!context.mounted || normalized.isEmpty) {
+        return;
+      }
+
+      final route = lookupResult!.kind == LookupScanKind.location
+          ? '/location-lookup/result/${Uri.encodeComponent(normalized)}'
+          : '/item-lookup/result/${Uri.encodeComponent(normalized)}';
+      context.push(route);
+      return;
+    }
+
     final barcode = await showItemLookupScanDialog(
       context,
       showKeyboard: false,
@@ -115,7 +133,9 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(l10n.zoneWithCode(user?.zone ?? '--')),
+            title: Text(
+              l10n.zoneWithCode(formatZoneForDisplay(user?.zone)),
+            ),
             actions: [
               IconButton(
                 onPressed: ctrl.refresh,
@@ -324,9 +344,11 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
         builder: (_) => WorkerTaskDetailsPage(
           task: task,
           onStartTask: onStartTask,
-          onCompleteTask:
-              (taskId, {int? quantity, String? locationId, List<Map<String, Object?>>? cycleCountItems}) =>
-                  controller.complete(
+          onCompleteTask: (taskId,
+                  {int? quantity,
+                  String? locationId,
+                  List<Map<String, Object?>>? cycleCountItems}) =>
+              controller.complete(
             taskId,
             quantity: quantity,
             locationId: locationId,

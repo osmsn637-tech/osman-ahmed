@@ -81,6 +81,33 @@ void main() {
       expect(model.locations.last.locationId, isNot(0));
     });
 
+    test('infers shelf and bulk from SB and GRND location codes', () {
+      final model = ItemLocationSummaryModel.fromJson({
+        'product_id': '16716',
+        'product_name': 'Tortilla Rolls',
+        'barcode': '6281100362760',
+        'total_quantity': 100,
+        'locations': [
+          {
+            'location_id': '019b4267-dcf4-72db-8823-deeb22003ec4',
+            'location_code': 'Z03-C16-SB-L01-P03',
+            'quantity': 0,
+            'available_quantity': 0,
+          },
+          {
+            'location_id': '019bd2eb-9536-703c-b20b-e58cedecc1f3',
+            'location_code': 'Z03-PT01-GRND-L01-P01',
+            'quantity': 100,
+            'available_quantity': 100,
+          },
+        ],
+      });
+
+      expect(model.locations, hasLength(2));
+      expect(model.locations.first.type, 'shelf');
+      expect(model.locations.last.type, 'bulk');
+    });
+
     test('parses nested product map and normalizes image url to https', () {
       final model = ItemLocationSummaryModel.fromJson({
         'data': {
@@ -103,6 +130,155 @@ void main() {
         model.itemImageUrl,
         'https://img.qeu.app/products/012000065248/012000065248_20260103135844.jpg',
       );
+    });
+
+    test('parses compact shelf location codes from locations array payload', () {
+      final model = ItemLocationSummaryModel.fromJson({
+        'product_id': '11250',
+        'product_name': 'فقيه دجاج 900 جرام',
+        'product_image':
+            'http://img.qeu.app/products/6281101930050/1.png',
+        'sku': '',
+        'barcode': '6281101930050',
+        'total_quantity': 1,
+        'locations': [
+          {
+            'warehouse_id': '019966c3-0f2c-7950-ae4d-ae6b1d9a1fa7',
+            'warehouse_name': 'النخيل',
+            'location_id': 'da643939-ef45-4846-9a92-06f04f034192',
+            'location_code': 'A10.2',
+            'quantity': 1,
+            'reserved_quantity': 0,
+            'available_quantity': 1,
+            'batch_number': '',
+            'expiry_date': '1970-01-01',
+            'picked_quantity': 0,
+          },
+        ],
+      });
+
+      expect(model.itemId, 11250);
+      expect(model.itemName, 'فقيه دجاج 900 جرام');
+      expect(model.barcode, '6281101930050');
+      expect(
+        model.itemImageUrl,
+        'https://img.qeu.app/products/6281101930050/1.png',
+      );
+      expect(model.locations, hasLength(1));
+      expect(model.locations.single.code, 'A10.2');
+      expect(model.locations.single.type, 'shelf');
+      expect(model.toEntity().shelfLocations.single.code, 'A10.2');
+    });
+
+    test('parses B, C, and D compact shelf location codes as shelf', () {
+      final model = ItemLocationSummaryModel.fromJson({
+        'product_id': '11250',
+        'product_name': 'فقيه دجاج 900 جرام',
+        'barcode': '6281101930050',
+        'total_quantity': 3,
+        'locations': [
+          {
+            'location_id': '1',
+            'location_code': 'B10.2',
+            'quantity': 1,
+            'available_quantity': 1,
+          },
+          {
+            'location_id': '2',
+            'location_code': 'C08.1',
+            'quantity': 1,
+            'available_quantity': 1,
+          },
+          {
+            'location_id': '3',
+            'location_code': 'D01.7',
+            'quantity': 1,
+            'available_quantity': 1,
+          },
+        ],
+      });
+
+      expect(model.locations, hasLength(3));
+      expect(model.locations.every((location) => location.type == 'shelf'), isTrue);
+      expect(model.toEntity().shelfLocations.map((location) => location.code), [
+        'B10.2',
+        'C08.1',
+        'D01.7',
+      ]);
+    });
+
+    test('parses one-digit compact shelf codes as shelf', () {
+      final model = ItemLocationSummaryModel.fromJson({
+        'product_id': '261',
+        'product_name': 'برافو حفايض اطفال رقم7 ×36',
+        'barcode': '6224000195113',
+        'total_quantity': 4,
+        'locations': [
+          {
+            'location_id': '1',
+            'location_code': 'A2.2',
+            'quantity': 1,
+            'available_quantity': 1,
+          },
+          {
+            'location_id': '2',
+            'location_code': 'B2.2',
+            'quantity': 1,
+            'available_quantity': 1,
+          },
+          {
+            'location_id': '3',
+            'location_code': 'C3.1',
+            'quantity': 1,
+            'available_quantity': 1,
+          },
+          {
+            'location_id': '4',
+            'location_code': 'D4.7',
+            'quantity': 1,
+            'available_quantity': 1,
+          },
+        ],
+      });
+
+      expect(model.locations, hasLength(4));
+      expect(model.locations.every((location) => location.type == 'shelf'), isTrue);
+      expect(model.toEntity().shelfLocations.map((location) => location.code), [
+        'A2.2',
+        'B2.2',
+        'C3.1',
+        'D4.7',
+      ]);
+    });
+
+    test('parses new bulk location formats as bulk', () {
+      final model = ItemLocationSummaryModel.fromJson({
+        'product_id': '261',
+        'product_name': 'برافو حفايض اطفال رقم7 ×36',
+        'barcode': '6224000195113',
+        'total_quantity': 2,
+        'locations': [
+          {
+            'location_id': '1',
+            'location_code': 'BULK A2.2',
+            'quantity': 1,
+            'available_quantity': 1,
+          },
+          {
+            'location_id': '2',
+            'location_code': 'BULK-C3.1',
+            'quantity': 1,
+            'available_quantity': 1,
+          },
+        ],
+      });
+
+      expect(model.locations, hasLength(2));
+      expect(model.locations.every((location) => location.type == 'bulk'), isTrue);
+      expect(model.toEntity().bulkLocations.map((location) => location.code), [
+        'BULK A2.2',
+        'BULK-C3.1',
+      ]);
     });
   });
 }

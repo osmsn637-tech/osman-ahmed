@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/utils/result.dart';
+import '../../../../shared/utils/location_codes.dart';
 import '../../../auth/presentation/providers/session_provider.dart';
 import '../../domain/entities/item_location_entity.dart';
 import '../../domain/entities/item_location_summary_entity.dart';
@@ -30,6 +31,7 @@ class ItemAdjustmentState {
   final bool success;
 
   bool get canSubmit =>
+      selectedLocationId != null &&
       selectedLocationCode != null &&
       selectedLocationCode!.trim().isNotEmpty &&
       hasQuantityInput &&
@@ -212,7 +214,7 @@ class ItemAdjustmentController extends ChangeNotifier {
 
   static String _inferType(String code) {
     final upper = code.toUpperCase();
-    if (upper.contains('BLK')) return 'bulk';
+    if (isBulkLocationCode(upper)) return 'bulk';
     if (upper.isEmpty) return '';
     return 'shelf';
   }

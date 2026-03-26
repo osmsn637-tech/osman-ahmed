@@ -93,21 +93,109 @@ void main() {
     controller.passwordChanged('xy');
     expect(notificationCount, 1);
   });
+
+  test('submit strips 966 prefix before sending the worker number', () async {
+    final session = SessionController();
+    final repository = _FakeAuthRepository(
+      user: const User(
+        id: '2bcf9d5d-1234-4f1d-8f6d-000000000010',
+        name: 'Worker',
+        role: 'worker',
+        phone: '512345678',
+        zone: 'A',
+      ),
+    );
+    final controller = LoginFormController(
+      loginUseCase: LoginUseCase(repository),
+      errors: GlobalErrorController(),
+      loading: GlobalLoadingController(),
+      session: session,
+    );
+
+    controller.usernameChanged('966512345678');
+    controller.passwordChanged('x');
+    await controller.submit();
+
+    expect(repository.lastLoginParams, isNotNull);
+    expect(repository.lastLoginParams!.phone, '512345678');
+  });
+
+  test('submit strips leading zero before sending the worker number', () async {
+    final session = SessionController();
+    final repository = _FakeAuthRepository(
+      user: const User(
+        id: '2bcf9d5d-1234-4f1d-8f6d-000000000011',
+        name: 'Worker',
+        role: 'worker',
+        phone: '512345678',
+        zone: 'A',
+      ),
+    );
+    final controller = LoginFormController(
+      loginUseCase: LoginUseCase(repository),
+      errors: GlobalErrorController(),
+      loading: GlobalLoadingController(),
+      session: session,
+    );
+
+    controller.usernameChanged('0512345678');
+    controller.passwordChanged('x');
+    await controller.submit();
+
+    expect(repository.lastLoginParams, isNotNull);
+    expect(repository.lastLoginParams!.phone, '512345678');
+  });
+
+  test('submit strips both 966 and 0 when both are entered before 5', () async {
+    final session = SessionController();
+    final repository = _FakeAuthRepository(
+      user: const User(
+        id: '2bcf9d5d-1234-4f1d-8f6d-000000000012',
+        name: 'Worker',
+        role: 'worker',
+        phone: '512345678',
+        zone: 'A',
+      ),
+    );
+    final controller = LoginFormController(
+      loginUseCase: LoginUseCase(repository),
+      errors: GlobalErrorController(),
+      loading: GlobalLoadingController(),
+      session: session,
+    );
+
+    controller.usernameChanged('9660512345678');
+    controller.passwordChanged('x');
+    await controller.submit();
+
+    expect(repository.lastLoginParams, isNotNull);
+    expect(repository.lastLoginParams!.phone, '512345678');
+  });
 }
 
 class _FakeAuthRepository implements AuthRepository {
   _FakeAuthRepository({required this.user});
 
   final User user;
+  LoginParams? lastLoginParams;
 
   @override
   Future<Result<User>> login(LoginParams params) async {
+    lastLoginParams = params;
     return Success<User>(user);
   }
 
   @override
   Future<Result<User?>> loadPersistedSession() async {
     return const Success<User?>(null);
+  }
+
+  @override
+  Future<Result<void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    return const Success<void>(null);
   }
 
   @override

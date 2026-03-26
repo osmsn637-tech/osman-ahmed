@@ -31,7 +31,7 @@ void main() {
         name: 'Worker',
         role: 'worker',
         phone: '9990000000',
-        zone: 'Z01',
+        zone: 'zone a',
       ),
     );
 
@@ -81,7 +81,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Zone Z01'), findsOneWidget);
+    expect(find.text('Zone A'), findsOneWidget);
     expect(find.byType(AppLogo), findsNothing);
   });
 
@@ -303,16 +303,6 @@ void main() {
     final lookupButton = find.widgetWithText(ElevatedButton, 'Lookup');
     expect(lookupButton, findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Adjust'), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Image &&
-            widget.image is AssetImage &&
-            (widget.image as AssetImage).assetName ==
-                'assets/images/app_icon_master.png',
-      ),
-      findsOneWidget,
-    );
   });
 
   testWidgets('worker home exposes standalone adjust quick action',
@@ -439,10 +429,14 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Lookup'));
     await tester.pumpAndSettle();
 
-    final field = tester.widget<TextField>(
-      find.byKey(const Key('scan_barcode_field')),
+    final field = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('scan_barcode_field')),
+        matching: find.byType(EditableText),
+      ),
     );
 
     expect(field.keyboardType, TextInputType.none);
+    expect(field.focusNode.hasFocus, isTrue);
   });
 }

@@ -181,7 +181,7 @@ void main() {
     expect(find.text('Z012-C01-L02-P03'), findsOneWidget);
   });
 
-  testWidgets('adjust mode confirm success returns after submit',
+  testWidgets('adjust mode success shows popup before navigating home',
       (tester) async {
     final gateway = _FakeAdjustStockGateway();
 
@@ -213,13 +213,39 @@ void main() {
     await tester.tap(find.byKey(const Key('adjust_confirm_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Adjust successful'), findsOneWidget);
+    expect(
+      find.text('The item quantity was adjusted successfully.'),
+      findsOneWidget,
+    );
+    expect(
+        find.byKey(const Key('adjust_success_confirm_button')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('adjust_success_confirm_button')),
+        matching: find.byType(Text),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<ElevatedButton>(
+        find.byKey(const Key('adjust_success_confirm_button')),
+      ),
+      isA<ElevatedButton>(),
+    );
+    expect(find.text('Adjust Item'), findsOneWidget);
+    expect(find.text('Home'), findsNothing);
     expect(gateway.lastParams, isNotNull);
     expect(gateway.lastParams!.locationId, 2);
     expect(gateway.lastParams!.locationBarcode, 'Z012-BLK-A01-L02-P05');
     expect(gateway.lastParams!.newQuantity, 3);
     expect(gateway.lastParams!.note, isNull);
     expect(gateway.lastParams!.reason, 'Count Correction');
+
+    await tester.tap(find.byKey(const Key('adjust_success_confirm_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Home'), findsOneWidget);
   });
 
   testWidgets('adjust mode allows submitting zero quantity', (tester) async {
@@ -247,7 +273,8 @@ void main() {
     await scrollTo(tester, find.byKey(const Key('adjust_confirm_button')));
     expect(
       tester
-          .widget<ElevatedButton>(find.byKey(const Key('adjust_confirm_button')))
+          .widget<ElevatedButton>(
+              find.byKey(const Key('adjust_confirm_button')))
           .onPressed,
       isNotNull,
     );
@@ -255,9 +282,47 @@ void main() {
     await tester.tap(find.byKey(const Key('adjust_confirm_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Home'), findsOneWidget);
+    expect(
+        find.byKey(const Key('adjust_success_confirm_button')), findsOneWidget);
     expect(gateway.lastParams, isNotNull);
     expect(gateway.lastParams!.newQuantity, 0);
+
+    await tester.tap(find.byKey(const Key('adjust_success_confirm_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Home'), findsOneWidget);
+  });
+
+  testWidgets('adjust mode keeps confirm disabled until a location is chosen', (
+    tester,
+  ) async {
+    final gateway = _FakeAdjustStockGateway();
+
+    await tester.pumpWidget(
+      buildApp(
+        buildRouter(
+          mode: ItemLookupPageMode.adjust,
+          gateway: gateway,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await scrollTo(tester, find.byKey(const Key('adjust_quantity_field')));
+    await tester.enterText(find.byKey(const Key('adjust_quantity_field')), '3');
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('adjust_confirm_button')));
+
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.byKey(const Key('adjust_confirm_button')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(gateway.lastParams, isNull);
+    expect(find.text('Adjust successful'), findsNothing);
   });
 
   testWidgets('adjust mode failure shows inline error and keeps form state', (
@@ -312,6 +377,21 @@ void main() {
     expect(find.text('مواقع الرفوف'), findsOneWidget);
     expect(find.text('مواقع التخزين'), findsOneWidget);
   });
+
+  testWidgets(
+      'lookup mode renders compact backend shelf locations under shelf section',
+      (tester) async {
+    await tester.pumpWidget(
+      buildApp(
+        buildRouter(repository: const _CompactShelfItemRepository()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Shelf Locations'), findsOneWidget);
+    expect(find.text('A10.2'), findsOneWidget);
+    expect(find.text('Bulk Locations'), findsNothing);
+  });
 }
 
 class _FakeAdjustStockGateway {
@@ -352,16 +432,39 @@ class _DuplicateLocationItemRepository extends FakeItemRepository {
           ),
         );
 }
-  Widget buildApp(GoRouter router, {Locale? locale}) {
-    return MaterialApp.router(
-      routerConfig: router,
-      locale: locale,
-      supportedLocales: const [Locale('en'), Locale('ar')],
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-    );
-  }
+
+class _CompactShelfItemRepository extends FakeItemRepository {
+  const _CompactShelfItemRepository()
+      : super(
+          summary: const ItemLocationSummaryEntity(
+            itemId: 11250,
+            itemName: 'فقيه دجاج 900 جرام',
+            barcode: '6281101930050',
+            itemImageUrl: 'https://img.qeu.app/products/6281101930050/1.png',
+            totalQuantity: 1,
+            locations: [
+              ItemLocationEntity(
+                locationId: 101,
+                zone: '',
+                type: 'shelf',
+                code: 'A10.2',
+                quantity: 1,
+              ),
+            ],
+          ),
+        );
+}
+
+Widget buildApp(GoRouter router, {Locale? locale}) {
+  return MaterialApp.router(
+    routerConfig: router,
+    locale: locale,
+    supportedLocales: const [Locale('en'), Locale('ar')],
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+  );
+}

@@ -108,8 +108,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   bool _itemValidated = false;
   bool _locationValidated = false;
   bool _startedLocally = false;
-  bool _returnToteValidated = false;
-  final bool _showUnexpectedItemFields = false;
   int _receivePage = 0;
   int _refillPage = 0;
   int _returnPage = 0;
@@ -143,8 +141,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
 
   String get _manualTypeLabel => _tr('Manual Type', 'إدخال يدوي');
 
-  String get _cancelLabel => _tr('Cancel', 'إلغاء');
-
   String get _locationValidatedLabel =>
       _tr('Location validated', 'تم التحقق من الموقع');
 
@@ -159,18 +155,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   String? _lastAutoValidatedLocation;
   String? _locationValidationInFlightValue;
   bool _cycleCountDetailBarcodeValidated = false;
-
-  String _messageForError(
-    Object error, {
-    required String fallbackEnglish,
-    required String fallbackArabic,
-  }) {
-    return switch (error) {
-      AppException(message: final message) when message.trim().isNotEmpty =>
-        message,
-      _ => _tr(fallbackEnglish, fallbackArabic),
-    };
-  }
 
   @override
   void initState() {
@@ -1685,7 +1669,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   }
 
   Widget _buildCycleCountListPage(BuildContext context, TaskEntity task) {
-    final typeColor = taskTypeColor(task.type);
     final counted = _cycleCountItems.where((item) => item.completed).length;
     final total = _cycleCountItems.length;
 
@@ -2234,16 +2217,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       }
     }
 
-    setState(() {
-      _cycleCountScanError = _tr(
-        'Scanned item is not in this cycle count list.',
-        'الصنف الممسوح غير موجود في قائمة الجرد هذه.',
-      );
-    });
-    _restoreCycleCountScannerFocus();
-  }
-
-  void _showCycleCountScanError() {
     setState(() {
       _cycleCountScanError = _tr(
         'Scanned item is not in this cycle count list.',
@@ -2859,15 +2832,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     return _returnItemLocationControllers.last.text.trim();
   }
 
-  int get _fullShelfCountedQuantity {
-    var total = 0;
-    for (final controller in _cycleCountLineControllers) {
-      total += _parsePositiveInt(controller.text) ?? 0;
-    }
-    total += _parsePositiveInt(_unexpectedItemQuantityController.text) ?? 0;
-    return total;
-  }
-
   int get _cycleCountTotalCountedQuantity {
     var total = 0;
     for (final item in _cycleCountItems) {
@@ -3278,15 +3242,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       _scheduleProductFailureClear(scanned);
     }
     _restoreActiveValidationFocus();
-  }
-
-  void _validateReturnTote() {
-    final expected = widget.task.returnContainerId?.trim().toUpperCase() ?? '';
-    final scanned = _returnToteController.text.trim().toUpperCase();
-    setState(() {
-      _returnToteValidated = scanned.isNotEmpty && scanned == expected;
-      _completionMessage = _returnToteValidated ? null : _completionMessage;
-    });
   }
 
   Future<void> _scanReturnItem(int index) async {

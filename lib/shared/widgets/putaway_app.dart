@@ -4,6 +4,8 @@ import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/app_update/presentation/controllers/app_update_controller.dart';
+import '../../features/app_update/presentation/widgets/force_update_gate.dart';
 import '../../features/auth/presentation/providers/session_provider.dart';
 import '../theme/app_theme.dart';
 import 'global_error_listener.dart';
@@ -36,6 +38,7 @@ class _PutawayAppState extends State<PutawayApp> with WidgetsBindingObserver {
     if (state != AppLifecycleState.resumed || !mounted) {
       return;
     }
+    context.read<AppUpdateController?>()?.checkForUpdates();
     _redirectWorkerHomeIfNeeded();
   }
 
@@ -55,6 +58,7 @@ class _PutawayAppState extends State<PutawayApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final router = context.watch<GoRouter>();
     final localeController = context.watch<LocaleController>();
+    final appUpdateController = context.watch<AppUpdateController?>();
     return MaterialApp.router(
       onGenerateTitle: (context) => context.l10n.appTitle,
       theme: AppTheme.light(),
@@ -71,7 +75,12 @@ class _PutawayAppState extends State<PutawayApp> with WidgetsBindingObserver {
         child: GlobalErrorListener(
           child: GestureDetector(
             onTap: () => FocusScope.of(context).unfocus(),
-            child: child ?? const SizedBox.shrink(),
+            child: appUpdateController?.state.requiresForceUpdate == true
+                ? ForceUpdateGate(
+                    state: appUpdateController!.state,
+                    onUpdatePressed: appUpdateController.openUpdate,
+                  )
+                : child ?? const SizedBox.shrink(),
           ),
         ),
       ),

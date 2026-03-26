@@ -986,6 +986,73 @@ void main() {
     expect(tasks.single.zone, isEmpty);
   });
 
+  test('matches new compact shelf locations to letter worker zones', () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'id': 'putaway-new-zone-a',
+              'task_type': 'putaway',
+              'title': 'Compact Shelf Task',
+              'subtitle': 'A2.2',
+              'status': 'pending',
+              'detail': {
+                'item_id': 2201,
+                'product_name': 'Compact Shelf Task',
+                'product_barcode': 'COMPACT-2201',
+                'quantity': 1,
+                'to_location': 'A2.2',
+              },
+            },
+          ],
+        },
+      ),
+    );
+
+    final tasks = await repository.getTasksForZone('zone a');
+
+    expect(tasks, hasLength(1));
+    expect(tasks.single.zone, 'A');
+    expect(tasks.single.toLocation, 'A2.2');
+  });
+
+  test('matches new bulk and shelf restock locations to letter worker zones',
+      () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'id': 'restock-new-zone-c',
+              'task_type': 'restock',
+              'title': 'New Format Restock',
+              'subtitle': 'Zone C',
+              'status': 'pending',
+              'detail': {
+                'item_id': 2202,
+                'item_name': 'New Format Restock',
+                'item_barcode': 'RESTOCK-2202',
+                'quantity': 2,
+                'bulk_location': 'BULK C2.2',
+                'target_location_code': 'C3.1',
+              },
+            },
+          ],
+        },
+      ),
+    );
+
+    final tasks = await repository.getTasksForZone('C');
+
+    expect(tasks, hasLength(1));
+    expect(tasks.single.zone, 'C');
+    expect(tasks.single.fromLocation, 'BULK C2.2');
+    expect(tasks.single.toLocation, 'C3.1');
+  });
+
   test('returns only api tasks for the requested zone', () async {
     final repository = TaskRepositoryImpl(
       _FakeDashboardRemoteDataSource(),

@@ -1,4 +1,5 @@
 import '../../domain/entities/item_location_entity.dart';
+import '../../../../shared/utils/location_codes.dart';
 
 class ItemLocationModel {
   const ItemLocationModel({
@@ -72,13 +73,19 @@ class ItemLocationModel {
 
   static String _inferTypeFromCode(String code) {
     final upper = code.toUpperCase();
+    if (isCompactShelfLocation(upper)) return 'shelf';
+    if (isBulkLocationCode(upper)) return 'bulk';
     if (upper.contains('-SS-')) return 'shelf';
+    if (upper.contains('-SB-')) return 'shelf';
     if (upper.contains('-BLK-')) return 'bulk';
+    if (upper.contains('-GRND-')) return 'bulk';
     return '';
   }
 
   static String _inferZoneFromCode(String code) {
     if (code.isEmpty) return '';
+    final normalizedZone = normalizeZoneCode(code);
+    if (normalizedZone != null) return normalizedZone;
     final parts = code.split('-');
     return parts.isEmpty ? '' : parts.first.trim();
   }

@@ -66,7 +66,8 @@ void main() {
     expect(editableText.focusNode.hasFocus, isTrue);
     expect(fieldSize.width, greaterThan(0));
     expect(fieldSize.height, greaterThan(0));
-    expect(find.byKey(const Key('lookup_scanner_status_label')), findsOneWidget);
+    expect(
+        find.byKey(const Key('lookup_scanner_status_label')), findsOneWidget);
     expect(
       tester
           .widget<Text>(find.byKey(const Key('lookup_scanner_status_label')))
@@ -200,8 +201,7 @@ void main() {
     expect(editableText.focusNode.hasFocus, isTrue);
   });
 
-  testWidgets(
-      'app resume primes the scanner input method for the popup',
+  testWidgets('app resume primes the scanner input method for the popup',
       (tester) async {
     final calls = <MethodCall>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -235,10 +235,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
-    final secondEditableText = tester.widget<EditableText>(scannerFieldFinder());
+    final secondEditableText =
+        tester.widget<EditableText>(scannerFieldFinder());
     expect(secondEditableText.focusNode, isNot(same(firstFocusNode)));
-    final showCalls = calls.where((call) => call.method == 'TextInput.show').length;
-    final hideCalls = calls.where((call) => call.method == 'TextInput.hide').length;
+    final showCalls =
+        calls.where((call) => call.method == 'TextInput.show').length;
+    final hideCalls =
+        calls.where((call) => call.method == 'TextInput.hide').length;
     expect(showCalls, greaterThan(0));
     expect(hideCalls, greaterThan(0));
   });
@@ -300,8 +303,10 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    final showCalls = calls.where((call) => call.method == 'TextInput.show').length;
-    final hideCalls = calls.where((call) => call.method == 'TextInput.hide').length;
+    final showCalls =
+        calls.where((call) => call.method == 'TextInput.show').length;
+    final hideCalls =
+        calls.where((call) => call.method == 'TextInput.hide').length;
     expect(showCalls, greaterThan(0));
     expect(hideCalls, greaterThan(0));
   });
@@ -353,7 +358,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     await tester.pumpAndSettle();
 
-    final secondEditableText = tester.widget<EditableText>(scannerFieldFinder());
+    final secondEditableText =
+        tester.widget<EditableText>(scannerFieldFinder());
     expect(secondEditableText.focusNode, isNot(same(firstFocusNode)));
     expect(secondEditableText.focusNode.hasFocus, isTrue);
   });
@@ -522,7 +528,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('manual entry can be cancelled back to scan mode', (tester) async {
+  testWidgets('manual entry can be cancelled back to scan mode',
+      (tester) async {
     await openDialog(tester);
     await tester.ensureVisible(
       find.byKey(const Key('lookup_manual_entry_button')),
@@ -556,7 +563,8 @@ void main() {
 
     expect(find.text('Scanner focus active'), findsNothing);
     expect(find.byKey(const Key('lookup_manual_entry_button')), findsNothing);
-    expect(find.byKey(const Key('lookup_manual_cancel_button')), findsOneWidget);
+    expect(
+        find.byKey(const Key('lookup_manual_cancel_button')), findsOneWidget);
     expect(find.byKey(const Key('lookup_manual_text_field')), findsOneWidget);
   });
 
@@ -577,5 +585,107 @@ void main() {
     final secondEditableText = tester.widget<EditableText>(fieldFinder);
     expect(secondEditableText.focusNode, isNot(same(firstFocusNode)));
     expect(secondEditableText.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets(
+      'lookup auto-detect manual mode returns a location result for recognized location codes',
+      (tester) async {
+    LookupScanResult? result;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        supportedLocales: const [Locale('en'), Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () async {
+                  result = await showLookupScanDialog(
+                    context,
+                    showKeyboard: false,
+                  );
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('lookup_manual_entry_button')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('lookup_manual_text_field')),
+      'A10.2',
+    );
+    await tester.pump();
+
+    await tester.tap(confirmButtonFinder());
+    await tester.pumpAndSettle();
+
+    expect(result, isNotNull);
+    expect(result!.kind, LookupScanKind.location);
+    expect(result!.value, 'A10.2');
+  });
+
+  testWidgets(
+      'lookup auto-detect manual mode returns an item result for numeric barcodes',
+      (tester) async {
+    LookupScanResult? result;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        supportedLocales: const [Locale('en'), Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () async {
+                  result = await showLookupScanDialog(
+                    context,
+                    showKeyboard: false,
+                  );
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('lookup_manual_entry_button')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('lookup_manual_text_field')),
+      '123456789012',
+    );
+    await tester.pump();
+
+    await tester.tap(confirmButtonFinder());
+    await tester.pumpAndSettle();
+
+    expect(result, isNotNull);
+    expect(result!.kind, LookupScanKind.item);
+    expect(result!.value, '123456789012');
   });
 }

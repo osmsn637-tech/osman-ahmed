@@ -1,7 +1,7 @@
 name: wherehouse
 description: Warehouse inventory mobile app frontend built with Flutter and Clean Architecture.
 publish_to: "none"
-version: 1.1.0+1
+version: 1.2.1+1
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -14,6 +14,7 @@ dependencies:
   cupertino_icons: ^1.0.6
   provider: ^6.1.2
   package_info_plus: ^6.0.0
+  url_launcher: ^6.3.1
   dio: ^5.4.3
   flutter_secure_storage: ^9.0.0
   freezed_annotation: ^2.4.1

@@ -228,7 +228,9 @@ class _FakeTaskRepository implements TaskRepository {
 
   @override
   Future<TaskEntity> completeTask(int taskId,
-      {int? quantity, String? locationId}) {
+      {int? quantity,
+      String? locationId,
+      List<Map<String, Object?>>? cycleCountItems}) {
     throw UnimplementedError();
   }
 

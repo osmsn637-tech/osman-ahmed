@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:go_router/go_router.dart';
@@ -29,15 +30,17 @@ import '../../features/dashboard/presentation/controllers/worker_tasks_controlle
 import '../../features/dashboard/data/datasources/dashboard_remote_data_source.dart';
 import '../../features/dashboard/data/datasources/task_remote_data_source.dart';
 import '../../features/dashboard/data/repositories/task_repository_impl.dart';
-import '../../features/move/domain/usecases/get_item_locations_usecase.dart';
+import '../../features/app_update/data/datasources/app_update_remote_data_source.dart';
+import '../../features/app_update/data/repositories/app_update_repository_impl.dart';
+import '../../features/app_update/domain/repositories/app_update_repository.dart';
+import '../../features/app_update/domain/services/version_comparator.dart';
+import '../../features/app_update/presentation/controllers/app_update_controller.dart';
+import '../../features/app_update/presentation/services/app_update_runtime_services.dart';
 import '../../features/move/domain/usecases/lookup_item_by_barcode_usecase.dart';
+import '../../features/move/domain/usecases/lookup_items_by_location_usecase.dart';
 import '../../features/move/domain/usecases/adjust_stock_usecase.dart';
-import '../../features/move/domain/usecases/move_item_usecase.dart';
 import '../../features/move/data/datasources/item_remote_data_source.dart';
 import '../../features/move/data/repositories/item_repository_impl.dart';
-import '../../features/receive/domain/usecases/receive_item_usecase.dart';
-import '../../features/receive/presentation/controllers/receive_controller.dart';
-import '../../features/move/presentation/controllers/move_controller.dart';
 import '../../features/move/domain/repositories/item_repository.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/domain/usecases/login_usecase.dart';
@@ -63,7 +66,7 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     Provider<AppConfig>.value(value: config),
     Provider<ErrorMapper>(create: (_) => const ErrorMapper()),
     Provider<SecureTokenStorage>(create: (_) => SecureTokenStorage()),
-    Provider<Logger>(create: (_) => (msg) => print(msg)),
+    Provider<Logger>(create: (_) => (msg) => debugPrint(msg)),
     ProxyProvider<SecureTokenStorage, TokenRepository>(
       update: (_, storage, __) => TokenRepository(storage),
     ),
@@ -92,6 +95,23 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     ProxyProvider2<DioClient, ErrorMapper, ApiClient>(
       update: (_, dio, mapper, __) => ApiClient(dio.dio, mapper),
     ),
+    Provider<PlatformInfo>(create: (_) => const DefaultPlatformInfo()),
+    Provider<InstalledAppVersionProvider>(
+      create: (_) => const PackageInfoInstalledAppVersionProvider(),
+    ),
+    Provider<UpdateUrlLauncher>(
+      create: (_) => const UrlLauncherUpdateUrlLauncher(),
+    ),
+    ProxyProvider2<ApiClient, AppConfig, AppUpdateRemoteDataSource>(
+      update: (_, client, config, __) => AppUpdateRemoteDataSourceImpl(
+        client,
+        metadataUrl: config.androidVersionMetadataUrl,
+      ),
+    ),
+    ProxyProvider<AppUpdateRemoteDataSource, AppUpdateRepository>(
+      update: (_, remote, __) => AppUpdateRepositoryImpl(remote),
+    ),
+    Provider<VersionComparator>(create: (_) => const VersionComparator()),
     ProxyProvider2<ApiClient, TokenRepository, AuthRepository>(
       update: (_, client, tokenRepo, __) => AuthRepositoryImpl(
         remoteDataSource: AuthRemoteDataSourceImpl(client),
@@ -156,20 +176,14 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     ProxyProvider<ItemRemoteDataSource, ItemRepository>(
       update: (_, remote, __) => ItemRepositoryImpl(remote),
     ),
-    ProxyProvider<ItemRepository, GetItemLocationsUseCase>(
-      update: (_, repo, __) => GetItemLocationsUseCase(repo),
-    ),
     ProxyProvider<ItemRepository, LookupItemByBarcodeUseCase>(
       update: (_, repo, __) => LookupItemByBarcodeUseCase(repo),
     ),
+    ProxyProvider<ItemRepository, LookupItemsByLocationUseCase>(
+      update: (_, repo, __) => LookupItemsByLocationUseCase(repo),
+    ),
     ProxyProvider<ItemRepository, AdjustStockUseCase>(
       update: (_, repo, __) => AdjustStockUseCase(repo),
-    ),
-    ProxyProvider<ItemRepository, MoveItemUseCase>(
-      update: (_, repo, __) => MoveItemUseCase(repo),
-    ),
-    ProxyProvider<ItemRepository, ReceiveItemUseCase>(
-      update: (_, repo, __) => ReceiveItemUseCase(repo),
     ),
     ChangeNotifierProvider<SessionController>(
         create: (_) => SessionController()),
@@ -181,19 +195,19 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     ChangeNotifierProvider<NavigationController>(
         create: (_) => NavigationController()),
     ChangeNotifierProvider<ScannerProvider>(create: (_) => ScannerProvider()),
-    ChangeNotifierProvider<ReceiveController>(
-      create: (context) => ReceiveController(
-        getItemLocationsUseCase: context.read<GetItemLocationsUseCase>(),
-        receiveItemUseCase: context.read<ReceiveItemUseCase>(),
-        session: context.read<SessionController>(),
-      ),
-    ),
-    ChangeNotifierProvider<MoveController>(
-      create: (context) => MoveController(
-        getItemLocationsUseCase: context.read<GetItemLocationsUseCase>(),
-        moveItemUseCase: context.read<MoveItemUseCase>(),
-        session: context.read<SessionController>(),
-      ),
+    ChangeNotifierProvider<AppUpdateController>(
+      create: (context) {
+        final controller = AppUpdateController(
+          repository: context.read<AppUpdateRepository>(),
+          versionComparator: context.read<VersionComparator>(),
+          platformInfo: context.read<PlatformInfo>(),
+          installedAppVersionProvider:
+              context.read<InstalledAppVersionProvider>(),
+          updateUrlLauncher: context.read<UpdateUrlLauncher>(),
+        );
+        controller.checkForUpdates();
+        return controller;
+      },
     ),
     ChangeNotifierProvider<AuthController>(
       create: (context) {

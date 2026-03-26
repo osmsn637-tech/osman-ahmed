@@ -3,22 +3,19 @@ import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/result.dart';
 import '../../domain/entities/item_detail.dart';
-import '../../domain/entities/move_item_params.dart';
-import '../../domain/entities/movement.dart';
 import '../../domain/entities/item_location_summary_entity.dart';
+import '../../domain/entities/location_lookup_summary_entity.dart';
 import '../../domain/entities/stock_adjustment_params.dart';
-import '../../../receive/domain/entities/receive_item_params.dart';
 import '../models/item_location_summary_model.dart';
+import '../models/location_lookup_summary_model.dart';
 import '../models/location_stock_model.dart';
 import '../models/item_detail_model.dart';
-import '../models/movement_model.dart';
 
 abstract class ItemRemoteDataSource {
   Future<Result<ItemDetail>> fetchStock(String barcode);
-  Future<Result<Movement>> moveItem(MoveItemParams params);
   Future<Result<ItemLocationSummaryEntity>> fetchItemLocations(String barcode);
+  Future<Result<LocationLookupSummaryEntity>> scanLocation(String barcode);
   Future<Result<void>> adjustStock(StockAdjustmentParams params);
-  Future<Result<void>> receiveItem(ReceiveItemParams params);
 }
 
 class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
@@ -48,22 +45,6 @@ class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
   }
 
   @override
-  Future<Result<Movement>> moveItem(MoveItemParams params) {
-    return _client.post<Movement>(
-      AppEndpoints.moveItems,
-      data: {
-        'item_id': params.itemId,
-        'barcode': params.barcode,
-        'from_location_id': params.fromLocationId,
-        'to_location_id': params.toLocationId,
-        'quantity': params.quantity,
-        'worker_id': params.workerId,
-      },
-      parser: (data) => MovementModel.fromJson(data as Map<String, dynamic>),
-    );
-  }
-
-  @override
   Future<Result<ItemLocationSummaryEntity>> fetchItemLocations(
       String barcode) async {
     final normalized = _normalizeBarcode(barcode);
@@ -73,6 +54,18 @@ class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
       );
     }
     return _fetchItemLocationsWithAuth(normalized);
+  }
+
+  @override
+  Future<Result<LocationLookupSummaryEntity>> scanLocation(
+      String barcode) async {
+    final normalized = _normalizeBarcode(barcode);
+    if (normalized.isEmpty) {
+      return const Failure<LocationLookupSummaryEntity>(
+        ValidationException('Enter a valid location barcode'),
+      );
+    }
+    return _scanLocationWithAuth(normalized);
   }
 
   @override
@@ -89,19 +82,6 @@ class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
         ],
         if (params.note != null && params.note!.trim().isNotEmpty)
           'notes': params.note!.trim(),
-      },
-    );
-  }
-
-  @override
-  Future<Result<void>> receiveItem(ReceiveItemParams params) {
-    return _client.post<void>(
-      AppEndpoints.receiveItems,
-      data: {
-        'item_id': params.itemId,
-        'to_location_id': params.toLocationId,
-        'quantity': params.quantity,
-        'worker_id': params.workerId,
       },
     );
   }
@@ -150,6 +130,38 @@ class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
     return Failure<ItemLocationSummaryEntity>(lookupError);
   }
 
+  Future<Result<LocationLookupSummaryEntity>> _scanLocationWithAuth(
+    String barcode,
+  ) async {
+    final tokenResult = await _ensureLookupBearerToken();
+    if (tokenResult is Failure<String>) {
+      return Failure<LocationLookupSummaryEntity>(tokenResult.error);
+    }
+
+    final token = (tokenResult as Success<String>).data;
+    final lookupResult =
+        await _callLocationLookupEndpoint(barcode, token: token);
+    if (lookupResult is Success<LocationLookupSummaryEntity>) {
+      return lookupResult;
+    }
+
+    final lookupError =
+        (lookupResult as Failure<LocationLookupSummaryEntity>).error;
+    if (lookupError is AuthExpiredException ||
+        lookupError is UnauthorizedException) {
+      _sharedLookupBearerToken = null;
+      final refreshedTokenResult = await _ensureLookupBearerToken();
+      if (refreshedTokenResult is Failure<String>) {
+        return Failure<LocationLookupSummaryEntity>(refreshedTokenResult.error);
+      }
+
+      final refreshedToken = (refreshedTokenResult as Success<String>).data;
+      return _callLocationLookupEndpoint(barcode, token: refreshedToken);
+    }
+
+    return Failure<LocationLookupSummaryEntity>(lookupError);
+  }
+
   Future<Result<ItemLocationSummaryEntity>> _callLookupEndpoint(String barcode,
       {String token = ''}) {
     final authHeader = token.isNotEmpty
@@ -162,6 +174,30 @@ class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
       parser: (data) {
         final payload = _extractLookupPayload(data);
         return ItemLocationSummaryModel.fromJson(payload).toEntity();
+      },
+    );
+  }
+
+  Future<Result<LocationLookupSummaryEntity>> _callLocationLookupEndpoint(
+    String barcode, {
+    String token = '',
+  }) {
+    final authHeader = token.isNotEmpty
+        ? <String, dynamic>{'Authorization': 'Bearer $token'}
+        : null;
+
+    return _client.post<LocationLookupSummaryEntity>(
+      AppEndpoints.locationScan,
+      headers: authHeader,
+      data: <String, dynamic>{
+        'barcode': barcode,
+      },
+      parser: (data) {
+        final payload = _extractLookupPayload(data);
+        return LocationLookupSummaryModel.fromJson(
+          payload,
+          scannedCode: barcode,
+        ).toEntity();
       },
     );
   }
@@ -270,8 +306,6 @@ class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
   }
 
   String _normalizeBarcode(String barcode) {
-    return barcode
-        .replaceAll(RegExp(r'[\x00-\x1F\x7F]+'), '')
-        .trim();
+    return barcode.replaceAll(RegExp(r'[\x00-\x1F\x7F]+'), '').trim();
   }
 }

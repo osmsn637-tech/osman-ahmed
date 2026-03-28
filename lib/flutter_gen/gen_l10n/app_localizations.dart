@@ -1,8 +1,70 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/intl.dart' as intl;
 
-class AppLocalizations {
-  AppLocalizations(this.localeName);
+import 'app_localizations_ar.dart';
+import 'app_localizations_en.dart';
+import 'app_localizations_ur.dart';
+
+// ignore_for_file: type=lint
+
+/// Callers can lookup localized strings with an instance of AppLocalizations
+/// returned by `AppLocalizations.of(context)`.
+///
+/// Applications need to include `AppLocalizations.delegate()` in their app's
+/// `localizationDelegates` list, and the locales they support in the app's
+/// `supportedLocales` list. For example:
+///
+/// ```dart
+/// import 'l10n/app_localizations.dart';
+///
+/// return MaterialApp(
+///   localizationsDelegates: AppLocalizations.localizationsDelegates,
+///   supportedLocales: AppLocalizations.supportedLocales,
+///   home: MyApplicationHome(),
+/// );
+/// ```
+///
+/// ## Update pubspec.yaml
+///
+/// Please make sure to update your pubspec.yaml to include the following
+/// packages:
+///
+/// ```yaml
+/// dependencies:
+///   # Internationalization support.
+///   flutter_localizations:
+///     sdk: flutter
+///   intl: any # Use the pinned version from flutter_localizations
+///
+///   # Rest of dependencies
+/// ```
+///
+/// ## iOS Applications
+///
+/// iOS applications define key application metadata, including supported
+/// locales, in an Info.plist file that is built into the application bundle.
+/// To configure the locales supported by your app, you’ll need to edit this
+/// file.
+///
+/// First, open your project’s ios/Runner.xcworkspace Xcode workspace file.
+/// Then, in the Project Navigator, open the Info.plist file under the Runner
+/// project’s Runner folder.
+///
+/// Next, select the Information Property List item, select Add Item from the
+/// Editor menu, then select Localizations from the pop-up menu.
+///
+/// Select and expand the newly-created Localizations item then, for each
+/// locale your application supports, add a new item and select the locale
+/// you wish to add from the pop-up menu in the Value field. This list should
+/// be consistent with the languages listed in the AppLocalizations.supportedLocales
+/// property.
+abstract class AppLocalizations {
+  AppLocalizations(String locale)
+      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -13,487 +75,915 @@ class AppLocalizations {
   static const LocalizationsDelegate<AppLocalizations> delegate =
       _AppLocalizationsDelegate();
 
-  static const List<Locale> supportedLocales = <Locale>[
-    Locale('en'),
-    Locale('ar'),
+  /// A list of this localizations delegate along with the default localizations
+  /// delegates.
+  ///
+  /// Returns a list of localizations delegates containing this delegate along with
+  /// GlobalMaterialLocalizations.delegate, GlobalCupertinoLocalizations.delegate,
+  /// and GlobalWidgetsLocalizations.delegate.
+  ///
+  /// Additional delegates can be added by appending to this list in
+  /// MaterialApp. This list does not have to be used at all if a custom list
+  /// of delegates is preferred or required.
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
   ];
 
-  static const Map<String, Map<String, String>> _values = {
-    'en': {
-      'appTitle': 'Warehouse Inventory',
-      'tabHome': 'Home',
-      'tabAccount': 'Account',
-      'homeWorkerTitle': 'Putaway Worker',
-      'moreTitle': 'More',
-      'moreHome': 'Home',
-      'moreItemLookup': 'Item Lookup',
-      'moreStockAdjustment': 'Stock Adjustment',
-      'moreExceptions': 'Exceptions',
-      'accountMyAccount': 'My Account',
-      'accountDetails': 'Account Details',
-      'accountPhone': 'Phone',
-      'accountRole': 'Role',
-      'accountZone': 'Zone',
-      'accountLanguage': 'Language',
-      'accountArabic': 'Arabic',
-      'accountEnglish': 'English',
-      'accountActions': 'Actions',
-      'accountChangePassword': 'Change Password',
-      'accountSignOut': 'Sign Out',
-      'accountComingSoon': 'Coming soon',
-      'roleSupervisor': 'SUPERVISOR',
-      'roleInbound': 'INBOUND',
-      'roleWorker': 'WORKER',
-      'zoneWithCode': 'Zone {zone}',
-      'receiveTitle': 'Receive Items',
-      'receiveScanItemBarcode': 'Scan Item Barcode',
-      'receiveScanDestinationLocation': 'Scan Destination Location',
-      'receiveUsePhysicalScanner': 'Use physical scanner trigger',
-      'receiveConfirmDestinationThenQuantity':
-          'Confirm destination then quantity',
-      'receiveConfirmReceive': 'Confirm Receive',
-      'receiveReceiving': 'Receiving...',
-      'receiveAwaitingScan': 'Awaiting scan...',
-      'receiveSkuLabel': 'SKU: {barcode}',
-      'receiveTotalLabel': 'Total: {quantity}',
-      'receiveShelf': 'Shelf',
-      'receiveBulk': 'Bulk',
-      'receiveDestinationLocationScan': 'Destination Location (scan)',
-      'receiveQuantityToReceive': 'Quantity to receive',
-      'receiveFullQty': 'Full Qty',
-      'moveTitle': 'Move Item',
-      'moveScanItemBarcode': 'Scan Item Barcode',
-      'moveScanDestinationLocation': 'Scan Destination Location',
-      'moveTriggerScannerToCaptureItem': 'Trigger scanner to capture item',
-      'moveScanTargetLocationThenConfirm': 'Scan target location then confirm',
-      'moveFromLocation': 'FROM LOCATION',
-      'moveItemSection': 'ITEM',
-      'moveToLocation': 'TO LOCATION',
-      'moveQuantitySection': 'QUANTITY',
-      'moveDestinationLocationBarcode': 'Destination Location Barcode',
-      'moveQtyToMove': 'Qty to move',
-      'moveAwaitingScan': 'Awaiting scan...',
-      'moveConfirmMove': 'Confirm Move',
-      'moveMoving': 'Moving...',
-      'moveNoSourceLocations': 'No source locations',
-      'moveSkuLabel': 'SKU: {barcode}',
-      'moveTotalLabel': 'Total: {quantity}',
-      'stockAdjustmentTitle': 'Stock Adjustment',
-      'stockScanItemBarcode': 'Scan Item Barcode',
-      'stockScanLocationBarcode': 'Scan Location Barcode',
-      'stockReadyToSubmit': 'Ready to submit',
-      'stockLocationBarcode': 'Location Barcode',
-      'stockNewQuantity': 'New Quantity',
-      'stockReason': 'Reason',
-      'stockSubmitting': 'Submitting...',
-      'stockSubmitAdjustment': 'Submit Adjustment',
-      'exceptionsTitle': 'Picking Exceptions',
-      'exceptionsExpected': 'Expected: {location}',
-      'workerRefreshTasks': 'Refresh tasks',
-      'workerLookup': 'Lookup',
-      'workerAdjust': 'Adjust',
-      'workerAvailableTasks': 'Available Tasks',
-      'workerMyActiveTasks': 'My Active Tasks',
-      'workerNoAvailableTasks': 'No available tasks right now',
-      'workerNoActiveTasks': 'No active tasks - claim one above',
-      'workerStart': 'Start',
-      'workerComplete': 'Complete',
-      'workerWelcomeBack': 'Welcome back, {name}',
-      'workerTrackQueue': 'Track your queue and close tasks quickly',
-      'metricAvailable': 'Available',
-      'metricActive': 'Active',
-      'metricDone': 'Done',
-      'workerDone': 'Done',
-      'workerQty': 'Qty {quantity}',
-      'workerTaskDetailsTitle': 'Task Details',
-      'workerStartTask': 'Start Task',
-      'workerItem': 'Item',
-      'workerBarcode': 'Barcode',
-      'workerNoBarcodeAvailable': 'No barcode available',
-      'workerScanOrEnterProductBarcode': 'Scan/Enter product barcode',
-      'workerValidateProduct': 'Validate Product',
-      'workerProductValidated': 'Product validated',
-      'workerProductMismatch': 'Product mismatch',
-      'workerMovement': 'Movement',
-      'workerFromWithType': 'From ({type})',
-      'workerToWithType': 'To ({type})',
-      'workerScanOrEnterLocation': 'Scan/Enter location',
-      'workerValidateLocation': 'Validate Location',
-      'workerLocationValidated': 'Location validated',
-      'workerLocationMismatch': 'Location mismatch',
-      'workerTaskInfo': 'Task Info',
-      'workerTaskType': 'Task type',
-      'workerQuantity': 'Quantity',
-      'workerStatus': 'Status',
-      'supervisorTitle': 'Supervisor',
-      'supervisorRefresh': 'Refresh',
-      'supervisorCreateTask': 'Create Task',
-      'supervisorTaskType': 'Task Type',
-      'supervisorItemBarcode': 'Item barcode',
-      'supervisorEnterBarcode': 'Enter barcode',
-      'supervisorQuantity': 'Quantity',
-      'supervisorEnterValidQuantity': 'Enter valid quantity',
-      'supervisorFrom': 'From',
-      'supervisorTo': 'To',
-      'supervisorZone': 'Zone',
-      'supervisorOperationsOverview': 'Operations Overview',
-      'supervisorPending': 'Pending',
-      'supervisorUnassigned': 'Unassigned',
-      'supervisorNoTasksForZone': 'No tasks for {zone}',
-      'supervisorWorkerNumber': 'Worker #{id}',
-      'inboundTitle': 'Inbound Management',
-      'inboundRefresh': 'Refresh',
-      'inboundPending': 'Pending Inbounds',
-      'inboundInProgress': 'In Progress',
-      'inboundCompleted': 'Completed Inbounds',
-      'inboundNoDocuments': 'No inbound documents',
-      'inboundUseCreatePrompt': 'Use Create Inbound to get started',
-      'inboundCreateDialogTodo': 'Create Inbound dialog - TODO',
-      'inboundReceiveDialogTodo': 'Receive Items dialog - TODO',
-      'inboundViewTodo': 'View {documentNumber} - TODO',
-      'inboundItemsProgress': '{received}/{total} items',
-      'inboundStart': 'Start',
-      'inboundReceive': 'Receive',
-      'inboundComplete': 'Complete',
-      'inboundView': 'View',
-      'inboundOverview': 'Inbound Overview',
-      'inboundTotal': 'Total',
-      'inboundInProgressMetric': 'In Progress',
-      'inboundCreateInbound': 'Create Inbound'
-      ,
-      'inboundDocumentsCount': '{count} documents',
-      'inboundDocumentSingular': '{count} document'
-    },
-    'ar': {
-      'appTitle': 'إدارة المخزون',
-      'tabHome': 'الرئيسية',
-      'tabAccount': 'الحساب',
-      'homeWorkerTitle': 'عامل الترصيص',
-      'moreTitle': 'المزيد',
-      'moreHome': 'الرئيسية',
-      'moreItemLookup': 'البحث عن صنف',
-      'moreStockAdjustment': 'تعديل المخزون',
-      'moreExceptions': 'الاستثناءات',
-      'accountMyAccount': 'حسابي',
-      'accountDetails': 'تفاصيل الحساب',
-      'accountPhone': 'الهاتف',
-      'accountRole': 'الدور',
-      'accountZone': 'المنطقة',
-      'accountLanguage': 'اللغة',
-      'accountArabic': 'العربية',
-      'accountEnglish': 'الإنجليزية',
-      'accountActions': 'الإجراءات',
-      'accountChangePassword': 'تغيير كلمة المرور',
-      'accountSignOut': 'تسجيل الخروج',
-      'accountComingSoon': 'قريبًا',
-      'roleSupervisor': 'مشرف',
-      'roleInbound': 'استلام',
-      'roleWorker': 'عامل',
-      'zoneWithCode': 'المنطقة {zone}',
-      'receiveTitle': 'استلام الأصناف',
-      'receiveScanItemBarcode': 'امسح باركود الصنف',
-      'receiveScanDestinationLocation': 'امسح موقع الوجهة',
-      'receiveUsePhysicalScanner': 'استخدم زر جهاز المسح',
-      'receiveConfirmDestinationThenQuantity': 'أكد الوجهة ثم الكمية',
-      'receiveConfirmReceive': 'تأكيد الاستلام',
-      'receiveReceiving': 'جارٍ الاستلام...',
-      'receiveAwaitingScan': 'بانتظار المسح...',
-      'receiveSkuLabel': 'SKU: {barcode}',
-      'receiveTotalLabel': 'الإجمالي: {quantity}',
-      'receiveShelf': 'رف',
-      'receiveBulk': 'تخزين',
-      'receiveDestinationLocationScan': 'موقع الوجهة (مسح)',
-      'receiveQuantityToReceive': 'الكمية المطلوب استلامها',
-      'receiveFullQty': 'الكمية كاملة',
-      'moveTitle': 'نقل صنف',
-      'moveScanItemBarcode': 'امسح باركود الصنف',
-      'moveScanDestinationLocation': 'امسح موقع الوجهة',
-      'moveTriggerScannerToCaptureItem': 'استخدم جهاز المسح لالتقاط الصنف',
-      'moveScanTargetLocationThenConfirm': 'امسح الموقع الهدف ثم أكد',
-      'moveFromLocation': 'من الموقع',
-      'moveItemSection': 'الصنف',
-      'moveToLocation': 'إلى الموقع',
-      'moveQuantitySection': 'الكمية',
-      'moveDestinationLocationBarcode': 'باركود موقع الوجهة',
-      'moveQtyToMove': 'الكمية للنقل',
-      'moveAwaitingScan': 'بانتظار المسح...',
-      'moveConfirmMove': 'تأكيد النقل',
-      'moveMoving': 'جارٍ النقل...',
-      'moveNoSourceLocations': 'لا توجد مواقع مصدر',
-      'moveSkuLabel': 'SKU: {barcode}',
-      'moveTotalLabel': 'الإجمالي: {quantity}',
-      'stockAdjustmentTitle': 'تعديل المخزون',
-      'stockScanItemBarcode': 'امسح باركود الصنف',
-      'stockScanLocationBarcode': 'امسح باركود الموقع',
-      'stockReadyToSubmit': 'جاهز للإرسال',
-      'stockLocationBarcode': 'باركود الموقع',
-      'stockNewQuantity': 'الكمية الجديدة',
-      'stockReason': 'السبب',
-      'stockSubmitting': 'جارٍ الإرسال...',
-      'stockSubmitAdjustment': 'إرسال التعديل',
-      'exceptionsTitle': 'استثناءات الالتقاط',
-      'exceptionsExpected': 'المتوقع: {location}',
-      'workerRefreshTasks': 'تحديث المهام',
-      'workerLookup': 'بحث',
-      'workerAdjust': 'تعديل',
-      'workerAvailableTasks': 'المهام المتاحة',
-      'workerMyActiveTasks': 'مهامي النشطة',
-      'workerNoAvailableTasks': 'لا توجد مهام متاحة الآن',
-      'workerNoActiveTasks': 'لا توجد مهام نشطة - اختر مهمة أعلاه',
-      'workerStart': 'بدء',
-      'workerComplete': 'إكمال',
-      'workerWelcomeBack': 'مرحبًا بعودتك، {name}',
-      'workerTrackQueue': 'تابع قائمة المهام وأنهِها بسرعة',
-      'metricAvailable': 'متاح',
-      'metricActive': 'نشط',
-      'metricDone': 'منجز',
-      'workerDone': 'منجز',
-      'workerQty': 'الكمية {quantity}',
-      'workerTaskDetailsTitle': 'تفاصيل المهمة',
-      'workerStartTask': 'بدء المهمة',
-      'workerItem': 'الصنف',
-      'workerBarcode': 'الباركود',
-      'workerNoBarcodeAvailable': 'لا يوجد باركود',
-      'workerScanOrEnterProductBarcode': 'امسح/أدخل باركود الصنف',
-      'workerValidateProduct': 'التحقق من الصنف',
-      'workerProductValidated': 'تم التحقق من الصنف',
-      'workerProductMismatch': 'الصنف غير مطابق',
-      'workerMovement': 'الحركة',
-      'workerFromWithType': 'من ({type})',
-      'workerToWithType': 'إلى ({type})',
-      'workerScanOrEnterLocation': 'امسح/أدخل الموقع',
-      'workerValidateLocation': 'التحقق من الموقع',
-      'workerLocationValidated': 'تم التحقق من الموقع',
-      'workerLocationMismatch': 'الموقع غير مطابق',
-      'workerTaskInfo': 'معلومات المهمة',
-      'workerTaskType': 'نوع المهمة',
-      'workerQuantity': 'الكمية',
-      'workerStatus': 'الحالة',
-      'supervisorTitle': 'المشرف',
-      'supervisorRefresh': 'تحديث',
-      'supervisorCreateTask': 'إنشاء مهمة',
-      'supervisorTaskType': 'نوع المهمة',
-      'supervisorItemBarcode': 'باركود الصنف',
-      'supervisorEnterBarcode': 'أدخل الباركود',
-      'supervisorQuantity': 'الكمية',
-      'supervisorEnterValidQuantity': 'أدخل كمية صحيحة',
-      'supervisorFrom': 'من',
-      'supervisorTo': 'إلى',
-      'supervisorZone': 'المنطقة',
-      'supervisorOperationsOverview': 'نظرة عامة على العمليات',
-      'supervisorPending': 'قيد الانتظار',
-      'supervisorUnassigned': 'غير مسندة',
-      'supervisorNoTasksForZone': 'لا توجد مهام للمنطقة {zone}',
-      'supervisorWorkerNumber': 'عامل #{id}',
-      'inboundTitle': 'إدارة الوارد',
-      'inboundRefresh': 'تحديث',
-      'inboundPending': 'وارد قيد الانتظار',
-      'inboundInProgress': 'قيد التنفيذ',
-      'inboundCompleted': 'مكتمل',
-      'inboundNoDocuments': 'لا توجد مستندات وارد',
-      'inboundUseCreatePrompt': 'استخدم إنشاء وارد للبدء',
-      'inboundCreateDialogTodo': 'نافذة إنشاء وارد - قريبًا',
-      'inboundReceiveDialogTodo': 'نافذة استلام الأصناف - قريبًا',
-      'inboundViewTodo': 'عرض {documentNumber} - قريبًا',
-      'inboundItemsProgress': '{received}/{total} صنف',
-      'inboundStart': 'بدء',
-      'inboundReceive': 'استلام',
-      'inboundComplete': 'إكمال',
-      'inboundView': 'عرض',
-      'inboundOverview': 'نظرة عامة على الوارد',
-      'inboundTotal': 'الإجمالي',
-      'inboundInProgressMetric': 'قيد التنفيذ',
-      'inboundCreateInbound': 'إنشاء وارد'
-      ,
-      'inboundDocumentsCount': '{count} مستندات',
-      'inboundDocumentSingular': '{count} مستند'
-    }
-  };
+  /// A list of this localizations delegate's supported locales.
+  static const List<Locale> supportedLocales = <Locale>[
+    Locale('ar'),
+    Locale('en'),
+    Locale('ur')
+  ];
 
-  String _v(String key) {
-    return _values[localeName]?[key] ?? _values['en']![key] ?? key;
-  }
+  /// No description provided for @appTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Warehouse Inventory'**
+  String get appTitle;
 
-  String _f(String key, Map<String, String> args) {
-    var value = _v(key);
-    args.forEach((k, v) {
-      value = value.replaceAll('{$k}', v);
-    });
-    return value;
-  }
+  /// No description provided for @tabHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get tabHome;
 
-  String get appTitle => _v('appTitle');
-  String get tabHome => _v('tabHome');
-  String get tabAccount => _v('tabAccount');
-  String get homeWorkerTitle => _v('homeWorkerTitle');
-  String get moreTitle => _v('moreTitle');
-  String get moreHome => _v('moreHome');
-  String get moreItemLookup => _v('moreItemLookup');
-  String get moreStockAdjustment => _v('moreStockAdjustment');
-  String get moreExceptions => _v('moreExceptions');
-  String get accountMyAccount => _v('accountMyAccount');
-  String get accountDetails => _v('accountDetails');
-  String get accountPhone => _v('accountPhone');
-  String get accountRole => _v('accountRole');
-  String get accountZone => _v('accountZone');
-  String get accountLanguage => _v('accountLanguage');
-  String get accountArabic => _v('accountArabic');
-  String get accountEnglish => _v('accountEnglish');
-  String get accountActions => _v('accountActions');
-  String get accountChangePassword => _v('accountChangePassword');
-  String get accountSignOut => _v('accountSignOut');
-  String get accountComingSoon => _v('accountComingSoon');
-  String get roleSupervisor => _v('roleSupervisor');
-  String get roleInbound => _v('roleInbound');
-  String get roleWorker => _v('roleWorker');
-  String zoneWithCode(String zone) => _f('zoneWithCode', {'zone': zone});
-  String get receiveTitle => _v('receiveTitle');
-  String get receiveScanItemBarcode => _v('receiveScanItemBarcode');
-  String get receiveScanDestinationLocation =>
-      _v('receiveScanDestinationLocation');
-  String get receiveUsePhysicalScanner => _v('receiveUsePhysicalScanner');
-  String get receiveConfirmDestinationThenQuantity =>
-      _v('receiveConfirmDestinationThenQuantity');
-  String get receiveConfirmReceive => _v('receiveConfirmReceive');
-  String get receiveReceiving => _v('receiveReceiving');
-  String get receiveAwaitingScan => _v('receiveAwaitingScan');
-  String receiveSkuLabel(String barcode) =>
-      _f('receiveSkuLabel', {'barcode': barcode});
-  String receiveTotalLabel(String quantity) =>
-      _f('receiveTotalLabel', {'quantity': quantity});
-  String get receiveShelf => _v('receiveShelf');
-  String get receiveBulk => _v('receiveBulk');
-  String get receiveDestinationLocationScan => _v('receiveDestinationLocationScan');
-  String get receiveQuantityToReceive => _v('receiveQuantityToReceive');
-  String get receiveFullQty => _v('receiveFullQty');
-  String get moveTitle => _v('moveTitle');
-  String get moveScanItemBarcode => _v('moveScanItemBarcode');
-  String get moveScanDestinationLocation => _v('moveScanDestinationLocation');
-  String get moveTriggerScannerToCaptureItem =>
-      _v('moveTriggerScannerToCaptureItem');
-  String get moveScanTargetLocationThenConfirm =>
-      _v('moveScanTargetLocationThenConfirm');
-  String get moveFromLocation => _v('moveFromLocation');
-  String get moveItemSection => _v('moveItemSection');
-  String get moveToLocation => _v('moveToLocation');
-  String get moveQuantitySection => _v('moveQuantitySection');
-  String get moveDestinationLocationBarcode => _v('moveDestinationLocationBarcode');
-  String get moveQtyToMove => _v('moveQtyToMove');
-  String get moveAwaitingScan => _v('moveAwaitingScan');
-  String get moveConfirmMove => _v('moveConfirmMove');
-  String get moveMoving => _v('moveMoving');
-  String get moveNoSourceLocations => _v('moveNoSourceLocations');
-  String moveSkuLabel(String barcode) => _f('moveSkuLabel', {'barcode': barcode});
-  String moveTotalLabel(String quantity) =>
-      _f('moveTotalLabel', {'quantity': quantity});
-  String get stockAdjustmentTitle => _v('stockAdjustmentTitle');
-  String get stockScanItemBarcode => _v('stockScanItemBarcode');
-  String get stockScanLocationBarcode => _v('stockScanLocationBarcode');
-  String get stockReadyToSubmit => _v('stockReadyToSubmit');
-  String get stockLocationBarcode => _v('stockLocationBarcode');
-  String get stockNewQuantity => _v('stockNewQuantity');
-  String get stockReason => _v('stockReason');
-  String get stockSubmitting => _v('stockSubmitting');
-  String get stockSubmitAdjustment => _v('stockSubmitAdjustment');
-  String get exceptionsTitle => _v('exceptionsTitle');
-  String exceptionsExpected(String location) =>
-      _f('exceptionsExpected', {'location': location});
-  String get workerRefreshTasks => _v('workerRefreshTasks');
-  String get workerLookup => _v('workerLookup');
-  String get workerAdjust => _v('workerAdjust');
-  String get workerAvailableTasks => _v('workerAvailableTasks');
-  String get workerMyActiveTasks => _v('workerMyActiveTasks');
-  String get workerNoAvailableTasks => _v('workerNoAvailableTasks');
-  String get workerNoActiveTasks => _v('workerNoActiveTasks');
-  String get workerStart => _v('workerStart');
-  String get workerComplete => _v('workerComplete');
-  String workerWelcomeBack(String name) => _f('workerWelcomeBack', {'name': name});
-  String get workerTrackQueue => _v('workerTrackQueue');
-  String get metricAvailable => _v('metricAvailable');
-  String get metricActive => _v('metricActive');
-  String get metricDone => _v('metricDone');
-  String get workerDone => _v('workerDone');
-  String workerQty(String quantity) => _f('workerQty', {'quantity': quantity});
-  String get workerTaskDetailsTitle => _v('workerTaskDetailsTitle');
-  String get workerStartTask => _v('workerStartTask');
-  String get workerItem => _v('workerItem');
-  String get workerBarcode => _v('workerBarcode');
-  String get workerNoBarcodeAvailable => _v('workerNoBarcodeAvailable');
-  String get workerScanOrEnterProductBarcode =>
-      _v('workerScanOrEnterProductBarcode');
-  String get workerValidateProduct => _v('workerValidateProduct');
-  String get workerProductValidated => _v('workerProductValidated');
-  String get workerProductMismatch => _v('workerProductMismatch');
-  String get workerMovement => _v('workerMovement');
-  String workerFromWithType(String type) => _f('workerFromWithType', {'type': type});
-  String workerToWithType(String type) => _f('workerToWithType', {'type': type});
-  String get workerScanOrEnterLocation => _v('workerScanOrEnterLocation');
-  String get workerValidateLocation => _v('workerValidateLocation');
-  String get workerLocationValidated => _v('workerLocationValidated');
-  String get workerLocationMismatch => _v('workerLocationMismatch');
-  String get workerTaskInfo => _v('workerTaskInfo');
-  String get workerTaskType => _v('workerTaskType');
-  String get workerQuantity => _v('workerQuantity');
-  String get workerStatus => _v('workerStatus');
-  String get supervisorTitle => _v('supervisorTitle');
-  String get supervisorRefresh => _v('supervisorRefresh');
-  String supervisorNoTasksForZone(String zone) =>
-      _f('supervisorNoTasksForZone', {'zone': zone});
-  String get supervisorCreateTask => _v('supervisorCreateTask');
-  String get supervisorTaskType => _v('supervisorTaskType');
-  String get supervisorItemBarcode => _v('supervisorItemBarcode');
-  String get supervisorEnterBarcode => _v('supervisorEnterBarcode');
-  String get supervisorQuantity => _v('supervisorQuantity');
-  String get supervisorEnterValidQuantity => _v('supervisorEnterValidQuantity');
-  String get supervisorFrom => _v('supervisorFrom');
-  String get supervisorTo => _v('supervisorTo');
-  String get supervisorZone => _v('supervisorZone');
-  String get supervisorOperationsOverview => _v('supervisorOperationsOverview');
-  String get supervisorPending => _v('supervisorPending');
-  String get supervisorUnassigned => _v('supervisorUnassigned');
-  String supervisorWorkerNumber(String id) =>
-      _f('supervisorWorkerNumber', {'id': id});
-  String get inboundTitle => _v('inboundTitle');
-  String get inboundRefresh => _v('inboundRefresh');
-  String get inboundPending => _v('inboundPending');
-  String get inboundInProgress => _v('inboundInProgress');
-  String get inboundCompleted => _v('inboundCompleted');
-  String get inboundNoDocuments => _v('inboundNoDocuments');
-  String get inboundUseCreatePrompt => _v('inboundUseCreatePrompt');
-  String get inboundCreateDialogTodo => _v('inboundCreateDialogTodo');
-  String get inboundReceiveDialogTodo => _v('inboundReceiveDialogTodo');
-  String inboundViewTodo(String documentNumber) =>
-      _f('inboundViewTodo', {'documentNumber': documentNumber});
-  String inboundItemsProgress(String received, String total) =>
-      _f('inboundItemsProgress', {'received': received, 'total': total});
-  String get inboundStart => _v('inboundStart');
-  String get inboundReceive => _v('inboundReceive');
-  String get inboundComplete => _v('inboundComplete');
-  String get inboundView => _v('inboundView');
-  String get inboundOverview => _v('inboundOverview');
-  String get inboundTotal => _v('inboundTotal');
-  String get inboundInProgressMetric => _v('inboundInProgressMetric');
-  String get inboundCreateInbound => _v('inboundCreateInbound');
-  String inboundDocumentsCount(String count) =>
-      _f('inboundDocumentsCount', {'count': count});
-  String inboundDocumentSingular(String count) =>
-      _f('inboundDocumentSingular', {'count': count});
+  /// No description provided for @tabAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get tabAccount;
+
+  /// No description provided for @homeWorkerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Putaway Worker'**
+  String get homeWorkerTitle;
+
+  /// No description provided for @moreTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get moreTitle;
+
+  /// No description provided for @moreHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get moreHome;
+
+  /// No description provided for @moreItemLookup.
+  ///
+  /// In en, this message translates to:
+  /// **'Item Lookup'**
+  String get moreItemLookup;
+
+  /// No description provided for @moreStockAdjustment.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock Adjustment'**
+  String get moreStockAdjustment;
+
+  /// No description provided for @moreExceptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Exceptions'**
+  String get moreExceptions;
+
+  /// No description provided for @accountMyAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'My Account'**
+  String get accountMyAccount;
+
+  /// No description provided for @accountDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Account Details'**
+  String get accountDetails;
+
+  /// No description provided for @accountPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone'**
+  String get accountPhone;
+
+  /// No description provided for @accountRole.
+  ///
+  /// In en, this message translates to:
+  /// **'Role'**
+  String get accountRole;
+
+  /// No description provided for @accountZone.
+  ///
+  /// In en, this message translates to:
+  /// **'Zone'**
+  String get accountZone;
+
+  /// No description provided for @accountLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get accountLanguage;
+
+  /// No description provided for @accountArabic.
+  ///
+  /// In en, this message translates to:
+  /// **'Arabic'**
+  String get accountArabic;
+
+  /// No description provided for @accountEnglish.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get accountEnglish;
+
+  /// No description provided for @accountUrdu.
+  ///
+  /// In en, this message translates to:
+  /// **'اردو'**
+  String get accountUrdu;
+
+  /// No description provided for @accountActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Actions'**
+  String get accountActions;
+
+  /// No description provided for @accountChangePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Password'**
+  String get accountChangePassword;
+
+  /// No description provided for @accountSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign Out'**
+  String get accountSignOut;
+
+  /// No description provided for @accountComingSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Coming soon'**
+  String get accountComingSoon;
+
+  /// No description provided for @roleSupervisor.
+  ///
+  /// In en, this message translates to:
+  /// **'SUPERVISOR'**
+  String get roleSupervisor;
+
+  /// No description provided for @roleInbound.
+  ///
+  /// In en, this message translates to:
+  /// **'INBOUND'**
+  String get roleInbound;
+
+  /// No description provided for @roleWorker.
+  ///
+  /// In en, this message translates to:
+  /// **'WORKER'**
+  String get roleWorker;
+
+  /// No description provided for @zoneWithCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Zone {zone}'**
+  String zoneWithCode(Object zone);
+
+  /// No description provided for @receiveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive Items'**
+  String get receiveTitle;
+
+  /// No description provided for @receiveScanItemBarcode.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Item Barcode'**
+  String get receiveScanItemBarcode;
+
+  /// No description provided for @receiveScanDestinationLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Destination Location'**
+  String get receiveScanDestinationLocation;
+
+  /// No description provided for @receiveUsePhysicalScanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Use physical scanner trigger'**
+  String get receiveUsePhysicalScanner;
+
+  /// No description provided for @receiveConfirmDestinationThenQuantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm destination then quantity'**
+  String get receiveConfirmDestinationThenQuantity;
+
+  /// No description provided for @receiveConfirmReceive.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Receive'**
+  String get receiveConfirmReceive;
+
+  /// No description provided for @receiveReceiving.
+  ///
+  /// In en, this message translates to:
+  /// **'Receiving...'**
+  String get receiveReceiving;
+
+  /// No description provided for @receiveAwaitingScan.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting scan...'**
+  String get receiveAwaitingScan;
+
+  /// No description provided for @receiveSkuLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'SKU: {barcode}'**
+  String receiveSkuLabel(Object barcode);
+
+  /// No description provided for @receiveTotalLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Total: {quantity}'**
+  String receiveTotalLabel(Object quantity);
+
+  /// No description provided for @receiveShelf.
+  ///
+  /// In en, this message translates to:
+  /// **'Shelf'**
+  String get receiveShelf;
+
+  /// No description provided for @receiveBulk.
+  ///
+  /// In en, this message translates to:
+  /// **'Bulk'**
+  String get receiveBulk;
+
+  /// No description provided for @receiveDestinationLocationScan.
+  ///
+  /// In en, this message translates to:
+  /// **'Destination Location (scan)'**
+  String get receiveDestinationLocationScan;
+
+  /// No description provided for @receiveQuantityToReceive.
+  ///
+  /// In en, this message translates to:
+  /// **'Quantity to receive'**
+  String get receiveQuantityToReceive;
+
+  /// No description provided for @receiveFullQty.
+  ///
+  /// In en, this message translates to:
+  /// **'Full Qty'**
+  String get receiveFullQty;
+
+  /// No description provided for @moveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Item'**
+  String get moveTitle;
+
+  /// No description provided for @moveScanItemBarcode.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Item Barcode'**
+  String get moveScanItemBarcode;
+
+  /// No description provided for @moveScanDestinationLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Destination Location'**
+  String get moveScanDestinationLocation;
+
+  /// No description provided for @moveTriggerScannerToCaptureItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Trigger scanner to capture item'**
+  String get moveTriggerScannerToCaptureItem;
+
+  /// No description provided for @moveScanTargetLocationThenConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan target location then confirm'**
+  String get moveScanTargetLocationThenConfirm;
+
+  /// No description provided for @moveFromLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'FROM LOCATION'**
+  String get moveFromLocation;
+
+  /// No description provided for @moveItemSection.
+  ///
+  /// In en, this message translates to:
+  /// **'ITEM'**
+  String get moveItemSection;
+
+  /// No description provided for @moveToLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'TO LOCATION'**
+  String get moveToLocation;
+
+  /// No description provided for @moveQuantitySection.
+  ///
+  /// In en, this message translates to:
+  /// **'QUANTITY'**
+  String get moveQuantitySection;
+
+  /// No description provided for @moveDestinationLocationBarcode.
+  ///
+  /// In en, this message translates to:
+  /// **'Destination Location Barcode'**
+  String get moveDestinationLocationBarcode;
+
+  /// No description provided for @moveQtyToMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty to move'**
+  String get moveQtyToMove;
+
+  /// No description provided for @moveAwaitingScan.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting scan...'**
+  String get moveAwaitingScan;
+
+  /// No description provided for @moveConfirmMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Move'**
+  String get moveConfirmMove;
+
+  /// No description provided for @moveMoving.
+  ///
+  /// In en, this message translates to:
+  /// **'Moving...'**
+  String get moveMoving;
+
+  /// No description provided for @moveNoSourceLocations.
+  ///
+  /// In en, this message translates to:
+  /// **'No source locations'**
+  String get moveNoSourceLocations;
+
+  /// No description provided for @moveSkuLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'SKU: {barcode}'**
+  String moveSkuLabel(Object barcode);
+
+  /// No description provided for @moveTotalLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Total: {quantity}'**
+  String moveTotalLabel(Object quantity);
+
+  /// No description provided for @stockAdjustmentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock Adjustment'**
+  String get stockAdjustmentTitle;
+
+  /// No description provided for @stockScanItemBarcode.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Item Barcode'**
+  String get stockScanItemBarcode;
+
+  /// No description provided for @stockScanLocationBarcode.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Location Barcode'**
+  String get stockScanLocationBarcode;
+
+  /// No description provided for @stockReadyToSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to submit'**
+  String get stockReadyToSubmit;
+
+  /// No description provided for @stockLocationBarcode.
+  ///
+  /// In en, this message translates to:
+  /// **'Location Barcode'**
+  String get stockLocationBarcode;
+
+  /// No description provided for @stockNewQuantity.
+  ///
+  /// In en, this message translates to:
+  /// **'New Quantity'**
+  String get stockNewQuantity;
+
+  /// No description provided for @stockReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Reason'**
+  String get stockReason;
+
+  /// No description provided for @stockSubmitting.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitting...'**
+  String get stockSubmitting;
+
+  /// No description provided for @stockSubmitAdjustment.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit Adjustment'**
+  String get stockSubmitAdjustment;
+
+  /// No description provided for @exceptionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Picking Exceptions'**
+  String get exceptionsTitle;
+
+  /// No description provided for @exceptionsExpected.
+  ///
+  /// In en, this message translates to:
+  /// **'Expected: {location}'**
+  String exceptionsExpected(Object location);
+
+  /// No description provided for @workerRefreshTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh tasks'**
+  String get workerRefreshTasks;
+
+  /// No description provided for @workerLookup.
+  ///
+  /// In en, this message translates to:
+  /// **'Lookup'**
+  String get workerLookup;
+
+  /// No description provided for @workerAdjust.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust'**
+  String get workerAdjust;
+
+  /// No description provided for @workerAvailableTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Available Tasks'**
+  String get workerAvailableTasks;
+
+  /// No description provided for @workerMyActiveTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'My Active Tasks'**
+  String get workerMyActiveTasks;
+
+  /// No description provided for @workerNoAvailableTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'No available tasks right now'**
+  String get workerNoAvailableTasks;
+
+  /// No description provided for @workerNoActiveTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'No active tasks - claim one above'**
+  String get workerNoActiveTasks;
+
+  /// No description provided for @workerStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start'**
+  String get workerStart;
+
+  /// No description provided for @workerComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete'**
+  String get workerComplete;
+
+  /// No description provided for @workerWelcomeBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome back, {name}'**
+  String workerWelcomeBack(Object name);
+
+  /// No description provided for @workerTrackQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Track your queue and close tasks quickly'**
+  String get workerTrackQueue;
+
+  /// No description provided for @metricAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get metricAvailable;
+
+  /// No description provided for @metricActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get metricActive;
+
+  /// No description provided for @metricDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get metricDone;
+
+  /// No description provided for @workerDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get workerDone;
+
+  /// No description provided for @workerQty.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty {quantity}'**
+  String workerQty(Object quantity);
+
+  /// No description provided for @workerTaskDetailsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Task Details'**
+  String get workerTaskDetailsTitle;
+
+  /// No description provided for @workerStartTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Task'**
+  String get workerStartTask;
+
+  /// No description provided for @workerItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Item'**
+  String get workerItem;
+
+  /// No description provided for @workerBarcode.
+  ///
+  /// In en, this message translates to:
+  /// **'Barcode'**
+  String get workerBarcode;
+
+  /// No description provided for @workerNoBarcodeAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No barcode available'**
+  String get workerNoBarcodeAvailable;
+
+  /// No description provided for @workerScanOrEnterProductBarcode.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan/Enter product barcode'**
+  String get workerScanOrEnterProductBarcode;
+
+  /// No description provided for @workerValidateProduct.
+  ///
+  /// In en, this message translates to:
+  /// **'Validate Product'**
+  String get workerValidateProduct;
+
+  /// No description provided for @workerProductValidated.
+  ///
+  /// In en, this message translates to:
+  /// **'Product validated'**
+  String get workerProductValidated;
+
+  /// No description provided for @workerProductMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Product mismatch'**
+  String get workerProductMismatch;
+
+  /// No description provided for @workerMovement.
+  ///
+  /// In en, this message translates to:
+  /// **'Movement'**
+  String get workerMovement;
+
+  /// No description provided for @workerFromWithType.
+  ///
+  /// In en, this message translates to:
+  /// **'From ({type})'**
+  String workerFromWithType(Object type);
+
+  /// No description provided for @workerToWithType.
+  ///
+  /// In en, this message translates to:
+  /// **'To ({type})'**
+  String workerToWithType(Object type);
+
+  /// No description provided for @workerScanOrEnterLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan/Enter location'**
+  String get workerScanOrEnterLocation;
+
+  /// No description provided for @workerValidateLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Validate Location'**
+  String get workerValidateLocation;
+
+  /// No description provided for @workerLocationValidated.
+  ///
+  /// In en, this message translates to:
+  /// **'Location validated'**
+  String get workerLocationValidated;
+
+  /// No description provided for @workerLocationMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Location mismatch'**
+  String get workerLocationMismatch;
+
+  /// No description provided for @workerTaskInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Task Info'**
+  String get workerTaskInfo;
+
+  /// No description provided for @workerTaskType.
+  ///
+  /// In en, this message translates to:
+  /// **'Task type'**
+  String get workerTaskType;
+
+  /// No description provided for @workerQuantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Quantity'**
+  String get workerQuantity;
+
+  /// No description provided for @workerStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get workerStatus;
+
+  /// No description provided for @supervisorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Supervisor'**
+  String get supervisorTitle;
+
+  /// No description provided for @supervisorRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get supervisorRefresh;
+
+  /// No description provided for @supervisorNoTasksForZone.
+  ///
+  /// In en, this message translates to:
+  /// **'No tasks for {zone}'**
+  String supervisorNoTasksForZone(Object zone);
+
+  /// No description provided for @supervisorCreateTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Task'**
+  String get supervisorCreateTask;
+
+  /// No description provided for @supervisorTaskType.
+  ///
+  /// In en, this message translates to:
+  /// **'Task Type'**
+  String get supervisorTaskType;
+
+  /// No description provided for @supervisorItemBarcode.
+  ///
+  /// In en, this message translates to:
+  /// **'Item barcode'**
+  String get supervisorItemBarcode;
+
+  /// No description provided for @supervisorEnterBarcode.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter barcode'**
+  String get supervisorEnterBarcode;
+
+  /// No description provided for @supervisorQuantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Quantity'**
+  String get supervisorQuantity;
+
+  /// No description provided for @supervisorEnterValidQuantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter valid quantity'**
+  String get supervisorEnterValidQuantity;
+
+  /// No description provided for @supervisorFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'From'**
+  String get supervisorFrom;
+
+  /// No description provided for @supervisorTo.
+  ///
+  /// In en, this message translates to:
+  /// **'To'**
+  String get supervisorTo;
+
+  /// No description provided for @supervisorZone.
+  ///
+  /// In en, this message translates to:
+  /// **'Zone'**
+  String get supervisorZone;
+
+  /// No description provided for @supervisorOperationsOverview.
+  ///
+  /// In en, this message translates to:
+  /// **'Operations Overview'**
+  String get supervisorOperationsOverview;
+
+  /// No description provided for @supervisorPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get supervisorPending;
+
+  /// No description provided for @supervisorUnassigned.
+  ///
+  /// In en, this message translates to:
+  /// **'Unassigned'**
+  String get supervisorUnassigned;
+
+  /// No description provided for @supervisorWorkerNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Worker #{id}'**
+  String supervisorWorkerNumber(Object id);
+
+  /// No description provided for @inboundTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Inbound Management'**
+  String get inboundTitle;
+
+  /// No description provided for @inboundRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get inboundRefresh;
+
+  /// No description provided for @inboundPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending Inbounds'**
+  String get inboundPending;
+
+  /// No description provided for @inboundInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'In Progress'**
+  String get inboundInProgress;
+
+  /// No description provided for @inboundCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed Inbounds'**
+  String get inboundCompleted;
+
+  /// No description provided for @inboundNoDocuments.
+  ///
+  /// In en, this message translates to:
+  /// **'No inbound documents'**
+  String get inboundNoDocuments;
+
+  /// No description provided for @inboundUseCreatePrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Create Inbound to get started'**
+  String get inboundUseCreatePrompt;
+
+  /// No description provided for @inboundCreateDialogTodo.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Inbound dialog - TODO'**
+  String get inboundCreateDialogTodo;
+
+  /// No description provided for @inboundReceiveDialogTodo.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive Items dialog - TODO'**
+  String get inboundReceiveDialogTodo;
+
+  /// No description provided for @inboundViewTodo.
+  ///
+  /// In en, this message translates to:
+  /// **'View {documentNumber} - TODO'**
+  String inboundViewTodo(Object documentNumber);
+
+  /// No description provided for @inboundItemsProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'{received}/{total} items'**
+  String inboundItemsProgress(Object received, Object total);
+
+  /// No description provided for @inboundStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start'**
+  String get inboundStart;
+
+  /// No description provided for @inboundReceive.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive'**
+  String get inboundReceive;
+
+  /// No description provided for @inboundComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete'**
+  String get inboundComplete;
+
+  /// No description provided for @inboundView.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get inboundView;
+
+  /// No description provided for @inboundOverview.
+  ///
+  /// In en, this message translates to:
+  /// **'Inbound Overview'**
+  String get inboundOverview;
+
+  /// No description provided for @inboundTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Total'**
+  String get inboundTotal;
+
+  /// No description provided for @inboundInProgressMetric.
+  ///
+  /// In en, this message translates to:
+  /// **'In Progress'**
+  String get inboundInProgressMetric;
+
+  /// No description provided for @inboundCreateInbound.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Inbound'**
+  String get inboundCreateInbound;
+
+  /// No description provided for @inboundDocumentsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} documents'**
+  String inboundDocumentsCount(Object count);
+
+  /// No description provided for @inboundDocumentSingular.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} document'**
+  String inboundDocumentSingular(Object count);
 }
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['en', 'ar'].contains(locale.languageCode);
-
-  @override
   Future<AppLocalizations> load(Locale locale) {
-    return SynchronousFuture<AppLocalizations>(
-      AppLocalizations(locale.languageCode),
-    );
+    return SynchronousFuture<AppLocalizations>(lookupAppLocalizations(locale));
   }
 
   @override
+  bool isSupported(Locale locale) =>
+      <String>['ar', 'en', 'ur'].contains(locale.languageCode);
+
+  @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
+}
+
+AppLocalizations lookupAppLocalizations(Locale locale) {
+  // Lookup logic when only language code is specified.
+  switch (locale.languageCode) {
+    case 'ar':
+      return AppLocalizationsAr();
+    case 'en':
+      return AppLocalizationsEn();
+    case 'ur':
+      return AppLocalizationsUr();
+  }
+
+  throw FlutterError(
+      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+      'an issue with the localizations generation tool. Please file an issue '
+      'on GitHub with a reproducible sample app and the gen-l10n configuration '
+      'that was used.');
 }

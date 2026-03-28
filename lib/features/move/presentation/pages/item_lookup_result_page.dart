@@ -46,7 +46,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
     final adjustmentState = adjustmentController?.state;
     final theme = Theme.of(context);
     final summary = state.summary;
-    final isArabic = context.isArabicLocale;
+    final isRtl = context.isRtlLocale;
 
     if (isAdjustMode &&
         adjustmentState?.success == true &&
@@ -54,7 +54,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
       _showingAdjustmentSuccessDialog = true;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
-        await _showAdjustmentSuccessDialog(isArabic: isArabic);
+        await _showAdjustmentSuccessDialog();
         if (!mounted) return;
         _navigateAfterAdjustmentSuccess();
       });
@@ -73,8 +73,16 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
         ),
         title: Text(
           isAdjustMode
-              ? (isArabic ? 'تعديل الصنف' : 'Adjust Item')
-              : (isArabic ? 'نتيجة البحث عن الصنف' : 'Item Lookup Result'),
+              ? context.trText(
+                  english: 'Adjust Item',
+                  arabic: 'تعديل الصنف',
+                  urdu: 'آئٹم ایڈجسٹ کریں',
+                )
+              : context.trText(
+                  english: 'Item Lookup Result',
+                  arabic: 'نتيجة البحث عن الصنف',
+                  urdu: 'آئٹم تلاش کا نتیجہ',
+                ),
         ),
       ),
       body: Container(
@@ -95,12 +103,16 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
               if (state.isLoading) {
                 return _StateMessage(
                   icon: Icons.hourglass_top_rounded,
-                  title: isArabic
-                      ? 'جارٍ تحميل تفاصيل الصنف'
-                      : 'Loading item details',
-                  subtitle: isArabic
-                      ? 'جارٍ جلب أحدث بيانات المخزون...'
-                      : 'Fetching latest inventory snapshot...',
+                  title: context.trText(
+                    english: 'Loading item details',
+                    arabic: 'جارٍ تحميل تفاصيل الصنف',
+                    urdu: 'آئٹم کی تفصیلات لوڈ ہو رہی ہیں',
+                  ),
+                  subtitle: context.trText(
+                    english: 'Fetching latest inventory snapshot...',
+                    arabic: 'جارٍ جلب أحدث بيانات المخزون...',
+                    urdu: 'انوینٹری کی تازہ ترین تفصیلات حاصل کی جا رہی ہیں...',
+                  ),
                   loading: true,
                 );
               }
@@ -108,7 +120,11 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
               if (state.errorType == ItemLookupErrorType.notFound) {
                 return _StateMessage(
                   icon: Icons.search_off_rounded,
-                  title: isArabic ? 'الصنف غير موجود' : 'Item not found',
+                  title: context.trText(
+                    english: 'Item not found',
+                    arabic: 'الصنف غير موجود',
+                    urdu: 'آئٹم نہیں ملا',
+                  ),
                 );
               }
 
@@ -116,12 +132,20 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                 return _StateMessage(
                   icon: Icons.wifi_off_rounded,
                   title: state.errorMessage ??
-                      (isArabic
-                          ? 'تعذر تحميل تفاصيل الصنف'
-                          : 'Could not load item details'),
+                      context.trText(
+                        english: 'Could not load item details',
+                        arabic: 'تعذر تحميل تفاصيل الصنف',
+                        urdu: 'آئٹم کی تفصیلات لوڈ نہیں ہو سکیں',
+                      ),
                   action: ElevatedButton(
                     onPressed: controller.retry,
-                    child: Text(isArabic ? 'إعادة المحاولة' : 'Retry'),
+                    child: Text(
+                      context.trText(
+                        english: 'Retry',
+                        arabic: 'إعادة المحاولة',
+                        urdu: 'دوبارہ کوشش کریں',
+                      ),
+                    ),
                   ),
                 );
               }
@@ -136,9 +160,11 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
               if (summary == null) {
                 return _StateMessage(
                   icon: Icons.inventory_2_outlined,
-                  title: isArabic
-                      ? 'لا توجد بيانات للصنف'
-                      : 'No item data available',
+                  title: context.trText(
+                    english: 'No item data available',
+                    arabic: 'لا توجد بيانات للصنف',
+                    urdu: 'کوئی آئٹم ڈیٹا دستیاب نہیں',
+                  ),
                 );
               }
 
@@ -151,15 +177,23 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                     totalQuantity: summary.totalQuantity,
                     totalLocations: summary.shelfLocations.length +
                         summary.bulkLocations.length,
-                    isArabic: isArabic,
+                    isArabic: isRtl,
                   ),
                   const SizedBox(height: 14),
                   _LocationSection(
-                    title: isArabic ? 'مواقع الرفوف' : 'Shelf Locations',
-                    label: isArabic ? 'رف' : 'Shelf',
+                    title: context.trText(
+                      english: 'Shelf Locations',
+                      arabic: 'مواقع الرفوف',
+                      urdu: 'شیلف مقامات',
+                    ),
+                    label: context.trText(
+                      english: 'Shelf',
+                      arabic: 'رف',
+                      urdu: 'شیلف',
+                    ),
                     icon: Icons.grid_view_rounded,
                     locations: summary.shelfLocations,
-                    isArabic: isArabic,
+                    isArabic: isRtl,
                     isShelf: true,
                     selectedLocationId: adjustmentState?.selectedLocationId,
                     onLocationTap: isAdjustMode
@@ -168,11 +202,19 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                   ),
                   const SizedBox(height: 12),
                   _LocationSection(
-                    title: isArabic ? 'مواقع التخزين' : 'Bulk Locations',
-                    label: isArabic ? 'تخزين' : 'Bulk',
+                    title: context.trText(
+                      english: 'Bulk Locations',
+                      arabic: 'مواقع التخزين',
+                      urdu: 'بلک مقامات',
+                    ),
+                    label: context.trText(
+                      english: 'Bulk',
+                      arabic: 'تخزين',
+                      urdu: 'بلک',
+                    ),
                     icon: Icons.warehouse_rounded,
                     locations: summary.bulkLocations,
-                    isArabic: isArabic,
+                    isArabic: isRtl,
                     isShelf: false,
                     selectedLocationId: adjustmentState?.selectedLocationId,
                     onLocationTap: isAdjustMode
@@ -183,7 +225,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                     const SizedBox(height: 12),
                     _AdjustmentPanel(
                       state: adjustmentState!,
-                      isArabic: isArabic,
+                      isArabic: isRtl,
                       onLocationCodeChanged: (value) =>
                           adjustmentController.updateSelectedLocationCode(
                         value,
@@ -204,7 +246,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
     );
   }
 
-  Future<void> _showAdjustmentSuccessDialog({required bool isArabic}) {
+  Future<void> _showAdjustmentSuccessDialog() {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -254,7 +296,11 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  isArabic ? 'تم التعديل بنجاح' : 'Adjust successful',
+                  dialogContext.trText(
+                    english: 'Adjust successful',
+                    arabic: 'تم التعديل بنجاح',
+                    urdu: 'ایڈجسٹمنٹ کامیاب',
+                  ),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
@@ -263,9 +309,11 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  isArabic
-                      ? 'تم تعديل كمية الصنف بنجاح.'
-                      : 'The item quantity was adjusted successfully.',
+                  dialogContext.trText(
+                    english: 'The item quantity was adjusted successfully.',
+                    arabic: 'تم تعديل كمية الصنف بنجاح.',
+                    urdu: 'آئٹم کی مقدار کامیابی سے ایڈجسٹ ہو گئی۔',
+                  ),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     height: 1.45,
@@ -291,7 +339,13 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    child: Text(isArabic ? 'تأكيد' : 'Confirm'),
+                    child: Text(
+                      dialogContext.trText(
+                        english: 'Confirm',
+                        arabic: 'تأكيد',
+                        urdu: 'تصدیق کریں',
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -365,7 +419,11 @@ class _ItemHeaderCard extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         itemName.isEmpty
-                            ? (isArabic ? 'صنف غير معروف' : 'Unknown Item')
+                            ? context.trText(
+                                english: 'Unknown Item',
+                                arabic: 'صنف غير معروف',
+                                urdu: 'نامعلوم آئٹم',
+                              )
                             : itemName,
                         textAlign: TextAlign.center,
                         maxLines: 2,
@@ -417,7 +475,11 @@ class _ItemHeaderCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _HeaderStatCard(
-                          label: isArabic ? 'إجمالي الكمية' : 'Total Quantity',
+                          label: context.trText(
+                            english: 'Total Quantity',
+                            arabic: 'إجمالي الكمية',
+                            urdu: 'کل مقدار',
+                          ),
                           value: '$totalQuantity',
                           icon: Icons.inventory_2_outlined,
                           isArabic: isArabic,
@@ -426,8 +488,11 @@ class _ItemHeaderCard extends StatelessWidget {
                       const SizedBox(width: 10),
                       Expanded(
                         child: _HeaderStatCard(
-                          label:
-                              isArabic ? 'إجمالي المواقع' : 'Total Locations',
+                          label: context.trText(
+                            english: 'Total Locations',
+                            arabic: 'إجمالي المواقع',
+                            urdu: 'کل مقامات',
+                          ),
                           value: '$totalLocations',
                           icon: Icons.grid_view_rounded,
                           isArabic: isArabic,
@@ -619,7 +684,13 @@ class _LocationSection extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             if (locations.isEmpty)
-              Text(isArabic ? 'لا توجد مواقع' : 'No locations')
+              Text(
+                context.trText(
+                  english: 'No locations',
+                  arabic: 'لا توجد مواقع',
+                  urdu: 'کوئی مقام نہیں',
+                ),
+              )
             else
               for (var index = 0; index < locations.length; index++) ...[
                 LocationRow(
@@ -746,7 +817,11 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      widget.isArabic ? 'تفاصيل التعديل' : 'Adjustment Details',
+                      context.trText(
+                        english: 'Adjustment Details',
+                        arabic: 'تفاصيل التعديل',
+                        urdu: 'ایڈجسٹمنٹ کی تفصیلات',
+                      ),
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         color: theme.colorScheme.onSurface,
@@ -759,12 +834,19 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
             const SizedBox(height: 8),
             Text(
               widget.state.selectedLocationCode == null
-                  ? (widget.isArabic
-                      ? 'اختر موقعًا لإجراء التعديل.'
-                      : 'Select a location to adjust.')
-                  : (widget.isArabic
-                      ? 'الموقع المحدد: ${widget.state.selectedLocationCode}'
-                      : 'Selected location: ${widget.state.selectedLocationCode}'),
+                  ? context.trText(
+                      english: 'Select a location to adjust.',
+                      arabic: 'اختر موقعًا لإجراء التعديل.',
+                      urdu: 'ایڈجسٹمنٹ کے لیے ایک مقام منتخب کریں۔',
+                    )
+                  : context.trText(
+                      english:
+                          'Selected location: ${widget.state.selectedLocationCode}',
+                      arabic:
+                          'الموقع المحدد: ${widget.state.selectedLocationCode}',
+                      urdu:
+                          'منتخب مقام: ${widget.state.selectedLocationCode}',
+                    ),
               style: TextStyle(
                 color: mutedText,
                 fontWeight: FontWeight.w600,
@@ -772,7 +854,11 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
             ),
             const SizedBox(height: 12),
             Text(
-              widget.isArabic ? 'الموقع' : 'Location',
+              context.trText(
+                english: 'Location',
+                arabic: 'الموقع',
+                urdu: 'مقام',
+              ),
               style: TextStyle(
                 color: mutedText,
                 fontSize: 12,
@@ -785,9 +871,11 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
               controller: _locationController,
               onChanged: widget.onLocationCodeChanged,
               decoration: InputDecoration(
-                hintText: widget.isArabic
-                    ? 'أدخل موقع الرف أو التخزين'
-                    : 'Enter shelf or bulk location',
+                hintText: context.trText(
+                  english: 'Enter shelf or bulk location',
+                  arabic: 'أدخل موقع الرف أو التخزين',
+                  urdu: 'شیلف یا بلک مقام درج کریں',
+                ),
                 filled: true,
                 fillColor: surfaceTint,
                 border: OutlineInputBorder(
@@ -812,7 +900,11 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
             ),
             const SizedBox(height: 12),
             Text(
-              widget.isArabic ? 'الكمية الجديدة' : 'New Quantity',
+              context.trText(
+                english: 'New Quantity',
+                arabic: 'الكمية الجديدة',
+                urdu: 'نئی مقدار',
+              ),
               style: TextStyle(
                 color: mutedText,
                 fontSize: 12,
@@ -826,9 +918,11 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
               keyboardType: TextInputType.number,
               onChanged: widget.onQuantityChanged,
               decoration: InputDecoration(
-                hintText: widget.isArabic
-                    ? 'أدخل الكمية المعدلة'
-                    : 'Enter adjusted quantity',
+                hintText: context.trText(
+                  english: 'Enter adjusted quantity',
+                  arabic: 'أدخل الكمية المعدلة',
+                  urdu: 'ایڈجسٹ شدہ مقدار درج کریں',
+                ),
                 filled: true,
                 fillColor: surfaceTint,
                 border: OutlineInputBorder(
@@ -889,8 +983,16 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                 ),
                 child: Text(
                   widget.state.isSubmitting
-                      ? (widget.isArabic ? 'جارٍ التأكيد...' : 'Confirming...')
-                      : (widget.isArabic ? 'تأكيد' : 'Confirm'),
+                      ? context.trText(
+                          english: 'Confirming...',
+                          arabic: 'جارٍ التأكيد...',
+                          urdu: 'تصدیق کی جا رہی ہے...',
+                        )
+                      : context.trText(
+                          english: 'Confirm',
+                          arabic: 'تأكيد',
+                          urdu: 'تصدیق کریں',
+                        ),
                 ),
               ),
             ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:wherehouse/core/errors/app_exception.dart';
+import 'package:wherehouse/core/config/app_environment_controller.dart';
 import 'package:wherehouse/features/app_update/domain/entities/app_update_config.dart';
 import 'package:wherehouse/features/app_update/domain/repositories/app_update_repository.dart';
 import 'package:wherehouse/features/app_update/domain/services/version_comparator.dart';
@@ -297,6 +297,159 @@ void main() {
 
     expect(repository.fetchCount, 1);
   });
+
+  testWidgets('putaway app supports Urdu locale in the app shell',
+      (tester) async {
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (context, state) => const Scaffold(
+            body: Text('Worker Home'),
+          ),
+        ),
+      ],
+    );
+    final localeController = LocaleController()..setLocale('ur');
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<GoRouter>.value(value: router),
+          ChangeNotifierProvider<SessionController>(
+            create: (_) => SessionController(),
+          ),
+          ChangeNotifierProvider<GlobalLoadingController>(
+            create: (_) => GlobalLoadingController(),
+          ),
+          ChangeNotifierProvider<GlobalErrorController>(
+            create: (_) => GlobalErrorController(),
+          ),
+          ChangeNotifierProvider<LocaleController>.value(
+            value: localeController,
+          ),
+        ],
+        child: const PutawayApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app.locale, const Locale('ur'));
+    expect(app.supportedLocales, contains(const Locale('ur')));
+  });
+
+  testWidgets('putaway app shows a yellow DEV ribbon in the top left in development mode',
+      (tester) async {
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (context, state) => const Scaffold(
+            body: Text('Worker Home'),
+          ),
+        ),
+      ],
+    );
+    final environmentController = _FakeAppEnvironmentController(
+      AppEnvironment.development,
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<GoRouter>.value(value: router),
+          ChangeNotifierProvider<AppEnvironmentController>.value(
+            value: environmentController,
+          ),
+          ChangeNotifierProvider<SessionController>(
+            create: (_) => SessionController(),
+          ),
+          ChangeNotifierProvider<GlobalLoadingController>(
+            create: (_) => GlobalLoadingController(),
+          ),
+          ChangeNotifierProvider<GlobalErrorController>(
+            create: (_) => GlobalErrorController(),
+          ),
+          ChangeNotifierProvider<LocaleController>(
+            create: (_) => LocaleController(),
+          ),
+        ],
+        child: const PutawayApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('DEV'), findsOneWidget);
+
+    final ribbon = tester.widget<DecoratedBox>(find.byKey(const Key('dev-ribbon')));
+    final decoration = ribbon.decoration as BoxDecoration;
+    expect(decoration.color, const Color(0xFFF2C94C));
+
+    final positioned = tester.widget<Positioned>(
+      find.ancestor(
+        of: find.byKey(const Key('dev-ribbon')),
+        matching: find.byType(Positioned),
+      ),
+    );
+    expect(positioned.left, isNotNull);
+    expect(positioned.right, isNull);
+
+    expect(
+      find.ancestor(
+        of: find.byKey(const Key('dev-ribbon')),
+        matching: find.byType(Transform),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('putaway app hides DEV badge in production mode',
+      (tester) async {
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (context, state) => const Scaffold(
+            body: Text('Worker Home'),
+          ),
+        ),
+      ],
+    );
+    final environmentController = _FakeAppEnvironmentController(
+      AppEnvironment.production,
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<GoRouter>.value(value: router),
+          ChangeNotifierProvider<AppEnvironmentController>.value(
+            value: environmentController,
+          ),
+          ChangeNotifierProvider<SessionController>(
+            create: (_) => SessionController(),
+          ),
+          ChangeNotifierProvider<GlobalLoadingController>(
+            create: (_) => GlobalLoadingController(),
+          ),
+          ChangeNotifierProvider<GlobalErrorController>(
+            create: (_) => GlobalErrorController(),
+          ),
+          ChangeNotifierProvider<LocaleController>(
+            create: (_) => LocaleController(),
+          ),
+        ],
+        child: const PutawayApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('DEV'), findsNothing);
+  });
 }
 
 class _FakeAuthRepository implements AuthRepository {
@@ -356,4 +509,18 @@ class _FakeInstalledAppVersionProvider implements InstalledAppVersionProvider {
 class _FakeUpdateUrlLauncher implements UpdateUrlLauncher {
   @override
   Future<bool> open(String url) async => true;
+}
+
+class _FakeAppEnvironmentController extends AppEnvironmentController {
+  _FakeAppEnvironmentController(AppEnvironment environment)
+      : _environment = environment,
+        super(initialEnvironment: environment);
+
+  final AppEnvironment _environment;
+
+  @override
+  AppEnvironment get environment => _environment;
+
+  @override
+  bool get isDevelopment => _environment == AppEnvironment.development;
 }

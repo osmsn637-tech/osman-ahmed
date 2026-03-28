@@ -136,16 +136,20 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   Timer? _cycleCountDetailBarcodeClearTimer;
   final List<bool> _returnItemValidated = <bool>[];
 
-  String _tr(String english, String arabic) =>
-      context.isArabicLocale ? arabic : english;
+  String _tr(String english, String arabic, [String? urdu]) => context.trText(
+        english: english,
+        arabic: arabic,
+        urdu: urdu,
+      );
 
-  String get _manualTypeLabel => _tr('Manual Type', 'إدخال يدوي');
+  String get _manualTypeLabel =>
+      _tr('Manual Type', 'إدخال يدوي', 'دستی اندراج');
 
   String get _locationValidatedLabel =>
-      _tr('Location validated', 'تم التحقق من الموقع');
+      _tr('Location validated', 'تم التحقق من الموقع', 'مقام کی تصدیق ہو گئی');
 
   String get _pendingTaskRightProductMessage =>
-      _tr('right product', 'الصنف الصحيح');
+      _tr('right product', 'الصنف الصحيح', 'درست آئٹم');
   final List<bool> _returnItemLocationValidated = <bool>[];
   final List<TextEditingController> _returnItemLocationControllers =
       <TextEditingController>[];
@@ -3741,7 +3745,6 @@ class _ReceiveHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isArabic = context.isArabicLocale;
 
     return Card(
       key: const Key('receive-hero-card'),
@@ -3822,7 +3825,11 @@ class _ReceiveHeroCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isArabic ? 'إجمالي الكمية' : 'Total Quantity',
+                      context.trText(
+                        english: 'Total Quantity',
+                        arabic: 'إجمالي الكمية',
+                        urdu: 'کل مقدار',
+                      ),
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -4125,8 +4132,11 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
 
   bool get _canSubmit => !_submitting && _noteController.text.trim().isNotEmpty;
 
-  String _tr(String english, String arabic) =>
-      context.isArabicLocale ? arabic : english;
+  String _tr(String english, String arabic, [String? urdu]) => context.trText(
+        english: english,
+        arabic: arabic,
+        urdu: urdu,
+      );
 
   @override
   void initState() {
@@ -4213,7 +4223,6 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isArabic = context.isArabicLocale;
 
     return AlertDialog(
       key: const Key('report-task-dialog'),
@@ -4327,7 +4336,13 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
         TextButton(
           onPressed:
               _submitting ? null : () => Navigator.of(context).pop(false),
-          child: Text(isArabic ? 'إلغاء' : 'Cancel'),
+          child: Text(
+            context.trText(
+              english: 'Cancel',
+              arabic: 'إلغاء',
+              urdu: 'منسوخ کریں',
+            ),
+          ),
         ),
         FilledButton(
           key: const Key('report-task-submit-button'),
@@ -4376,7 +4391,6 @@ class _ManualBarcodeKeypadDialogState
 
   @override
   Widget build(BuildContext context) {
-    final isArabic = context.isArabicLocale;
     const digits = <String>['1', '2', '3', '4', '5', '6', '7', '8', '9'];
     final theme = Theme.of(context);
     return AlertDialog(
@@ -4384,7 +4398,13 @@ class _ManualBarcodeKeypadDialogState
       backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       contentPadding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-      title: Text(isArabic ? 'إدخال يدوي' : 'Manual Type'),
+      title: Text(
+        context.trText(
+          english: 'Manual Type',
+          arabic: 'إدخال يدوي',
+          urdu: 'دستی اندراج',
+        ),
+      ),
       content: SizedBox(
         width: 320,
         child: SingleChildScrollView(
@@ -4412,7 +4432,11 @@ class _ManualBarcodeKeypadDialogState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isArabic ? 'الباركود' : 'Barcode',
+                      context.trText(
+                        english: 'Barcode',
+                        arabic: 'الباركود',
+                        urdu: 'بارکوڈ',
+                      ),
                       style: theme.textTheme.labelLarge?.copyWith(
                         color: AppTheme.textMuted,
                         fontWeight: FontWeight.w800,
@@ -4421,9 +4445,11 @@ class _ManualBarcodeKeypadDialogState
                     const SizedBox(height: 8),
                     Text(
                       _value.isEmpty
-                          ? (isArabic
-                              ? 'أدخل أرقام الباركود'
-                              : 'Enter barcode digits')
+                          ? context.trText(
+                              english: 'Enter barcode digits',
+                              arabic: 'أدخل أرقام الباركود',
+                              urdu: 'بارکوڈ کے ہندسے درج کریں',
+                            )
                           : _value,
                       textAlign: TextAlign.left,
                       style: theme.textTheme.headlineSmall?.copyWith(
@@ -4436,9 +4462,13 @@ class _ManualBarcodeKeypadDialogState
               ),
               const SizedBox(height: 10),
               Text(
-                isArabic
-                    ? 'أدخل أرقام الباركود يدويًا إذا لم يستجب الماسح.'
-                    : 'Type the barcode digits manually if the scanner does not respond.',
+                context.trText(
+                  english:
+                      'Type the barcode digits manually if the scanner does not respond.',
+                  arabic: 'أدخل أرقام الباركود يدويًا إذا لم يستجب الماسح.',
+                  urdu:
+                      'اگر اسکینر جواب نہ دے تو بارکوڈ کے ہندسے دستی طور پر درج کریں۔',
+                ),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: AppTheme.textMuted,
                   fontWeight: FontWeight.w600,
@@ -4468,7 +4498,11 @@ class _ManualBarcodeKeypadDialogState
                   Expanded(
                     child: _BarcodeKeyButton(
                       key: const Key('manual-barcode-delete'),
-                      label: isArabic ? 'حذف' : 'Del',
+                      label: context.trText(
+                        english: 'Del',
+                        arabic: 'حذف',
+                        urdu: 'حذف',
+                      ),
                       onPressed: _deleteDigit,
                       backgroundColor: AppTheme.surfaceAlt,
                       foregroundColor: AppTheme.textPrimary,
@@ -4499,7 +4533,11 @@ class _ManualBarcodeKeypadDialogState
                           ),
                         ),
                         child: Text(
-                          isArabic ? 'استخدام' : 'Use',
+                          context.trText(
+                            english: 'Use',
+                            arabic: 'استخدام',
+                            urdu: 'استعمال کریں',
+                          ),
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
@@ -4514,7 +4552,13 @@ class _ManualBarcodeKeypadDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(isArabic ? 'إلغاء' : 'Cancel'),
+          child: Text(
+            context.trText(
+              english: 'Cancel',
+              arabic: 'إلغاء',
+              urdu: 'منسوخ کریں',
+            ),
+          ),
         ),
       ],
     );
@@ -4549,28 +4593,49 @@ class _ManualLocationEntryDialogState
 
   @override
   Widget build(BuildContext context) {
-    final isArabic = context.isArabicLocale;
     return AlertDialog(
       key: const Key('manual-location-dialog'),
-      title: Text(isArabic ? 'إدخال يدوي' : 'Manual Type'),
+      title: Text(
+        context.trText(
+          english: 'Manual Type',
+          arabic: 'إدخال يدوي',
+          urdu: 'دستی اندراج',
+        ),
+      ),
       content: TextField(
         key: const Key('manual-location-dialog-field'),
         controller: _controller,
         autofocus: true,
         decoration: InputDecoration(
-          labelText: isArabic ? 'الموقع' : 'Location',
+          labelText: context.trText(
+            english: 'Location',
+            arabic: 'الموقع',
+            urdu: 'مقام',
+          ),
           prefixIcon: const Icon(Icons.location_on_outlined),
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(isArabic ? 'إلغاء' : 'Cancel'),
+          child: Text(
+            context.trText(
+              english: 'Cancel',
+              arabic: 'إلغاء',
+              urdu: 'منسوخ کریں',
+            ),
+          ),
         ),
         FilledButton(
           key: const Key('manual-location-submit'),
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
-          child: Text(isArabic ? 'استخدام الموقع' : 'Use Location'),
+          child: Text(
+            context.trText(
+              english: 'Use Location',
+              arabic: 'استخدام الموقع',
+              urdu: 'مقام استعمال کریں',
+            ),
+          ),
         ),
       ],
     );

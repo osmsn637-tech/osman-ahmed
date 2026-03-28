@@ -11,6 +11,8 @@ import 'package:wherehouse/features/auth/domain/usecases/login_usecase.dart';
 import 'package:wherehouse/features/auth/presentation/pages/login_page.dart';
 import 'package:wherehouse/features/auth/presentation/providers/login_form_provider.dart';
 import 'package:wherehouse/features/auth/presentation/providers/session_provider.dart';
+import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:wherehouse/shared/l10n/l10n.dart';
 import 'package:wherehouse/shared/providers/global_error_provider.dart';
 import 'package:wherehouse/shared/providers/global_loading_provider.dart';
 import 'package:wherehouse/shared/providers/locale_controller.dart';
@@ -260,5 +262,49 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.calls, isEmpty);
+  });
+
+  testWidgets('login page renders Urdu copy and RTL when locale is Urdu',
+      (tester) async {
+    final localeController = LocaleController()..setLocale('ur');
+    final loginFormController = LoginFormController(
+      loginUseCase: LoginUseCase(_RecordingAuthRepository()),
+      errors: GlobalErrorController(),
+      loading: GlobalLoadingController(),
+      session: SessionController(),
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<GlobalLoadingController>.value(
+            value: GlobalLoadingController(),
+          ),
+          ChangeNotifierProvider<LoginFormController>.value(
+            value: loginFormController,
+          ),
+          ChangeNotifierProvider<LocaleController>.value(
+            value: localeController,
+          ),
+        ],
+        child: const MaterialApp(
+          locale: Locale('ur'),
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: GlobalLoadingListener(
+            child: LoginPage(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('گودام مینجمنٹ سسٹم'), findsOneWidget);
+    expect(find.text('موبائل نمبر'), findsOneWidget);
+    expect(find.text('پاس ورڈ'), findsOneWidget);
+    expect(find.text('سائن اِن کریں'), findsOneWidget);
+
+    final context = tester.element(find.byType(LoginPage));
+    expect(context.isRtlLocale, isTrue);
   });
 }

@@ -9,7 +9,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         locale: Locale('ar'),
-        supportedLocales: [Locale('en'), Locale('ar')],
+        supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
         localizationsDelegates: [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -22,5 +22,24 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(find.text('عامل الترصيص'), findsOneWidget);
+  });
+
+  testWidgets('home page renders Urdu title in Urdu locale', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        locale: Locale('ur'),
+        supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+        localizationsDelegates: [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: HomePage(),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    expect(find.text('پٹ اوے کارکن'), findsOneWidget);
   });
 }

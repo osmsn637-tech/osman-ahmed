@@ -16,11 +16,15 @@ class InboundHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final isArabic = context.isArabicLocale;
     final user = context.select<SessionController, User?>(
       (session) => session.state.user,
     );
-    final userName = user?.name ?? (isArabic ? 'الوارد' : 'Inbound');
+    final userName = user?.name ??
+        context.trText(
+          english: 'Inbound',
+          arabic: 'الوارد',
+          urdu: 'وصولی',
+        );
 
     return Scaffold(
       appBar: AppBar(
@@ -29,7 +33,13 @@ class InboundHomePage extends StatelessWidget {
           children: [
             const AppLogo(size: 24),
             const SizedBox(width: 8),
-            Text(isArabic ? 'الوارد' : 'Inbound'),
+            Text(
+              context.trText(
+                english: 'Inbound',
+                arabic: 'الوارد',
+                urdu: 'وصولی',
+              ),
+            ),
           ],
         ),
       ),
@@ -76,13 +86,24 @@ class InboundHomePage extends StatelessWidget {
   }
 
   Future<void> _openReceive(BuildContext context) async {
-    final isArabic = context.isArabicLocale;
     final po = await showItemLookupScanDialog(
       context,
-      title: isArabic ? 'مسح أمر الشراء' : 'Scan PO',
+      title: context.trText(
+        english: 'Scan PO',
+        arabic: 'مسح أمر الشراء',
+        urdu: 'پی او اسکین کریں',
+      ),
       hintText: 'PO.00..',
-      emptyErrorMessage: isArabic ? 'أدخل أمر شراء صالح' : 'Enter a valid PO',
-      continueLabel: isArabic ? 'متابعة' : 'Continue',
+      emptyErrorMessage: context.trText(
+        english: 'Enter a valid PO',
+        arabic: 'أدخل أمر شراء صالح',
+        urdu: 'درست پی او درج کریں',
+      ),
+      continueLabel: context.trText(
+        english: 'Continue',
+        arabic: 'متابعة',
+        urdu: 'جاری رکھیں',
+      ),
       showKeyboard: false,
     );
     final normalized = po?.trim() ?? '';

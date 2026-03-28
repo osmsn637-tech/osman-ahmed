@@ -9,6 +9,7 @@ class SecureTokenStorage {
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
   static const _userKey = 'user_payload';
+  static const _appEnvironmentKey = 'app_environment';
 
   final FlutterSecureStorage _storage;
 
@@ -34,6 +35,12 @@ class SecureTokenStorage {
   Future<String?> readAccessToken() => _storage.read(key: _accessTokenKey);
 
   Future<String?> readRefreshToken() => _storage.read(key: _refreshTokenKey);
+
+  Future<String?> readAppEnvironment() => _storage.read(key: _appEnvironmentKey);
+
+  Future<void> persistAppEnvironment(String value) async {
+    await _storage.write(key: _appEnvironmentKey, value: value);
+  }
 
   Future<void> clear() async {
     await _storage.delete(key: _accessTokenKey);

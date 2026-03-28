@@ -19,14 +19,20 @@ class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
   static const _arLabel =
       '\u0627\u0644\u0639\u0631\u0628\u064a\u0629'; // العربية
+  static const _urLabel = 'اردو';
   static const _arWarehouseSystem =
       '\u0646\u0638\u0627\u0645 \u0625\u062f\u0627\u0631\u0629 \u0627\u0644\u0645\u0633\u062a\u0648\u062f\u0639\u0627\u062a'; // نظام إدارة المستودعات
+  static const _urWarehouseSystem = 'گودام مینجمنٹ سسٹم';
   static const _arMobile =
       '\u0631\u0642\u0645 \u0627\u0644\u062c\u0648\u0627\u0644'; // رقم الجوال
+  static const _urMobile = 'موبائل نمبر';
   static const _arPassword =
       '\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631'; // كلمة المرور
+  static const _urPassword = 'پاس ورڈ';
   static const _arSignIn =
       '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644'; // تسجيل الدخول
+  static const _urSignIn = 'سائن اِن کریں';
+  static const List<String> _supportedLanguages = ['en', 'ar', 'ur'];
 
   String _version = '';
   String _lang = 'en';
@@ -40,6 +46,7 @@ class _LoginPageState extends State<LoginPage>
   @override
   void initState() {
     super.initState();
+    _lang = context.read<LocaleController>().locale.languageCode;
     final formController = context.read<LoginFormController>();
     formController.reset();
     _usernameController =
@@ -110,8 +117,8 @@ class _LoginPageState extends State<LoginPage>
     final controller = context.read<LoginFormController>();
     final formState = context.watch<LoginFormController>().state;
     final localeController = context.read<LocaleController>();
-    final isArabic = _lang == 'ar';
-    final direction = isArabic ? TextDirection.rtl : TextDirection.ltr;
+    final direction =
+        _lang == 'ar' || _lang == 'ur' ? TextDirection.rtl : TextDirection.ltr;
     final disableAnimations =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     if (disableAnimations && _introController.value != 1.0) {
@@ -146,13 +153,20 @@ class _LoginPageState extends State<LoginPage>
                         alignment: AlignmentDirectional.topStart,
                         child: Material(
                           color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(10),
-                            onTap: () {
-                              setState(
-                                  () => _lang = _lang == 'en' ? 'ar' : 'en');
-                              localeController.setLocale(_lang);
+                          child: PopupMenuButton<String>(
+                            initialValue: _lang,
+                            onSelected: (value) {
+                              setState(() => _lang = value);
+                              localeController.setLocale(value);
                             },
+                            itemBuilder: (context) => _supportedLanguages
+                                .map(
+                                  (code) => PopupMenuItem<String>(
+                                    value: code,
+                                    child: Text(_languageLabel(code)),
+                                  ),
+                                )
+                                .toList(),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 6),
@@ -163,7 +177,7 @@ class _LoginPageState extends State<LoginPage>
                                       size: 18, color: AppTheme.accent),
                                   const SizedBox(width: 6),
                                   Text(
-                                    _lang == 'en' ? _arLabel : 'English',
+                                    _languageLabel(_lang),
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                       color: AppTheme.accent,
@@ -194,9 +208,11 @@ class _LoginPageState extends State<LoginPage>
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  isArabic
-                                      ? _arWarehouseSystem
-                                      : 'Warehouse Management System',
+                                  _tr(
+                                    english: 'Warehouse Management System',
+                                    arabic: _arWarehouseSystem,
+                                    urdu: _urWarehouseSystem,
+                                  ),
                                   textAlign: TextAlign.center,
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
@@ -205,8 +221,11 @@ class _LoginPageState extends State<LoginPage>
                                   controller: _usernameController,
                                   enabled: !formState.isSubmitting,
                                   decoration: InputDecoration(
-                                    labelText:
-                                        isArabic ? _arMobile : 'Mobile Number',
+                                    labelText: _tr(
+                                      english: 'Mobile Number',
+                                      arabic: _arMobile,
+                                      urdu: _urMobile,
+                                    ),
                                     prefixIcon:
                                         const Icon(Icons.phone_outlined),
                                   ),
@@ -225,8 +244,11 @@ class _LoginPageState extends State<LoginPage>
                                   controller: _passwordController,
                                   enabled: !formState.isSubmitting,
                                   decoration: InputDecoration(
-                                    labelText:
-                                        isArabic ? _arPassword : 'Password',
+                                    labelText: _tr(
+                                      english: 'Password',
+                                      arabic: _arPassword,
+                                      urdu: _urPassword,
+                                    ),
                                     prefixIcon: const Icon(Icons.lock_outline),
                                     suffixIcon: GestureDetector(
                                       onTap: () =>
@@ -260,7 +282,11 @@ class _LoginPageState extends State<LoginPage>
                                                 ? controller.submit
                                                 : null,
                                         child: Text(
-                                          isArabic ? _arSignIn : 'Sign In',
+                                          _tr(
+                                            english: 'Sign In',
+                                            arabic: _arSignIn,
+                                            urdu: _urSignIn,
+                                          ),
                                         ),
                                       );
                                     },
@@ -288,5 +314,25 @@ class _LoginPageState extends State<LoginPage>
         ),
       ),
     );
+  }
+
+  String _languageLabel(String code) {
+    return switch (code) {
+      'ar' => _arLabel,
+      'ur' => _urLabel,
+      _ => 'English',
+    };
+  }
+
+  String _tr({
+    required String english,
+    required String arabic,
+    required String urdu,
+  }) {
+    return switch (_lang) {
+      'ar' => arabic,
+      'ur' => urdu,
+      _ => english,
+    };
   }
 }

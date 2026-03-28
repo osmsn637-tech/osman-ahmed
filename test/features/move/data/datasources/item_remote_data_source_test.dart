@@ -58,6 +58,7 @@ void main() {
               'item_name': 'Hajer Water',
               'barcode': '6287009170024',
               'quantity': 12,
+              'picked_quantity': 3,
               'image_url': 'https://example.com/water.png',
             },
           ],
@@ -85,6 +86,7 @@ void main() {
     expect(summary.items.first.itemName, 'Hajer Water');
     expect(summary.items.first.barcode, '6287009170024');
     expect(summary.items.first.quantity, 12);
+    expect(summary.items.first.pickedQuantity, 3);
   });
 }
 

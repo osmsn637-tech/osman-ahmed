@@ -30,8 +30,11 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
   String? _prefilledPo;
   bool _listeningForPoChanges = false;
 
-  String _tr(String english, String arabic) =>
-      context.isArabicLocale ? arabic : english;
+  String _tr(String english, String arabic, [String? urdu]) => context.trText(
+        english: english,
+        arabic: arabic,
+        urdu: urdu,
+      );
 
   @override
   void initState() {
@@ -158,6 +161,7 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
               _tr(
                 'Row ${i + 1}: barcode and quantity are required',
                 'الصف ${i + 1}: الباركود والكمية مطلوبان',
+                'قطار ${i + 1}: بارکوڈ اور مقدار ضروری ہیں',
               ),
             ),
           ),
@@ -167,7 +171,11 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
       items.add(
         CreateInboundItem(
           itemId: 2000 + i,
-          itemName: _tr('Product ${i + 1}', 'منتج ${i + 1}'),
+          itemName: _tr(
+            'Product ${i + 1}',
+            'منتج ${i + 1}',
+            'پروڈکٹ ${i + 1}',
+          ),
           barcode: barcode,
           expectedQuantity: qty,
           toLocation: 'A01-01-01',
@@ -191,7 +199,11 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _tr('Failed to create receipt: $e', 'فشل إنشاء الاستلام: $e'),
+            _tr(
+              'Failed to create receipt: $e',
+              'فشل إنشاء الاستلام: $e',
+              'رسید بنانے میں ناکامی: $e',
+            ),
           ),
         ),
       );
@@ -205,8 +217,16 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
   void _importProductFromScan(int index) async {
     final barcode = await showItemLookupScanDialog(
       context,
-      title: _tr('Scan product barcode', 'امسح باركود الصنف'),
-      hintText: _tr('Scan barcode', 'امسح الباركود'),
+      title: _tr(
+        'Scan product barcode',
+        'امسح باركود الصنف',
+        'پروڈکٹ بارکوڈ اسکین کریں',
+      ),
+      hintText: _tr(
+        'Scan barcode',
+        'امسح الباركود',
+        'بارکوڈ اسکین کریں',
+      ),
     );
     final value = barcode?.trim() ?? '';
     if (value.isEmpty || index < 0 || index >= _rows.length) return;
@@ -223,7 +243,11 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
         _rows.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: Text(_tr('Create Receipt', 'إنشاء استلام'))),
+      appBar: AppBar(
+        title: Text(
+          _tr('Create Receipt', 'إنشاء استلام', 'رسید بنائیں'),
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(14),
         child: Form(
@@ -233,7 +257,11 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
               TextFormField(
                 controller: _poController,
                 decoration: InputDecoration(
-                  labelText: _tr('PO Number', 'رقم أمر الشراء'),
+                  labelText: _tr(
+                    'PO Number',
+                    'رقم أمر الشراء',
+                    'پی او نمبر',
+                  ),
                   hintText: 'PO.00..',
                   prefixIcon: const Icon(Icons.receipt_long_outlined),
                 ),
@@ -243,6 +271,7 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
                     return _tr(
                       'PO number is required',
                       'رقم أمر الشراء مطلوب',
+                      'پی او نمبر ضروری ہے',
                     );
                   }
                   return null;
@@ -252,20 +281,28 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
               TextFormField(
                 controller: _supplierController,
                 decoration: InputDecoration(
-                  labelText: _tr('Supplier', 'المورد'),
+                  labelText: _tr('Supplier', 'المورد', 'سپلائر'),
                   prefixIcon: const Icon(Icons.business),
                 ),
                 onChanged: (_) => setState(() {}),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return _tr('Supplier is required', 'اسم المورد مطلوب');
+                    return _tr(
+                      'Supplier is required',
+                      'اسم المورد مطلوب',
+                      'سپلائر ضروری ہے',
+                    );
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 18),
               Text(
-                _tr('Products in PO', 'المنتجات في أمر الشراء'),
+                _tr(
+                  'Products in PO',
+                  'المنتجات في أمر الشراء',
+                  'پی او میں مصنوعات',
+                ),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -287,8 +324,11 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
                                 child: TextFormField(
                                   controller: row.barcodeController,
                                   decoration: InputDecoration(
-                                    labelText:
-                                        _tr('Product Barcode', 'باركود الصنف'),
+                                    labelText: _tr(
+                                      'Product Barcode',
+                                      'باركود الصنف',
+                                      'پروڈکٹ بارکوڈ',
+                                    ),
                                     prefixIcon: const Icon(Icons.qr_code),
                                   ),
                                   validator: (value) {
@@ -296,6 +336,7 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
                                       return _tr(
                                         'Barcode is required',
                                         'الباركود مطلوب',
+                                        'بارکوڈ ضروری ہے',
                                       );
                                     }
                                     return null;
@@ -305,14 +346,22 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
                               IconButton(
                                 onPressed: () => _importProductFromScan(index),
                                 icon: const Icon(Icons.qr_code_scanner),
-                                tooltip: _tr('Scan barcode', 'امسح الباركود'),
+                                tooltip: _tr(
+                                  'Scan barcode',
+                                  'امسح الباركود',
+                                  'بارکوڈ اسکین کریں',
+                                ),
                                 color: AppTheme.primary,
                               ),
                               if (_rows.length > 1)
                                 IconButton(
                                   onPressed: () => _removeRow(index),
                                   icon: const Icon(Icons.delete_outline),
-                                  tooltip: _tr('Remove row', 'حذف الصف'),
+                                  tooltip: _tr(
+                                    'Remove row',
+                                    'حذف الصف',
+                                    'قطار حذف کریں',
+                                  ),
                                   color: AppTheme.warning,
                                 ),
                             ],
@@ -322,8 +371,11 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
                             controller: row.quantityController,
                             keyboardType: TextInputType.number,
                             decoration: InputDecoration(
-                              labelText:
-                                  _tr('Expected Quantity', 'الكمية المتوقعة'),
+                              labelText: _tr(
+                                'Expected Quantity',
+                                'الكمية المتوقعة',
+                                'متوقع مقدار',
+                              ),
                               prefixIcon: const Icon(Icons.numbers),
                             ),
                             validator: (value) {
@@ -332,6 +384,7 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
                                 return _tr(
                                   'Expected quantity is required',
                                   'الكمية المتوقعة مطلوبة',
+                                  'متوقع مقدار ضروری ہے',
                                 );
                               }
                               return null;
@@ -348,7 +401,9 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
                 child: TextButton.icon(
                   onPressed: _addRow,
                   icon: const Icon(Icons.add),
-                  label: Text(_tr('Add product', 'إضافة منتج')),
+                  label: Text(
+                    _tr('Add product', 'إضافة منتج', 'پروڈکٹ شامل کریں'),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -357,8 +412,12 @@ class _CreateInboundPageState extends State<CreateInboundPage> {
                 icon: const Icon(Icons.save),
                 label: Text(
                   _isSaving
-                      ? _tr('Creating...', 'جارٍ الإنشاء...')
-                      : _tr('Create Receipt', 'إنشاء استلام'),
+                      ? _tr('Creating...', 'جارٍ الإنشاء...', 'بنایا جا رہا ہے...')
+                      : _tr(
+                          'Create Receipt',
+                          'إنشاء استلام',
+                          'رسید بنائیں',
+                        ),
                 ),
               ),
             ],

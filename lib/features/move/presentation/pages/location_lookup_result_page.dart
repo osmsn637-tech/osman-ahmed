@@ -34,7 +34,7 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
     final controller = context.watch<LocationLookupController>();
     final state = controller.state;
     final summary = state.summary;
-    final isArabic = context.isArabicLocale;
+    final isRtl = context.isRtlLocale;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -49,7 +49,11 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
           },
         ),
         title: Text(
-          isArabic ? 'نتيجة بحث الموقع' : 'Location Lookup Result',
+          context.trText(
+            english: 'Location Lookup Result',
+            arabic: 'نتيجة بحث الموقع',
+            urdu: 'مقام تلاش کا نتیجہ',
+          ),
         ),
       ),
       body: Container(
@@ -70,12 +74,16 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
               if (state.isLoading) {
                 return _LocationStateMessage(
                   icon: Icons.hourglass_top_rounded,
-                  title: isArabic
-                      ? 'جارٍ تحميل تفاصيل الموقع'
-                      : 'Loading location details',
-                  subtitle: isArabic
-                      ? 'جارٍ جلب الأصناف الموجودة في هذا الموقع...'
-                      : 'Fetching items stored in this location...',
+                  title: context.trText(
+                    english: 'Loading location details',
+                    arabic: 'جارٍ تحميل تفاصيل الموقع',
+                    urdu: 'مقام کی تفصیلات لوڈ ہو رہی ہیں',
+                  ),
+                  subtitle: context.trText(
+                    english: 'Fetching items stored in this location...',
+                    arabic: 'جارٍ جلب الأصناف الموجودة في هذا الموقع...',
+                    urdu: 'اس مقام میں موجود آئٹمز حاصل کیے جا رہے ہیں...',
+                  ),
                   loading: true,
                 );
               }
@@ -83,7 +91,11 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
               if (state.errorType == LocationLookupErrorType.notFound) {
                 return _LocationStateMessage(
                   icon: Icons.search_off_rounded,
-                  title: isArabic ? 'الموقع غير موجود' : 'Location not found',
+                  title: context.trText(
+                    english: 'Location not found',
+                    arabic: 'الموقع غير موجود',
+                    urdu: 'مقام نہیں ملا',
+                  ),
                 );
               }
 
@@ -91,12 +103,20 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
                 return _LocationStateMessage(
                   icon: Icons.wifi_off_rounded,
                   title: state.errorMessage ??
-                      (isArabic
-                          ? 'تعذر تحميل تفاصيل الموقع'
-                          : 'Could not load location details'),
+                      context.trText(
+                        english: 'Could not load location details',
+                        arabic: 'تعذر تحميل تفاصيل الموقع',
+                        urdu: 'مقام کی تفصیلات لوڈ نہیں ہو سکیں',
+                      ),
                   action: ElevatedButton(
                     onPressed: controller.retry,
-                    child: Text(isArabic ? 'إعادة المحاولة' : 'Retry'),
+                    child: Text(
+                      context.trText(
+                        english: 'Retry',
+                        arabic: 'إعادة المحاولة',
+                        urdu: 'دوبارہ کوشش کریں',
+                      ),
+                    ),
                   ),
                 );
               }
@@ -111,9 +131,11 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
               if (summary == null) {
                 return _LocationStateMessage(
                   icon: Icons.inventory_2_outlined,
-                  title: isArabic
-                      ? 'لا توجد بيانات للموقع'
-                      : 'No location data available',
+                  title: context.trText(
+                    english: 'No location data available',
+                    arabic: 'لا توجد بيانات للموقع',
+                    urdu: 'کوئی مقام ڈیٹا دستیاب نہیں',
+                  ),
                 );
               }
 
@@ -121,12 +143,12 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
                 children: [
                   _LocationHeaderCard(
                     summary: summary,
-                    isArabic: isArabic,
+                    isArabic: isRtl,
                   ),
                   const SizedBox(height: 14),
                   _LocationItemsSection(
                     summary: summary,
-                    isArabic: isArabic,
+                    isArabic: isRtl,
                   ),
                 ],
               );
@@ -192,7 +214,11 @@ class _LocationHeaderCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _LocationStatCard(
-                      label: isArabic ? 'عدد الأصناف' : 'Items',
+                      label: context.trText(
+                        english: 'Items',
+                        arabic: 'عدد الأصناف',
+                        urdu: 'آئٹمز',
+                      ),
                       value: '${summary.totalItems}',
                       icon: Icons.inventory_2_outlined,
                     ),
@@ -200,7 +226,11 @@ class _LocationHeaderCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _LocationStatCard(
-                      label: isArabic ? 'إجمالي الكمية' : 'Total Quantity',
+                      label: context.trText(
+                        english: 'Total Quantity',
+                        arabic: 'إجمالي الكمية',
+                        urdu: 'کل مقدار',
+                      ),
                       value: '${summary.totalQuantity}',
                       icon: Icons.numbers_rounded,
                     ),
@@ -288,7 +318,11 @@ class _LocationItemsSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  isArabic ? 'الأصناف في الموقع' : 'Items In Location',
+                  context.trText(
+                    english: 'Items In Location',
+                    arabic: 'الأصناف في الموقع',
+                    urdu: 'مقام میں آئٹمز',
+                  ),
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
                 const Spacer(),
@@ -312,9 +346,11 @@ class _LocationItemsSection extends StatelessWidget {
             const SizedBox(height: 12),
             if (summary.items.isEmpty)
               Text(
-                isArabic
-                    ? 'لا توجد أصناف في هذا الموقع'
-                    : 'No items in this location',
+                context.trText(
+                  english: 'No items in this location',
+                  arabic: 'لا توجد أصناف في هذا الموقع',
+                  urdu: 'اس مقام میں کوئی آئٹم نہیں',
+                ),
               )
             else
               for (var index = 0; index < summary.items.length; index++) ...[
@@ -365,7 +401,11 @@ class _LocationItemCard extends StatelessWidget {
               children: [
                 Text(
                   item.itemName.isEmpty
-                      ? (isArabic ? 'صنف غير معروف' : 'Unknown Item')
+                      ? context.trText(
+                          english: 'Unknown Item',
+                          arabic: 'صنف غير معروف',
+                          urdu: 'نامعلوم آئٹم',
+                        )
                       : item.itemName,
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
@@ -384,29 +424,72 @@ class _LocationItemCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                isArabic ? 'الكمية' : 'Qty',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+              _LocationQuantityStat(
+                label: context.trText(
+                  english: 'Qty',
+                  arabic: 'الكمية',
+                  urdu: 'مقدار',
                 ),
+                value: item.quantity,
+                alignEnd: false,
               ),
-              const SizedBox(height: 4),
-              Text(
-                '${item.quantity}',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
+              const SizedBox(width: 12),
+              _LocationQuantityStat(
+                label: context.trText(
+                  english: 'Picked Qty',
+                  arabic: 'الكمية الملتقطة',
+                  urdu: 'پک شدہ مقدار',
                 ),
+                value: item.pickedQuantity,
+                alignEnd: true,
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LocationQuantityStat extends StatelessWidget {
+  const _LocationQuantityStat({
+    required this.label,
+    required this.value,
+    required this.alignEnd,
+  });
+
+  final String label;
+  final int value;
+  final bool alignEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment:
+          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '$value',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -58,34 +58,72 @@ String taskTypeLabelForContext(
   TaskType type, {
   bool isPutaway = false,
 }) {
-  final isArabic = context.isArabicLocale;
   switch (type) {
     case TaskType.receive:
-      return isArabic ? 'استلام' : (isPutaway ? 'PUTAWAY' : 'RECEIVE');
+      return context.trText(
+        english: isPutaway ? 'PUTAWAY' : 'RECEIVE',
+        arabic: 'استلام',
+        urdu: isPutaway ? 'پٹ اوے' : 'وصولی',
+      );
     case TaskType.move:
-      return isArabic ? 'نقل' : 'MOVE';
+      return context.trText(
+        english: 'MOVE',
+        arabic: 'نقل',
+        urdu: 'منتقلی',
+      );
     case TaskType.returnTask:
-      return isArabic ? 'مرتجع' : 'RETURN';
+      return context.trText(
+        english: 'RETURN',
+        arabic: 'مرتجع',
+        urdu: 'واپسی',
+      );
     case TaskType.adjustment:
-      return isArabic ? 'تعديل' : 'ADJUSTMENT';
+      return context.trText(
+        english: 'ADJUSTMENT',
+        arabic: 'تعديل',
+        urdu: 'ایڈجسٹمنٹ',
+      );
     case TaskType.refill:
-      return isArabic ? 'إعادة تعبئة' : 'REFILL';
+      return context.trText(
+        english: 'REFILL',
+        arabic: 'إعادة تعبئة',
+        urdu: 'ری فل',
+      );
     case TaskType.exception:
-      return isArabic ? 'استثناء' : 'EXCEPTION';
+      return context.trText(
+        english: 'EXCEPTION',
+        arabic: 'استثناء',
+        urdu: 'استثناء',
+      );
     case TaskType.cycleCount:
-      return isArabic ? 'جرد دوري' : 'CYCLE COUNT';
+      return context.trText(
+        english: 'CYCLE COUNT',
+        arabic: 'جرد دوري',
+        urdu: 'سائیکل کاؤنٹ',
+      );
   }
 }
 
 String taskStatusLabelForContext(BuildContext context, TaskStatus status) {
-  final isArabic = context.isArabicLocale;
   switch (status) {
     case TaskStatus.pending:
-      return isArabic ? 'قيد الانتظار' : 'PENDING';
+      return context.trText(
+        english: 'PENDING',
+        arabic: 'قيد الانتظار',
+        urdu: 'زیر انتظار',
+      );
     case TaskStatus.inProgress:
-      return isArabic ? 'قيد التنفيذ' : 'INPROGRESS';
+      return context.trText(
+        english: 'INPROGRESS',
+        arabic: 'قيد التنفيذ',
+        urdu: 'جاری',
+      );
     case TaskStatus.completed:
-      return isArabic ? 'مكتملة' : 'COMPLETED';
+      return context.trText(
+        english: 'COMPLETED',
+        arabic: 'مكتملة',
+        urdu: 'مکمل',
+      );
   }
 }
 

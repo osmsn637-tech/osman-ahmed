@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/config/app_environment_controller.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/result.dart';
 import '../../features/auth/domain/entities/user.dart';
@@ -12,8 +13,35 @@ import '../providers/locale_controller.dart';
 import '../theme/app_theme.dart';
 import '../utils/location_codes.dart';
 
-class AccountPage extends StatelessWidget {
+class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
+
+  @override
+  State<AccountPage> createState() => _AccountPageState();
+}
+
+class _AccountPageState extends State<AccountPage> {
+  int _zoneTapCount = 0;
+
+  Future<void> _handleZoneTap() async {
+    final environmentController = context.read<AppEnvironmentController?>();
+    if (environmentController == null) {
+      return;
+    }
+
+    _zoneTapCount += 1;
+    if (_zoneTapCount < 5) {
+      return;
+    }
+    _zoneTapCount = 0;
+
+    final pinAccepted = await _showDeveloperModeDialog(context);
+    if (pinAccepted != true || !mounted) {
+      return;
+    }
+
+    await environmentController.toggleEnvironment();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +52,10 @@ class AccountPage extends StatelessWidget {
     final name = user?.name ?? 'User';
     final role = user?.canonicalRole ?? 'worker';
     final phone = user?.phone ?? '966533333333';
-    final direction = locale == 'ar' ? TextDirection.rtl : TextDirection.ltr;
+    final direction = switch (locale) {
+      'ar' || 'ur' => TextDirection.rtl,
+      _ => TextDirection.ltr,
+    };
     final zone = formatZoneForDisplay(user?.zone);
 
     return Scaffold(
@@ -54,6 +85,7 @@ class AccountPage extends StatelessWidget {
                     role: role,
                     zone: zone,
                     l10n: l10n,
+                    onZoneTap: _handleZoneTap,
                   ),
                   const SizedBox(height: 14),
                   _LanguagePanel(locale: locale, l10n: l10n),
@@ -162,12 +194,14 @@ class _InfoPanel extends StatelessWidget {
     required this.role,
     required this.zone,
     required this.l10n,
+    required this.onZoneTap,
   });
 
   final String phone;
   final String role;
   final String zone;
   final AppLocalizations l10n;
+  final VoidCallback onZoneTap;
 
   @override
   Widget build(BuildContext context) {
@@ -192,6 +226,8 @@ class _InfoPanel extends StatelessWidget {
             icon: Icons.location_on_outlined,
             label: l10n.accountZone,
             value: zone,
+            rowKey: const Key('account-zone-row'),
+            onTap: onZoneTap,
           ),
           const SizedBox(height: 10),
         ],
@@ -235,6 +271,14 @@ class _LanguagePanel extends StatelessWidget {
               label: l10n.accountEnglish,
               selected: locale == 'en',
               onTap: () => controller.setLocale('en'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _LangButton(
+              label: l10n.accountUrdu,
+              selected: locale == 'ur',
+              onTap: () => controller.setLocale('ur'),
             ),
           ),
         ],
@@ -323,26 +367,41 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
   bool _isSubmitting = false;
   String? _errorMessage;
 
-  bool get _isArabic => Localizations.localeOf(context).languageCode == 'ar';
+  String get _requiredFieldsMessage => context.trText(
+        english: 'Both password fields are required',
+        arabic: 'حقلا كلمة المرور مطلوبان',
+        urdu: 'دونوں پاس ورڈ فیلڈز لازمی ہیں',
+      );
 
-  String get _requiredFieldsMessage => _isArabic
-      ? 'حقلا كلمة المرور مطلوبان'
-      : 'Both password fields are required';
+  String get _passwordUpdatedMessage => context.trText(
+        english: 'Password updated successfully',
+        arabic: 'تم تحديث كلمة المرور بنجاح',
+        urdu: 'پاس ورڈ کامیابی سے اپ ڈیٹ ہو گیا',
+      );
 
-  String get _passwordUpdatedMessage => _isArabic
-      ? 'تم تحديث كلمة المرور بنجاح'
-      : 'Password updated successfully';
+  String get _currentPasswordLabel => context.trText(
+        english: 'Current Password',
+        arabic: 'كلمة المرور الحالية',
+        urdu: 'موجودہ پاس ورڈ',
+      );
 
-  String get _currentPasswordLabel =>
-      _isArabic ? 'كلمة المرور الحالية' : 'Current Password';
+  String get _newPasswordLabel => context.trText(
+        english: 'New Password',
+        arabic: 'كلمة المرور الجديدة',
+        urdu: 'نیا پاس ورڈ',
+      );
 
-  String get _newPasswordLabel =>
-      _isArabic ? 'كلمة المرور الجديدة' : 'New Password';
+  String get _cancelLabel => context.trText(
+        english: 'Cancel',
+        arabic: 'إلغاء',
+        urdu: 'منسوخ کریں',
+      );
 
-  String get _cancelLabel => _isArabic ? 'إلغاء' : 'Cancel';
-
-  String get _updatePasswordLabel =>
-      _isArabic ? 'تحديث كلمة المرور' : 'Update Password';
+  String get _updatePasswordLabel => context.trText(
+        english: 'Update Password',
+        arabic: 'تحديث كلمة المرور',
+        urdu: 'پاس ورڈ اپ ڈیٹ کریں',
+      );
 
   @override
   void initState() {
@@ -508,51 +567,184 @@ class _InfoRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.rowKey,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final Key? rowKey;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7FAFD),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2ECF7)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppTheme.primary, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textMuted,
+    return GestureDetector(
+      key: rowKey,
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7FAFD),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2ECF7)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppTheme.primary, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textMuted,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.textPrimary,
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<bool?> _showDeveloperModeDialog(BuildContext context) {
+  return showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => const _DeveloperModeDialog(),
+  );
+}
+
+class _DeveloperModeDialog extends StatefulWidget {
+  const _DeveloperModeDialog();
+
+  @override
+  State<_DeveloperModeDialog> createState() => _DeveloperModeDialogState();
+}
+
+class _DeveloperModeDialogState extends State<_DeveloperModeDialog> {
+  static const _secretPin = '564238';
+
+  late final TextEditingController _pinController;
+  String? _errorMessage;
+
+  String get _title => context.trText(
+        english: 'Developer Mode',
+        arabic: 'وضع المطور',
+        urdu: 'ڈیولپر موڈ',
+      );
+
+  String get _prompt => context.trText(
+        english: 'Enter the PIN to switch environments',
+        arabic: 'أدخل الرمز للتبديل بين البيئات',
+        urdu: 'ماحول بدلنے کے لیے پن درج کریں',
+      );
+
+  String get _pinLabel => context.trText(
+        english: 'PIN',
+        arabic: 'الرمز',
+        urdu: 'پن',
+      );
+
+  String get _cancelLabel => context.trText(
+        english: 'Cancel',
+        arabic: 'إلغاء',
+        urdu: 'منسوخ کریں',
+      );
+
+  String get _switchLabel => context.trText(
+        english: 'Switch',
+        arabic: 'تبديل',
+        urdu: 'سوئچ',
+      );
+
+  String get _incorrectPinLabel => context.trText(
+        english: 'Incorrect PIN',
+        arabic: 'الرمز غير صحيح',
+        urdu: 'غلط پن',
+      );
+
+  @override
+  void initState() {
+    super.initState();
+    _pinController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _pinController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_pinController.text.trim() != _secretPin) {
+      setState(() {
+        _errorMessage = _incorrectPinLabel;
+      });
+      return;
+    }
+
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(_title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(_prompt),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _pinController,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            obscureText: true,
+            decoration: InputDecoration(
+              labelText: _pinLabel,
+            ),
+            onSubmitted: (_) => _submit(),
           ),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(
+                color: AppTheme.error,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(_cancelLabel),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          child: Text(_switchLabel),
+        ),
+      ],
     );
   }
 }
@@ -574,7 +766,7 @@ class _LangButton extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 11),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
         decoration: BoxDecoration(
           color: selected ? AppTheme.primary : const Color(0xFFF3F7FC),
           borderRadius: BorderRadius.circular(12),
@@ -583,11 +775,15 @@ class _LangButton extends StatelessWidget {
           ),
         ),
         alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: selected ? Colors.white : AppTheme.textPrimary,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            maxLines: 1,
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: selected ? Colors.white : AppTheme.textPrimary,
+            ),
           ),
         ),
       ),

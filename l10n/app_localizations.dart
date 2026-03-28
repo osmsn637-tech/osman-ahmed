@@ -7,6 +7,7 @@ import 'package:intl/intl.dart' as intl;
 
 import 'app_localizations_ar.dart';
 import 'app_localizations_en.dart';
+import 'app_localizations_ur.dart';
 
 // ignore_for_file: type=lint
 
@@ -95,7 +96,8 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('ar'),
-    Locale('en')
+    Locale('en'),
+    Locale('ur')
   ];
 
   /// No description provided for @appTitle.
@@ -199,6 +201,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'English'**
   String get accountEnglish;
+
+  /// No description provided for @accountUrdu.
+  ///
+  /// In en, this message translates to:
+  /// **'اردو'**
+  String get accountUrdu;
 
   /// No description provided for @accountActions.
   ///
@@ -956,7 +964,7 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) =>
-      <String>['ar', 'en'].contains(locale.languageCode);
+      <String>['ar', 'en', 'ur'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
@@ -969,6 +977,8 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsAr();
     case 'en':
       return AppLocalizationsEn();
+    case 'ur':
+      return AppLocalizationsUr();
   }
 
   throw FlutterError(

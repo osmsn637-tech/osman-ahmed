@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wherehouse/shared/l10n/l10n.dart';
 import 'package:wherehouse/shared/theme/app_theme.dart';
 import 'package:wherehouse/shared/utils/location_codes.dart';
 
@@ -29,12 +30,10 @@ Future<LookupScanResult?> showLookupScanDialog(
   bool showKeyboard = true,
   LookupScanMode mode = LookupScanMode.autoDetect,
 }) {
-  final isArabic = Localizations.localeOf(context).languageCode == 'ar';
   return showDialog<LookupScanResult>(
     context: context,
     barrierDismissible: true,
     builder: (_) => _ScanBarcodeDialog(
-      isArabic: isArabic,
       title: title,
       hintText: hintText,
       emptyErrorMessage: emptyErrorMessage,
@@ -70,7 +69,6 @@ Future<String?> showItemLookupScanDialog(
 
 class _ScanBarcodeDialog extends StatefulWidget {
   const _ScanBarcodeDialog({
-    required this.isArabic,
     this.title,
     this.hintText,
     this.emptyErrorMessage,
@@ -80,7 +78,6 @@ class _ScanBarcodeDialog extends StatefulWidget {
     this.mode = LookupScanMode.itemOnly,
   });
 
-  final bool isArabic;
   final String? title;
   final String? hintText;
   final String? emptyErrorMessage;
@@ -357,13 +354,17 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
     if (value.isEmpty) {
       setState(
         () => _error = widget.emptyErrorMessage ??
-            (widget.isArabic
-                ? (widget.mode == LookupScanMode.autoDetect
-                    ? 'أدخل باركودًا أو موقعًا صالحًا'
-                    : 'أدخل باركودًا صالحًا')
-                : (widget.mode == LookupScanMode.autoDetect
-                    ? 'Enter a valid barcode or location'
-                    : 'Enter a valid barcode')),
+            context.trText(
+              english: widget.mode == LookupScanMode.autoDetect
+                  ? 'Enter a valid barcode or location'
+                  : 'Enter a valid barcode',
+              arabic: widget.mode == LookupScanMode.autoDetect
+                  ? 'أدخل باركودًا أو موقعًا صالحًا'
+                  : 'أدخل باركودًا صالحًا',
+              urdu: widget.mode == LookupScanMode.autoDetect
+                  ? 'درست بارکوڈ یا مقام درج کریں'
+                  : 'درست بارکوڈ درج کریں',
+            ),
       );
       return;
     }
@@ -394,43 +395,75 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
   @override
   Widget build(BuildContext context) {
     final dialogTitle = widget.title ??
-        (widget.isArabic
-            ? (widget.mode == LookupScanMode.autoDetect
-                ? 'امسح الباركود أو الموقع'
-                : 'امسح الباركود')
-            : (widget.mode == LookupScanMode.autoDetect
-                ? 'Scan barcode or location'
-                : 'Scan barcode'));
+        context.trText(
+          english: widget.mode == LookupScanMode.autoDetect
+              ? 'Scan barcode or location'
+              : 'Scan barcode',
+          arabic: widget.mode == LookupScanMode.autoDetect
+              ? 'امسح الباركود أو الموقع'
+              : 'امسح الباركود',
+          urdu: widget.mode == LookupScanMode.autoDetect
+              ? 'بارکوڈ یا مقام اسکین کریں'
+              : 'بارکوڈ اسکین کریں',
+        );
     final dialogHint = widget.hintText ??
-        (widget.isArabic
-            ? (widget.mode == LookupScanMode.autoDetect
-                ? 'امسح باركود الصنف أو كود الموقع'
-                : 'الماسح يبقى جاهزًا')
-            : (widget.mode == LookupScanMode.autoDetect
-                ? 'Scan an item barcode or location code'
-                : 'Scanner stays ready'));
-    final manualEntryLabel = widget.isArabic ? 'إدخال يدوي' : 'Manual Type';
-    final confirmLabel = widget.isArabic ? 'تأكيد' : 'Confirm';
-    final cancelManualLabel = widget.isArabic ? 'إلغاء' : 'Cancel';
-    final scannerReadyLabel =
-        widget.isArabic ? 'تركيز الماسح نشط' : 'Scanner focus active';
-    final scannerLostLabel =
-        widget.isArabic ? 'الماسح غير متصل' : 'Scanner lost focus';
+        context.trText(
+          english: widget.mode == LookupScanMode.autoDetect
+              ? 'Scan an item barcode or location code'
+              : 'Scanner stays ready',
+          arabic: widget.mode == LookupScanMode.autoDetect
+              ? 'امسح باركود الصنف أو كود الموقع'
+              : 'الماسح يبقى جاهزًا',
+          urdu: widget.mode == LookupScanMode.autoDetect
+              ? 'آئٹم بارکوڈ یا مقام کوڈ اسکین کریں'
+              : 'اسکینر تیار رہے گا',
+        );
+    final manualEntryLabel = context.trText(
+      english: 'Manual Type',
+      arabic: 'إدخال يدوي',
+      urdu: 'دستی اندراج',
+    );
+    final confirmLabel = context.trText(
+      english: 'Confirm',
+      arabic: 'تأكيد',
+      urdu: 'تصدیق کریں',
+    );
+    final cancelManualLabel = context.trText(
+      english: 'Cancel',
+      arabic: 'إلغاء',
+      urdu: 'منسوخ کریں',
+    );
+    final scannerReadyLabel = context.trText(
+      english: 'Scanner focus active',
+      arabic: 'تركيز الماسح نشط',
+      urdu: 'اسکینر فوکس فعال ہے',
+    );
+    final scannerLostLabel = context.trText(
+      english: 'Scanner lost focus',
+      arabic: 'الماسح غير متصل',
+      urdu: 'اسکینر کا فوکس ختم ہو گیا',
+    );
     final statusLabel = _scannerFocused ? scannerReadyLabel : scannerLostLabel;
     final statusValue = _value.isEmpty
-        ? (widget.isArabic
-            ? (widget.mode == LookupScanMode.autoDetect
-                ? 'بانتظار مسح الباركود أو الموقع'
-                : 'بانتظار مسح الباركود')
-            : (widget.mode == LookupScanMode.autoDetect
+        ? context.trText(
+            english: widget.mode == LookupScanMode.autoDetect
                 ? 'Waiting for barcode or location scan'
-                : 'Waiting for barcode scan'))
+                : 'Waiting for barcode scan',
+            arabic: widget.mode == LookupScanMode.autoDetect
+                ? 'بانتظار مسح الباركود أو الموقع'
+                : 'بانتظار مسح الباركود',
+            urdu: widget.mode == LookupScanMode.autoDetect
+                ? 'بارکوڈ یا مقام اسکین کا انتظار ہے'
+                : 'بارکوڈ اسکین کا انتظار ہے',
+          )
         : _value;
     final statusHint = _scannerFocused
         ? dialogHint
-        : (widget.isArabic
-            ? 'اضغط على النافذة لإعادة تفعيل الماسح'
-            : 'Tap the popup to reconnect the scanner');
+        : context.trText(
+            english: 'Tap the popup to reconnect the scanner',
+            arabic: 'اضغط على النافذة لإعادة تفعيل الماسح',
+            urdu: 'اسکینر دوبارہ جوڑنے کے لیے پاپ اپ پر ٹیپ کریں',
+          );
     final theme = Theme.of(context);
     const cardColor = AppTheme.primary;
     const insetColor = Color(0xFF184E77);
@@ -530,7 +563,11 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                         ),
                         IconButton(
                           icon: const Icon(Icons.close_rounded),
-                          tooltip: widget.isArabic ? 'إغلاق' : 'Close',
+                          tooltip: context.trText(
+                            english: 'Close',
+                            arabic: 'إغلاق',
+                            urdu: 'بند کریں',
+                          ),
                           color: contentColor,
                           visualDensity: VisualDensity.compact,
                           constraints: const BoxConstraints.tightFor(
@@ -613,7 +650,11 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                                 IconButton(
                                   key: const Key('lookup_clear_button'),
                                   icon: const Icon(Icons.close_rounded),
-                                  tooltip: widget.isArabic ? 'مسح' : 'Clear',
+                                  tooltip: context.trText(
+                                    english: 'Clear',
+                                    arabic: 'مسح',
+                                    urdu: 'صاف کریں',
+                                  ),
                                   color: mutedContentColor,
                                   onPressed: _clearField,
                                 )
@@ -625,9 +666,11 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                                   ),
                                   icon: const Icon(Icons.refresh_rounded,
                                       size: 18),
-                                  tooltip: widget.isArabic
-                                      ? 'إعادة تفعيل الماسح'
-                                      : 'Reconnect scanner',
+                                  tooltip: context.trText(
+                                    english: 'Reconnect scanner',
+                                    arabic: 'إعادة تفعيل الماسح',
+                                    urdu: 'اسکینر دوبارہ جوڑیں',
+                                  ),
                                   color:
                                       _scannerFocused ? readyColor : lostColor,
                                   visualDensity: VisualDensity.compact,
@@ -696,13 +739,17 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              widget.isArabic
-                                  ? (widget.mode == LookupScanMode.autoDetect
-                                      ? 'أدخل الباركود أو الموقع يدويًا'
-                                      : 'أدخل الباركود يدويًا')
-                                  : (widget.mode == LookupScanMode.autoDetect
-                                      ? 'Type barcode or location manually'
-                                      : 'Type barcode manually'),
+                              context.trText(
+                                english: widget.mode == LookupScanMode.autoDetect
+                                    ? 'Type barcode or location manually'
+                                    : 'Type barcode manually',
+                                arabic: widget.mode == LookupScanMode.autoDetect
+                                    ? 'أدخل الباركود أو الموقع يدويًا'
+                                    : 'أدخل الباركود يدويًا',
+                                urdu: widget.mode == LookupScanMode.autoDetect
+                                    ? 'بارکوڈ یا مقام دستی طور پر درج کریں'
+                                    : 'بارکوڈ دستی طور پر درج کریں',
+                              ),
                               style: theme.textTheme.titleSmall?.copyWith(
                                 color: contentColor,
                                 fontWeight: FontWeight.w800,
@@ -724,13 +771,20 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                                 fontWeight: FontWeight.w800,
                               ),
                               decoration: InputDecoration(
-                                hintText: widget.isArabic
-                                    ? (widget.mode == LookupScanMode.autoDetect
-                                        ? 'أدخل الباركود أو كود الموقع'
-                                        : 'أدخل أرقام الباركود')
-                                    : (widget.mode == LookupScanMode.autoDetect
-                                        ? 'Enter barcode or location code'
-                                        : 'Enter barcode digits'),
+                                hintText: context.trText(
+                                  english:
+                                      widget.mode == LookupScanMode.autoDetect
+                                          ? 'Enter barcode or location code'
+                                          : 'Enter barcode digits',
+                                  arabic:
+                                      widget.mode == LookupScanMode.autoDetect
+                                          ? 'أدخل الباركود أو كود الموقع'
+                                          : 'أدخل أرقام الباركود',
+                                  urdu:
+                                      widget.mode == LookupScanMode.autoDetect
+                                          ? 'بارکوڈ یا مقام کوڈ درج کریں'
+                                          : 'بارکوڈ کے ہندسے درج کریں',
+                                ),
                                 hintStyle: theme.textTheme.titleSmall?.copyWith(
                                   color: mutedContentColor,
                                   fontWeight: FontWeight.w600,

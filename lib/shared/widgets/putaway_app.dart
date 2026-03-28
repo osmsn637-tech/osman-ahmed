@@ -4,6 +4,7 @@ import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/app_environment_controller.dart';
 import '../../features/app_update/presentation/controllers/app_update_controller.dart';
 import '../../features/app_update/presentation/widgets/force_update_gate.dart';
 import '../../features/auth/presentation/providers/session_provider.dart';
@@ -59,11 +60,12 @@ class _PutawayAppState extends State<PutawayApp> with WidgetsBindingObserver {
     final router = context.watch<GoRouter>();
     final localeController = context.watch<LocaleController>();
     final appUpdateController = context.watch<AppUpdateController?>();
+    final environmentController = context.watch<AppEnvironmentController?>();
     return MaterialApp.router(
       onGenerateTitle: (context) => context.l10n.appTitle,
       theme: AppTheme.light(),
       locale: localeController.locale,
-      supportedLocales: const [Locale('en'), Locale('ar')],
+      supportedLocales: const [Locale('en'), Locale('ar'), Locale('ur')],
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -71,16 +73,69 @@ class _PutawayAppState extends State<PutawayApp> with WidgetsBindingObserver {
         GlobalCupertinoLocalizations.delegate,
       ],
       routerConfig: router,
-      builder: (context, child) => GlobalLoadingListener(
-        child: GlobalErrorListener(
-          child: GestureDetector(
-            onTap: () => FocusScope.of(context).unfocus(),
-            child: appUpdateController?.state.requiresForceUpdate == true
+      builder: (context, child) {
+        final childContent =
+            appUpdateController?.state.requiresForceUpdate == true
                 ? ForceUpdateGate(
                     state: appUpdateController!.state,
                     onUpdatePressed: appUpdateController.openUpdate,
                   )
-                : child ?? const SizedBox.shrink(),
+                : child ?? const SizedBox.shrink();
+        return GlobalLoadingListener(
+          child: GlobalErrorListener(
+            child: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: Stack(
+                children: [
+                  childContent,
+                  if (environmentController?.isDevelopment == true)
+                    const Positioned(
+                      top: 18,
+                      left: -18,
+                      child: _DevModeBadge(),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DevModeBadge extends StatelessWidget {
+  const _DevModeBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Transform.rotate(
+        angle: -0.75,
+        child: DecoratedBox(
+          key: const Key('dev-ribbon'),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF2C94C),
+            borderRadius: BorderRadius.circular(4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x22000000),
+                blurRadius: 8,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+            child: Text(
+              'DEV',
+              style: TextStyle(
+                color: Color(0xFF4A3B00),
+                fontWeight: FontWeight.w900,
+                fontSize: 10,
+                letterSpacing: 0.8,
+              ),
+            ),
           ),
         ),
       ),

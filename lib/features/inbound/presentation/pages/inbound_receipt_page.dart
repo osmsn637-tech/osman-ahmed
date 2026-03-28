@@ -193,8 +193,17 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
     );
   }
 
-  String _tr(BuildContext context, String english, String arabic) {
-    return context.isArabicLocale ? arabic : english;
+  String _tr(
+    BuildContext context,
+    String english,
+    String arabic, [
+    String? urdu,
+  ]) {
+    return context.trText(
+      english: english,
+      arabic: arabic,
+      urdu: urdu,
+    );
   }
 
   String _quantityLabel(
@@ -207,12 +216,14 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
         context,
         '${item.receivedQuantity} received',
         '${item.receivedQuantity} تم استلامها',
+        '${item.receivedQuantity} وصول ہوئیں',
       );
     }
     return _tr(
       context,
       controller.quantityLabel(item),
       'الكمية المتوقعة: ${item.expectedQuantity}',
+      'متوقع مقدار: ${item.expectedQuantity}',
     );
   }
 
@@ -221,7 +232,8 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
     return DateFormat('yyyy-MM-dd', locale).format(date);
   }
 
-  String get _manualTypeLabel => _tr(context, 'Manual Type', 'إدخال يدوي');
+  String get _manualTypeLabel =>
+      _tr(context, 'Manual Type', 'إدخال يدوي', 'دستی اندراج');
 
   void _setExpirationDate(BuildContext context, DateTime? date) {
     _selectedExpirationDate = date;
@@ -311,7 +323,7 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
             ],
             Expanded(
               child: Text(
-                _tr(context, 'Receive', 'استلام'),
+                _tr(context, 'Receive', 'استلام', 'وصول کریں'),
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: AppTheme.textPrimary,
@@ -326,6 +338,7 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
             context,
             'Scan and confirm inbound items with less friction.',
             'امسح عناصر الاستلام وأكدها بشكل أوضح وأسهل.',
+            'کم رکاوٹ کے ساتھ ان باؤنڈ آئٹمز اسکین کریں اور تصدیق کریں۔',
           ),
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: AppTheme.textMuted,
@@ -378,7 +391,12 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
           children: [
             Expanded(
               child: Text(
-                _tr(context, 'Received Items', 'العناصر المستلمة'),
+                _tr(
+                  context,
+                  'Received Items',
+                  'العناصر المستلمة',
+                  'وصول شدہ آئٹمز',
+                ),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: AppTheme.textPrimary,
@@ -390,6 +408,7 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
                 context,
                 '$receivedCount of $totalCount received',
                 '$receivedCount من $totalCount تم استلامها',
+                '$totalCount میں سے $receivedCount وصول ہوئیں',
               ),
             ),
           ],
@@ -451,8 +470,18 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
                   : controller.startReceiving,
               child: Text(
                 controller.isStarting
-                    ? _tr(context, 'Starting...', 'جارٍ البدء...')
-                    : _tr(context, 'Start receiving', 'ابدأ الاستلام'),
+                    ? _tr(
+                        context,
+                        'Starting...',
+                        'جارٍ البدء...',
+                        'شروع کیا جا رہا ہے...',
+                      )
+                    : _tr(
+                        context,
+                        'Start receiving',
+                        'ابدأ الاستلام',
+                        'وصولی شروع کریں',
+                      ),
               ),
             ),
           ),
@@ -469,16 +498,42 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
   ) {
     final quantityEnabled = controller.isQuantityEnabled;
 
-    final title = _tr(context, 'Receive Item', 'استلام صنف');
-    final expectedQtyLabel = _tr(context, 'Expected Qty', 'الكمية المتوقعة');
+    final title =
+        _tr(context, 'Receive Item', 'استلام صنف', 'آئٹم وصول کریں');
+    final expectedQtyLabel = _tr(
+      context,
+      'Expected Qty',
+      'الكمية المتوقعة',
+      'متوقع مقدار',
+    );
     final scanOrTypeLabel =
-        _tr(context, 'Scan or type barcode', 'امسح أو اكتب الباركود');
+        _tr(
+          context,
+          'Scan or type barcode',
+          'امسح أو اكتب الباركود',
+          'بارکوڈ اسکین کریں یا درج کریں',
+        );
     final receivedQuantityLabel =
-        _tr(context, 'Received quantity', 'الكمية المستلمة');
+        _tr(
+          context,
+          'Received quantity',
+          'الكمية المستلمة',
+          'وصول شدہ مقدار',
+        );
     final expirationDateLabel =
-        _tr(context, 'Expiration date', 'تاريخ الانتهاء');
+        _tr(
+          context,
+          'Expiration date',
+          'تاريخ الانتهاء',
+          'میعاد ختم ہونے کی تاریخ',
+        );
     final confirmQuantityLabel =
-        _tr(context, 'Confirm quantity', 'تأكيد الكمية');
+        _tr(
+          context,
+          'Confirm quantity',
+          'تأكيد الكمية',
+          'مقدار کی تصدیق کریں',
+        );
     final quantityValue = int.tryParse(_quantityController.text);
     final canConfirm = quantityEnabled &&
         !controller.isSubmitting &&
@@ -900,8 +955,16 @@ class _ScanCaptureSummary extends StatelessWidget {
     final isEmpty = currentValue.trim().isEmpty;
     final effectiveStatusLabel = statusLabel ??
         (enabled
-            ? (context.isArabicLocale ? 'حالة الماسح' : 'Scanner status')
-            : (context.isArabicLocale ? 'الماسح متوقف' : 'Scanner off'));
+            ? context.trText(
+                english: 'Scanner status',
+                arabic: 'حالة الماسح',
+                urdu: 'اسکینر کی حالت',
+              )
+            : context.trText(
+                english: 'Scanner off',
+                arabic: 'الماسح متوقف',
+                urdu: 'اسکینر بند ہے',
+              ));
     final displayValue = isEmpty ? emptyText : currentValue.trim();
     return Container(
       padding: const EdgeInsets.all(2),
@@ -1019,31 +1082,56 @@ class _InboundManualBarcodeDialogState extends State<_InboundManualBarcodeDialog
 
   @override
   Widget build(BuildContext context) {
-    final isArabic = context.isArabicLocale;
     return AlertDialog(
       key: const Key('inbound-manual-barcode-dialog'),
-      title: Text(isArabic ? 'إدخال يدوي' : 'Manual Type'),
+      title: Text(
+        context.trText(
+          english: 'Manual Type',
+          arabic: 'إدخال يدوي',
+          urdu: 'دستی اندراج',
+        ),
+      ),
       content: TextField(
         key: const Key('inbound-manual-barcode-field'),
         controller: _controller,
         autofocus: true,
         textInputAction: TextInputAction.done,
         decoration: InputDecoration(
-          labelText: isArabic ? 'الباركود' : 'Barcode',
+          labelText: context.trText(
+            english: 'Barcode',
+            arabic: 'الباركود',
+            urdu: 'بارکوڈ',
+          ),
           prefixIcon: const Icon(Icons.qr_code_rounded),
-          hintText: isArabic ? 'اكتب الباركود' : 'Type barcode',
+          hintText: context.trText(
+            english: 'Type barcode',
+            arabic: 'اكتب الباركود',
+            urdu: 'بارکوڈ درج کریں',
+          ),
         ),
         onSubmitted: (_) => Navigator.of(context).pop(_controller.text.trim()),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(isArabic ? 'إلغاء' : 'Cancel'),
+          child: Text(
+            context.trText(
+              english: 'Cancel',
+              arabic: 'إلغاء',
+              urdu: 'منسوخ کریں',
+            ),
+          ),
         ),
         FilledButton(
           key: const Key('inbound-manual-barcode-submit'),
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
-          child: Text(isArabic ? 'استخدام الباركود' : 'Use Barcode'),
+          child: Text(
+            context.trText(
+              english: 'Use Barcode',
+              arabic: 'استخدام الباركود',
+              urdu: 'بارکوڈ استعمال کریں',
+            ),
+          ),
         ),
       ],
     );

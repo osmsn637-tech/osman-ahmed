@@ -83,6 +83,7 @@ class LocationLookupItemModel {
     required this.itemName,
     required this.barcode,
     required this.quantity,
+    this.pickedQuantity = 0,
     this.imageUrl,
   });
 
@@ -90,6 +91,7 @@ class LocationLookupItemModel {
   final String itemName;
   final String barcode;
   final int quantity;
+  final int pickedQuantity;
   final String? imageUrl;
 
   factory LocationLookupItemModel.fromJson(Map<String, dynamic> json) {
@@ -145,6 +147,12 @@ class LocationLookupItemModel {
             json['actual_quantity'] ??
             json['actualQuantity'],
       ),
+      pickedQuantity: _readInt(
+        json['picked_quantity'] ??
+            json['pickedQuantity'] ??
+            json['reserved_quantity'] ??
+            json['reservedQuantity'],
+      ),
       imageUrl: _normalizeImageUrl(
         _readNullableString(
           json['image_url'] ??
@@ -169,6 +177,7 @@ class LocationLookupItemModel {
         itemName: itemName,
         barcode: barcode,
         quantity: quantity,
+        pickedQuantity: pickedQuantity,
         imageUrl: imageUrl,
       );
 

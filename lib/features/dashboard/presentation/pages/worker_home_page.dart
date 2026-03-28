@@ -104,7 +104,6 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final isArabic = context.isArabicLocale;
     final disableAnimations =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Consumer2<WorkerTasksController, SessionController>(
@@ -178,8 +177,12 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                           sliver: SliverToBoxAdapter(
                             child: _OverviewPanel(
-                              workerName:
-                                  user?.name ?? (isArabic ? 'عامل' : 'Worker'),
+                              workerName: user?.name ??
+                                  context.trText(
+                                    english: 'Worker',
+                                    arabic: 'عامل',
+                                    urdu: 'ورکر',
+                                  ),
                               availableCount: availableCount,
                               activeCount: activeCount,
                               completedCount: completedCount,
@@ -218,7 +221,11 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                           sliver: SliverToBoxAdapter(
                             child: DashboardSectionHeader(
                               icon: Icons.inbox_rounded,
-                              title: isArabic ? 'المهام' : 'Tasks',
+                              title: context.trText(
+                                english: 'Tasks',
+                                arabic: 'المهام',
+                                urdu: 'ٹاسکس',
+                              ),
                               count: orderedCurrentTasks.length,
                               color: AppTheme.accent,
                             ),
@@ -248,7 +255,11 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                                   task: task,
                                   actionLabel: canStart
                                       ? l10n.workerStart
-                                      : (isArabic ? 'فتح' : 'Open'),
+                                      : context.trText(
+                                          english: 'Open',
+                                          arabic: 'فتح',
+                                          urdu: 'کھولیں',
+                                        ),
                                   actionColor: canStart
                                       ? AppTheme.accent
                                       : AppTheme.primary,
@@ -281,9 +292,11 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                             sliver: SliverToBoxAdapter(
                               child: DashboardSectionHeader(
                                 icon: Icons.check_circle_rounded,
-                                title: isArabic
-                                    ? 'المهام المكتملة'
-                                    : 'Completed Tasks',
+                                title: context.trText(
+                                  english: 'Completed Tasks',
+                                  arabic: 'المهام المكتملة',
+                                  urdu: 'مکمل ٹاسکس',
+                                ),
                                 count: completedTasks.length,
                                 color: AppTheme.success,
                               ),

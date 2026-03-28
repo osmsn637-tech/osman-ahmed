@@ -20,6 +20,7 @@ class LocationLookupItemEntity {
     required this.itemName,
     required this.barcode,
     required this.quantity,
+    this.pickedQuantity = 0,
     this.imageUrl,
   });
 
@@ -27,5 +28,6 @@ class LocationLookupItemEntity {
   final String itemName;
   final String barcode;
   final int quantity;
+  final int pickedQuantity;
   final String? imageUrl;
 }

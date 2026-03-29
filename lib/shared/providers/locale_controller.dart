@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class LocaleController extends ChangeNotifier {
-  static const Set<String> supportedLanguageCodes = {'en', 'ar', 'ur'};
+  static const Set<String> supportedLanguageCodes = {'en', 'ar', 'bn'};
 
   Locale _locale = const Locale('en');
 

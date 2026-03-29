@@ -76,12 +76,12 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
               ? context.trText(
                   english: 'Adjust Item',
                   arabic: 'تعديل الصنف',
-                  urdu: 'آئٹم ایڈجسٹ کریں',
+                  urdu: 'আইটেম সমন্বয় করুন',
                 )
               : context.trText(
                   english: 'Item Lookup Result',
                   arabic: 'نتيجة البحث عن الصنف',
-                  urdu: 'آئٹم تلاش کا نتیجہ',
+                  urdu: 'আইটেম অনুসন্ধানের ফলাফল',
                 ),
         ),
       ),
@@ -106,12 +106,12 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                   title: context.trText(
                     english: 'Loading item details',
                     arabic: 'جارٍ تحميل تفاصيل الصنف',
-                    urdu: 'آئٹم کی تفصیلات لوڈ ہو رہی ہیں',
+                    urdu: 'আইটেমের বিবরণ লোড হচ্ছে',
                   ),
                   subtitle: context.trText(
                     english: 'Fetching latest inventory snapshot...',
                     arabic: 'جارٍ جلب أحدث بيانات المخزون...',
-                    urdu: 'انوینٹری کی تازہ ترین تفصیلات حاصل کی جا رہی ہیں...',
+                    urdu: 'সর্বশেষ মজুদের তথ্য আনা হচ্ছে...',
                   ),
                   loading: true,
                 );
@@ -123,7 +123,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                   title: context.trText(
                     english: 'Item not found',
                     arabic: 'الصنف غير موجود',
-                    urdu: 'آئٹم نہیں ملا',
+                    urdu: 'আইটেম পাওয়া যায়নি',
                   ),
                 );
               }
@@ -135,7 +135,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                       context.trText(
                         english: 'Could not load item details',
                         arabic: 'تعذر تحميل تفاصيل الصنف',
-                        urdu: 'آئٹم کی تفصیلات لوڈ نہیں ہو سکیں',
+                        urdu: 'আইটেমের বিবরণ লোড করা যায়নি',
                       ),
                   action: ElevatedButton(
                     onPressed: controller.retry,
@@ -143,7 +143,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                       context.trText(
                         english: 'Retry',
                         arabic: 'إعادة المحاولة',
-                        urdu: 'دوبارہ کوشش کریں',
+                        urdu: 'আবার চেষ্টা করুন',
                       ),
                     ),
                   ),
@@ -163,7 +163,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                   title: context.trText(
                     english: 'No item data available',
                     arabic: 'لا توجد بيانات للصنف',
-                    urdu: 'کوئی آئٹم ڈیٹا دستیاب نہیں',
+                    urdu: 'কোনও আইটেম তথ্য নেই',
                   ),
                 );
               }
@@ -184,12 +184,12 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                     title: context.trText(
                       english: 'Shelf Locations',
                       arabic: 'مواقع الرفوف',
-                      urdu: 'شیلف مقامات',
+                      urdu: 'শেলফ অবস্থান',
                     ),
                     label: context.trText(
                       english: 'Shelf',
                       arabic: 'رف',
-                      urdu: 'شیلف',
+                      urdu: 'শেলফ',
                     ),
                     icon: Icons.grid_view_rounded,
                     locations: summary.shelfLocations,
@@ -205,12 +205,12 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                     title: context.trText(
                       english: 'Bulk Locations',
                       arabic: 'مواقع التخزين',
-                      urdu: 'بلک مقامات',
+                      urdu: 'বাল্ক অবস্থান',
                     ),
                     label: context.trText(
                       english: 'Bulk',
                       arabic: 'تخزين',
-                      urdu: 'بلک',
+                      urdu: 'বাল্ক',
                     ),
                     icon: Icons.warehouse_rounded,
                     locations: summary.bulkLocations,
@@ -299,7 +299,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                   dialogContext.trText(
                     english: 'Adjust successful',
                     arabic: 'تم التعديل بنجاح',
-                    urdu: 'ایڈجسٹمنٹ کامیاب',
+                    urdu: 'সমন্বয় সফল',
                   ),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleLarge?.copyWith(
@@ -312,7 +312,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                   dialogContext.trText(
                     english: 'The item quantity was adjusted successfully.',
                     arabic: 'تم تعديل كمية الصنف بنجاح.',
-                    urdu: 'آئٹم کی مقدار کامیابی سے ایڈجسٹ ہو گئی۔',
+                    urdu: 'আইটেমের পরিমাণ সফলভাবে সমন্বয় করা হয়েছে।',
                   ),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -343,7 +343,7 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                       dialogContext.trText(
                         english: 'Confirm',
                         arabic: 'تأكيد',
-                        urdu: 'تصدیق کریں',
+                        urdu: 'নিশ্চিত করুন',
                       ),
                     ),
                   ),
@@ -422,7 +422,7 @@ class _ItemHeaderCard extends StatelessWidget {
                             ? context.trText(
                                 english: 'Unknown Item',
                                 arabic: 'صنف غير معروف',
-                                urdu: 'نامعلوم آئٹم',
+                                urdu: 'অজানা আইটেম',
                               )
                             : itemName,
                         textAlign: TextAlign.center,
@@ -478,7 +478,7 @@ class _ItemHeaderCard extends StatelessWidget {
                           label: context.trText(
                             english: 'Total Quantity',
                             arabic: 'إجمالي الكمية',
-                            urdu: 'کل مقدار',
+                            urdu: 'মোট পরিমাণ',
                           ),
                           value: '$totalQuantity',
                           icon: Icons.inventory_2_outlined,
@@ -491,7 +491,7 @@ class _ItemHeaderCard extends StatelessWidget {
                           label: context.trText(
                             english: 'Total Locations',
                             arabic: 'إجمالي المواقع',
-                            urdu: 'کل مقامات',
+                            urdu: 'মোট অবস্থান',
                           ),
                           value: '$totalLocations',
                           icon: Icons.grid_view_rounded,
@@ -688,7 +688,7 @@ class _LocationSection extends StatelessWidget {
                 context.trText(
                   english: 'No locations',
                   arabic: 'لا توجد مواقع',
-                  urdu: 'کوئی مقام نہیں',
+                  urdu: 'কোনও অবস্থান নেই',
                 ),
               )
             else
@@ -820,7 +820,7 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                       context.trText(
                         english: 'Adjustment Details',
                         arabic: 'تفاصيل التعديل',
-                        urdu: 'ایڈجسٹمنٹ کی تفصیلات',
+                        urdu: 'সমন্বয়ের বিবরণ',
                       ),
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
@@ -837,7 +837,7 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                   ? context.trText(
                       english: 'Select a location to adjust.',
                       arabic: 'اختر موقعًا لإجراء التعديل.',
-                      urdu: 'ایڈجسٹمنٹ کے لیے ایک مقام منتخب کریں۔',
+                      urdu: 'সমন্বয়ের জন্য একটি অবস্থান নির্বাচন করুন।',
                     )
                   : context.trText(
                       english:
@@ -845,7 +845,7 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                       arabic:
                           'الموقع المحدد: ${widget.state.selectedLocationCode}',
                       urdu:
-                          'منتخب مقام: ${widget.state.selectedLocationCode}',
+                          'নির্বাচিত অবস্থান: ${widget.state.selectedLocationCode}',
                     ),
               style: TextStyle(
                 color: mutedText,
@@ -857,7 +857,7 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
               context.trText(
                 english: 'Location',
                 arabic: 'الموقع',
-                urdu: 'مقام',
+                urdu: 'অবস্থান',
               ),
               style: TextStyle(
                 color: mutedText,
@@ -874,7 +874,7 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                 hintText: context.trText(
                   english: 'Enter shelf or bulk location',
                   arabic: 'أدخل موقع الرف أو التخزين',
-                  urdu: 'شیلف یا بلک مقام درج کریں',
+                  urdu: 'শেলফ বা বাল্ক অবস্থান লিখুন',
                 ),
                 filled: true,
                 fillColor: surfaceTint,
@@ -903,7 +903,7 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
               context.trText(
                 english: 'New Quantity',
                 arabic: 'الكمية الجديدة',
-                urdu: 'نئی مقدار',
+                urdu: 'নতুন পরিমাণ',
               ),
               style: TextStyle(
                 color: mutedText,
@@ -921,7 +921,7 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                 hintText: context.trText(
                   english: 'Enter adjusted quantity',
                   arabic: 'أدخل الكمية المعدلة',
-                  urdu: 'ایڈجسٹ شدہ مقدار درج کریں',
+                  urdu: 'সমন্বিত পরিমাণ লিখুন',
                 ),
                 filled: true,
                 fillColor: surfaceTint,
@@ -986,12 +986,12 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                       ? context.trText(
                           english: 'Confirming...',
                           arabic: 'جارٍ التأكيد...',
-                          urdu: 'تصدیق کی جا رہی ہے...',
+                          urdu: 'নিশ্চিত করা হচ্ছে...',
                         )
                       : context.trText(
                           english: 'Confirm',
                           arabic: 'تأكيد',
-                          urdu: 'تصدیق کریں',
+                          urdu: 'নিশ্চিত করুন',
                         ),
                 ),
               ),

@@ -362,8 +362,8 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                   ? 'أدخل باركودًا أو موقعًا صالحًا'
                   : 'أدخل باركودًا صالحًا',
               urdu: widget.mode == LookupScanMode.autoDetect
-                  ? 'درست بارکوڈ یا مقام درج کریں'
-                  : 'درست بارکوڈ درج کریں',
+                  ? 'সঠিক বারকোড বা অবস্থান লিখুন'
+                  : 'সঠিক বারকোড লিখুন',
             ),
       );
       return;
@@ -403,8 +403,8 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
               ? 'امسح الباركود أو الموقع'
               : 'امسح الباركود',
           urdu: widget.mode == LookupScanMode.autoDetect
-              ? 'بارکوڈ یا مقام اسکین کریں'
-              : 'بارکوڈ اسکین کریں',
+              ? 'বারকোড বা অবস্থান স্ক্যান করুন'
+              : 'বারকোড স্ক্যান করুন',
         );
     final dialogHint = widget.hintText ??
         context.trText(
@@ -415,33 +415,33 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
               ? 'امسح باركود الصنف أو كود الموقع'
               : 'الماسح يبقى جاهزًا',
           urdu: widget.mode == LookupScanMode.autoDetect
-              ? 'آئٹم بارکوڈ یا مقام کوڈ اسکین کریں'
+              ? 'আইটেমের বারকোড বা অবস্থান কোড স্ক্যান করুন'
               : 'اسکینر تیار رہے گا',
         );
     final manualEntryLabel = context.trText(
       english: 'Manual Type',
       arabic: 'إدخال يدوي',
-      urdu: 'دستی اندراج',
+      urdu: 'ম্যানুয়াল ইনপুট',
     );
     final confirmLabel = context.trText(
       english: 'Confirm',
       arabic: 'تأكيد',
-      urdu: 'تصدیق کریں',
+      urdu: 'নিশ্চিত করুন',
     );
     final cancelManualLabel = context.trText(
       english: 'Cancel',
       arabic: 'إلغاء',
-      urdu: 'منسوخ کریں',
+      urdu: 'বাতিল',
     );
     final scannerReadyLabel = context.trText(
       english: 'Scanner focus active',
       arabic: 'تركيز الماسح نشط',
-      urdu: 'اسکینر فوکس فعال ہے',
+      urdu: 'স্ক্যানার ফোকাস সক্রিয় আছে',
     );
     final scannerLostLabel = context.trText(
       english: 'Scanner lost focus',
       arabic: 'الماسح غير متصل',
-      urdu: 'اسکینر کا فوکس ختم ہو گیا',
+      urdu: 'স্ক্যানারের ফোকাস হারিয়েছে',
     );
     final statusLabel = _scannerFocused ? scannerReadyLabel : scannerLostLabel;
     final statusValue = _value.isEmpty
@@ -453,8 +453,8 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                 ? 'بانتظار مسح الباركود أو الموقع'
                 : 'بانتظار مسح الباركود',
             urdu: widget.mode == LookupScanMode.autoDetect
-                ? 'بارکوڈ یا مقام اسکین کا انتظار ہے'
-                : 'بارکوڈ اسکین کا انتظار ہے',
+                ? 'বারকোড বা অবস্থান স্ক্যানের অপেক্ষায়'
+                : 'বারকোড স্ক্যানের অপেক্ষায়',
           )
         : _value;
     final statusHint = _scannerFocused
@@ -462,7 +462,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
         : context.trText(
             english: 'Tap the popup to reconnect the scanner',
             arabic: 'اضغط على النافذة لإعادة تفعيل الماسح',
-            urdu: 'اسکینر دوبارہ جوڑنے کے لیے پاپ اپ پر ٹیپ کریں',
+            urdu: 'স্ক্যানার পুনঃসংযোগ করতে পপআপে ট্যাপ করুন',
           );
     final theme = Theme.of(context);
     const cardColor = AppTheme.primary;
@@ -566,7 +566,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                           tooltip: context.trText(
                             english: 'Close',
                             arabic: 'إغلاق',
-                            urdu: 'بند کریں',
+                            urdu: 'বন্ধ করুন',
                           ),
                           color: contentColor,
                           visualDensity: VisualDensity.compact,
@@ -653,7 +653,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                                   tooltip: context.trText(
                                     english: 'Clear',
                                     arabic: 'مسح',
-                                    urdu: 'صاف کریں',
+                                    urdu: 'মুছুন',
                                   ),
                                   color: mutedContentColor,
                                   onPressed: _clearField,
@@ -669,7 +669,7 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                                   tooltip: context.trText(
                                     english: 'Reconnect scanner',
                                     arabic: 'إعادة تفعيل الماسح',
-                                    urdu: 'اسکینر دوبارہ جوڑیں',
+                                    urdu: 'স্ক্যানার পুনঃসংযোগ করুন',
                                   ),
                                   color:
                                       _scannerFocused ? readyColor : lostColor,
@@ -740,15 +740,16 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                           children: [
                             Text(
                               context.trText(
-                                english: widget.mode == LookupScanMode.autoDetect
-                                    ? 'Type barcode or location manually'
-                                    : 'Type barcode manually',
+                                english:
+                                    widget.mode == LookupScanMode.autoDetect
+                                        ? 'Type barcode or location manually'
+                                        : 'Type barcode manually',
                                 arabic: widget.mode == LookupScanMode.autoDetect
                                     ? 'أدخل الباركود أو الموقع يدويًا'
                                     : 'أدخل الباركود يدويًا',
                                 urdu: widget.mode == LookupScanMode.autoDetect
-                                    ? 'بارکوڈ یا مقام دستی طور پر درج کریں'
-                                    : 'بارکوڈ دستی طور پر درج کریں',
+                                    ? 'বারকোড বা অবস্থান হাতে লিখুন'
+                                    : 'বারকোড হাতে লিখুন',
                               ),
                               style: theme.textTheme.titleSmall?.copyWith(
                                 color: contentColor,
@@ -780,10 +781,9 @@ class _ScanBarcodeDialogState extends State<_ScanBarcodeDialog>
                                       widget.mode == LookupScanMode.autoDetect
                                           ? 'أدخل الباركود أو كود الموقع'
                                           : 'أدخل أرقام الباركود',
-                                  urdu:
-                                      widget.mode == LookupScanMode.autoDetect
-                                          ? 'بارکوڈ یا مقام کوڈ درج کریں'
-                                          : 'بارکوڈ کے ہندسے درج کریں',
+                                  urdu: widget.mode == LookupScanMode.autoDetect
+                                      ? 'বারকোড বা অবস্থান কোড লিখুন'
+                                      : 'বারকোডের সংখ্যা লিখুন',
                                 ),
                                 hintStyle: theme.textTheme.titleSmall?.copyWith(
                                   color: mutedContentColor,

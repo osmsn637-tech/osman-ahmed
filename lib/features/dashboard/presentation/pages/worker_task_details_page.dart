@@ -93,6 +93,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   late final FocusNode _returnScanFocusNode;
   late final FocusNode _cycleCountScanFocusNode;
   late final FocusNode _cycleCountDetailBarcodeFocusNode;
+  late final FocusNode _refillQuantityFocusNode;
   final List<TextEditingController> _cycleCountLineControllers =
       <TextEditingController>[];
 
@@ -135,6 +136,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   Timer? _locationFailureClearTimer;
   Timer? _cycleCountDetailBarcodeClearTimer;
   final List<bool> _returnItemValidated = <bool>[];
+  bool _manualInputTapInProgress = false;
 
   String _tr(String english, String arabic, [String? urdu]) => context.trText(
         english: english,
@@ -189,6 +191,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     _cycleCountScanFocusNode = FocusNode(debugLabel: 'cycle-count-scan');
     _cycleCountDetailBarcodeFocusNode =
         FocusNode(debugLabel: 'cycle-count-detail-barcode');
+    _refillQuantityFocusNode = FocusNode(debugLabel: 'refill-quantity');
+    for (final focusNode in _scannerFocusNodes) {
+      focusNode.addListener(_handleScannerFocusChanged);
+    }
+    _refillQuantityFocusNode.addListener(_handleManualInputFocusChanged);
     _refillQuantity = task.quantity;
     _quantityController.addListener(_updateRefillQuantity);
     _cycleCountItems = _buildInitialCycleCountItems(task);
@@ -241,11 +248,16 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     _adjustmentQuantityController.dispose();
     _unexpectedItemNameController.dispose();
     _unexpectedItemQuantityController.dispose();
+    for (final focusNode in _scannerFocusNodes) {
+      focusNode.removeListener(_handleScannerFocusChanged);
+    }
+    _refillQuantityFocusNode.removeListener(_handleManualInputFocusChanged);
     _productScanFocusNode.dispose();
     _locationScanFocusNode.dispose();
     _returnScanFocusNode.dispose();
     _cycleCountScanFocusNode.dispose();
     _cycleCountDetailBarcodeFocusNode.dispose();
+    _refillQuantityFocusNode.dispose();
     for (final controller in _cycleCountLineControllers) {
       controller.dispose();
     }
@@ -311,6 +323,8 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
             task.type != TaskType.receive &&
             task.type != TaskType.refill &&
             task.type != TaskType.returnTask);
+
+    _scheduleScannerFocusRecovery();
 
     return Scaffold(
       appBar: AppBar(
@@ -754,6 +768,8 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         TextField(
           key: const Key('refill-quantity-field'),
           controller: _quantityController,
+          focusNode: _refillQuantityFocusNode,
+          onTap: _handleRefillQuantityTap,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
             labelText: _tr('Enter quantity', 'أدخل الكمية'),
@@ -2102,7 +2118,12 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   }
 
   TaskEntity get _effectiveTask {
-    if (!_startedLocally || widget.task.status != TaskStatus.pending) {
+    final assignedTo = widget.task.assignedTo?.trim();
+    final hasAssignedWorker = assignedTo != null && assignedTo.isNotEmpty;
+    final shouldPromotePendingTask =
+        widget.task.status == TaskStatus.pending &&
+            (_startedLocally || hasAssignedWorker);
+    if (!shouldPromotePendingTask) {
       return widget.task;
     }
 
@@ -2119,7 +2140,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       toLocation: widget.task.toLocation,
       toLocationId: widget.task.toLocationId,
       quantity: widget.task.quantity,
-      assignedTo: widget.task.assignedTo ?? '__local_worker__',
+      assignedTo: hasAssignedWorker ? assignedTo : '__local_worker__',
       status: TaskStatus.inProgress,
       createdBy: widget.task.createdBy,
       zone: widget.task.zone,
@@ -2193,6 +2214,107 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         return;
       }
       _requestScannerFocus(_cycleCountScanFocusNode);
+    });
+  }
+
+  List<FocusNode> get _scannerFocusNodes => <FocusNode>[
+        _productScanFocusNode,
+        _locationScanFocusNode,
+        _returnScanFocusNode,
+        _cycleCountScanFocusNode,
+        _cycleCountDetailBarcodeFocusNode,
+      ];
+
+  List<FocusNode> get _manualInputFocusNodes => <FocusNode>[
+        _refillQuantityFocusNode,
+      ];
+
+  bool get _hasManualInputFocus =>
+      _manualInputFocusNodes.any((focusNode) => focusNode.hasFocus);
+
+  bool get _isRouteCovered {
+    final route = ModalRoute.of(context);
+    return route != null && !route.isCurrent;
+  }
+
+  bool get _scannerFocusRecoveryBlocked =>
+      _manualInputTapInProgress || _hasManualInputFocus || _isRouteCovered;
+
+  FocusNode? get _preferredScannerFocusNode {
+    if (widget.task.type == TaskType.cycleCount &&
+        _locationValidated &&
+        _cycleCountPage == 0) {
+      return _cycleCountScanFocusNode;
+    }
+    switch (_activeValidationTarget) {
+      case _ActiveValidationTarget.barcode:
+        return _productScanFocusNode;
+      case _ActiveValidationTarget.location:
+        return _locationScanFocusNode;
+      case _ActiveValidationTarget.returnBarcode:
+        return _returnScanFocusNode;
+      case _ActiveValidationTarget.cycleCountDetailBarcode:
+        return _cycleCountDetailBarcodeFocusNode;
+      case _ActiveValidationTarget.none:
+        return null;
+    }
+  }
+
+  void _handleScannerFocusChanged() {
+    if (!mounted) return;
+    final preferredFocusNode = _preferredScannerFocusNode;
+    if (preferredFocusNode == null || preferredFocusNode.hasFocus) {
+      return;
+    }
+    _scheduleScannerFocusRecovery();
+  }
+
+  void _handleManualInputFocusChanged() {
+    if (!mounted) return;
+    _manualInputTapInProgress = false;
+    if (_hasManualInputFocus) {
+      _scannerFocusRetryTimer?.cancel();
+      return;
+    }
+    _scheduleScannerFocusRecovery();
+  }
+
+  void _handleRefillQuantityTap() {
+    _manualInputTapInProgress = true;
+    _scannerFocusRetryTimer?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _scannerFocusRecoveryBlocked) return;
+      _manualInputTapInProgress = false;
+      _scheduleScannerFocusRecovery();
+    });
+  }
+
+  void _scheduleScannerFocusRecovery() {
+    if (_scannerFocusRecoveryBlocked) {
+      _scannerFocusRetryTimer?.cancel();
+      return;
+    }
+    final preferredFocusNode = _preferredScannerFocusNode;
+    if (preferredFocusNode == null || preferredFocusNode.hasFocus) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final activeFocusNode = _preferredScannerFocusNode;
+      if (activeFocusNode == null || activeFocusNode.hasFocus) {
+        return;
+      }
+      final primaryFocus = FocusManager.instance.primaryFocus;
+      final scannerFocusActive =
+          primaryFocus != null && _scannerFocusNodes.contains(primaryFocus);
+      final manualEditableFocused =
+          _scannerFocusRecoveryBlocked ||
+              (primaryFocus?.context?.widget is EditableText &&
+                  !scannerFocusActive);
+      if (manualEditableFocused) {
+        return;
+      }
+      _ensureScannerFocus(activeFocusNode);
     });
   }
 
@@ -3178,6 +3300,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   void _restoreActiveValidationFocus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (_scannerFocusRecoveryBlocked) return;
       switch (_activeValidationTarget) {
         case _ActiveValidationTarget.barcode:
           _ensureScannerFocus(_productScanFocusNode);
@@ -3205,11 +3328,16 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   }
 
   void _ensureScannerFocus(FocusNode focusNode) {
+    if (_scannerFocusRecoveryBlocked) return;
     _scannerFocusRetryTimer?.cancel();
     var retriesLeft = focusNode.hasFocus ? 0 : _scannerFocusRetryCount;
     _requestScannerFocus(focusNode);
     _scannerFocusRetryTimer = Timer.periodic(_scannerFocusRetryDelay, (timer) {
       if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_scannerFocusRecoveryBlocked) {
         timer.cancel();
         return;
       }
@@ -3619,6 +3747,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         _refillSummary = summary;
         _bulkLocationController.text = bulk;
       });
+      _restoreActiveValidationFocus();
     } catch (_) {
       _finishRefillLookupWithFallback();
     }
@@ -3643,6 +3772,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
               'تعذر تحميل مواقع إعادة التعبئة.',
             );
     });
+    _restoreActiveValidationFocus();
   }
 
   String? _resolvedRefillImageUrl(TaskEntity task) {
@@ -3938,7 +4068,7 @@ class _ReceiveHeroCard extends StatelessWidget {
                       context.trText(
                         english: 'Total Quantity',
                         arabic: 'إجمالي الكمية',
-                        urdu: 'کل مقدار',
+                        urdu: 'মোট পরিমাণ',
                       ),
                       style: const TextStyle(
                         fontSize: 11,
@@ -4451,7 +4581,7 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
             context.trText(
               english: 'Cancel',
               arabic: 'إلغاء',
-              urdu: 'منسوخ کریں',
+              urdu: 'বাতিল',
             ),
           ),
         ),
@@ -4513,7 +4643,7 @@ class _ManualBarcodeKeypadDialogState
         context.trText(
           english: 'Manual Type',
           arabic: 'إدخال يدوي',
-          urdu: 'دستی اندراج',
+          urdu: 'ম্যানুয়াল ইনপুট',
         ),
       ),
       content: SizedBox(
@@ -4546,7 +4676,7 @@ class _ManualBarcodeKeypadDialogState
                       context.trText(
                         english: 'Barcode',
                         arabic: 'الباركود',
-                        urdu: 'بارکوڈ',
+                        urdu: 'বারকোড',
                       ),
                       style: theme.textTheme.labelLarge?.copyWith(
                         color: AppTheme.textMuted,
@@ -4559,7 +4689,7 @@ class _ManualBarcodeKeypadDialogState
                           ? context.trText(
                               english: 'Enter barcode digits',
                               arabic: 'أدخل أرقام الباركود',
-                              urdu: 'بارکوڈ کے ہندسے درج کریں',
+                              urdu: 'বারকোডের সংখ্যা লিখুন',
                             )
                           : _value,
                       textAlign: TextAlign.left,
@@ -4577,8 +4707,7 @@ class _ManualBarcodeKeypadDialogState
                   english:
                       'Type the barcode digits manually if the scanner does not respond.',
                   arabic: 'أدخل أرقام الباركود يدويًا إذا لم يستجب الماسح.',
-                  urdu:
-                      'اگر اسکینر جواب نہ دے تو بارکوڈ کے ہندسے دستی طور پر درج کریں۔',
+                  urdu: 'স্ক্যানার সাড়া না দিলে বারকোডের সংখ্যা হাতে লিখুন।',
                 ),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: AppTheme.textMuted,
@@ -4612,7 +4741,7 @@ class _ManualBarcodeKeypadDialogState
                       label: context.trText(
                         english: 'Del',
                         arabic: 'حذف',
-                        urdu: 'حذف',
+                        urdu: 'মুছুন',
                       ),
                       onPressed: _deleteDigit,
                       backgroundColor: AppTheme.surfaceAlt,
@@ -4647,7 +4776,7 @@ class _ManualBarcodeKeypadDialogState
                           context.trText(
                             english: 'Use',
                             arabic: 'استخدام',
-                            urdu: 'استعمال کریں',
+                            urdu: 'ব্যবহার করুন',
                           ),
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
@@ -4667,7 +4796,7 @@ class _ManualBarcodeKeypadDialogState
             context.trText(
               english: 'Cancel',
               arabic: 'إلغاء',
-              urdu: 'منسوخ کریں',
+              urdu: 'বাতিল',
             ),
           ),
         ),
@@ -4710,7 +4839,7 @@ class _ManualLocationEntryDialogState
         context.trText(
           english: 'Manual Type',
           arabic: 'إدخال يدوي',
-          urdu: 'دستی اندراج',
+          urdu: 'ম্যানুয়াল ইনপুট',
         ),
       ),
       content: TextField(
@@ -4721,7 +4850,7 @@ class _ManualLocationEntryDialogState
           labelText: context.trText(
             english: 'Location',
             arabic: 'الموقع',
-            urdu: 'مقام',
+            urdu: 'অবস্থান',
           ),
           prefixIcon: const Icon(Icons.location_on_outlined),
         ),
@@ -4733,7 +4862,7 @@ class _ManualLocationEntryDialogState
             context.trText(
               english: 'Cancel',
               arabic: 'إلغاء',
-              urdu: 'منسوخ کریں',
+              urdu: 'বাতিল',
             ),
           ),
         ),
@@ -4744,7 +4873,7 @@ class _ManualLocationEntryDialogState
             context.trText(
               english: 'Use Location',
               arabic: 'استخدام الموقع',
-              urdu: 'مقام استعمال کریں',
+              urdu: 'অবস্থান ব্যবহার করুন',
             ),
           ),
         ),

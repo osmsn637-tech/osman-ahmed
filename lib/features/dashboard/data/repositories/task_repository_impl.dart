@@ -148,6 +148,7 @@ class TaskRepositoryImpl implements TaskRepository {
       }
     } else {
       final useLocationCode = taskType == 'putaway';
+      final submitCompletesTask = useLocationCode || taskType == 'restock';
       await _taskRemoteDataSource.submitTask(
         taskId: remoteTaskId,
         taskType: taskType,
@@ -157,7 +158,7 @@ class TaskRepositoryImpl implements TaskRepository {
         targetLocationCode:
             resolved.type == TaskType.refill ? targetLocation : null,
       );
-      if (!useLocationCode) {
+      if (!submitCompletesTask) {
         await _taskRemoteDataSource.completeTask(
           taskId: remoteTaskId,
           taskType: taskType,
@@ -601,13 +602,25 @@ class TaskRepositoryImpl implements TaskRepository {
     final rawId = _asString(data['id']);
     if (rawType == null || rawId == null) return null;
 
+    final normalizedRawType = rawType.trim().toLowerCase();
     final detail = _asMap(data['detail']);
     final product = _asMap(detail?['product']) ?? _asMap(detail?['item']);
     final firstProduct = _firstProductMap(data['products']);
+    final subtitle = _asString(data['subtitle']);
+    final restockSubtitleSourceLocation =
+        _restockSourceLocationFromSubtitle(subtitle);
+    final restockSubtitleTargetLocation =
+        _restockTargetLocationFromSubtitle(subtitle);
     final subtitleLocation = _resolveUnifiedSubtitleLocation(
       rawType: rawType,
-      subtitle: _asString(data['subtitle']),
+      subtitle: subtitle,
     );
+    final productLocationCode = _asString(_firstNonNull([
+      data['product_location_code'],
+      data['productLocationCode'],
+      firstProduct?['location_code'],
+      firstProduct?['locationCode'],
+    ]));
     final toLocation = _asString(_firstNonNull([
       detail?['to_location'],
       detail?['toLocation'],
@@ -615,27 +628,41 @@ class TaskRepositoryImpl implements TaskRepository {
       detail?['targetLocationCode'],
       detail?['location_code'],
       detail?['locationCode'],
-      data['product_location_code'],
-      data['productLocationCode'],
-      firstProduct?['location_code'],
-      firstProduct?['locationCode'],
+      if (normalizedRawType != 'restock') ...[
+        data['product_location_code'],
+        data['productLocationCode'],
+        firstProduct?['location_code'],
+        firstProduct?['locationCode'],
+      ],
+      restockSubtitleTargetLocation,
     ]));
-    final toLocationId = _asString(_firstNonNull([
-      data['to_location_id'],
-      data['toLocationId'],
-      data['target_location_id'],
-      data['targetLocationId'],
-      data['location_id'],
-      data['locationId'],
-      firstProduct?['location_id'],
-      firstProduct?['locationId'],
-      detail?['to_location_id'],
-      detail?['toLocationId'],
-      detail?['target_location_id'],
-      detail?['targetLocationId'],
-      detail?['location_id'],
-      detail?['locationId'],
-    ]));
+    final toLocationId = normalizedRawType == 'restock'
+        ? _asString(_firstNonNull([
+            data['to_location_id'],
+            data['toLocationId'],
+            data['target_location_id'],
+            data['targetLocationId'],
+            detail?['to_location_id'],
+            detail?['toLocationId'],
+            detail?['target_location_id'],
+            detail?['targetLocationId'],
+          ]))
+        : _asString(_firstNonNull([
+            data['to_location_id'],
+            data['toLocationId'],
+            data['target_location_id'],
+            data['targetLocationId'],
+            data['location_id'],
+            data['locationId'],
+            firstProduct?['location_id'],
+            firstProduct?['locationId'],
+            detail?['to_location_id'],
+            detail?['toLocationId'],
+            detail?['target_location_id'],
+            detail?['targetLocationId'],
+            detail?['location_id'],
+            detail?['locationId'],
+          ]));
     final fromLocation = _asString(_firstNonNull([
       detail?['from_location'],
       detail?['fromLocation'],
@@ -645,6 +672,10 @@ class TaskRepositoryImpl implements TaskRepository {
       detail?['sourceLocationCode'],
       detail?['bulk_location'],
       detail?['bulkLocation'],
+      if (normalizedRawType == 'restock') ...[
+        productLocationCode,
+        restockSubtitleSourceLocation,
+      ],
     ]));
     final itemId = _toInt(_firstNonNull([
           detail?['item_id'],
@@ -920,14 +951,44 @@ class TaskRepositoryImpl implements TaskRepository {
     final trimmed = subtitle?.trim();
     if (trimmed == null || trimmed.isEmpty) return null;
 
+    final normalizedType = rawType.trim().toLowerCase();
+    if (normalizedType == 'restock') {
+      final restockTarget = _restockTargetLocationFromSubtitle(trimmed);
+      if (restockTarget != null) {
+        return restockTarget;
+      }
+    }
+
     final normalizedSubtitle =
         trimmed.toLowerCase().replaceAll(RegExp(r'[\s-]+'), '_');
-    final normalizedType = rawType.trim().toLowerCase();
     if (normalizedSubtitle == normalizedType) {
       return null;
     }
 
     return trimmed;
+  }
+
+  String? _restockSourceLocationFromSubtitle(String? subtitle) {
+    final parts = _restockMovementSubtitleParts(subtitle);
+    return parts.isEmpty ? null : parts.first;
+  }
+
+  String? _restockTargetLocationFromSubtitle(String? subtitle) {
+    final parts = _restockMovementSubtitleParts(subtitle);
+    return parts.length < 2 ? null : parts[1];
+  }
+
+  List<String> _restockMovementSubtitleParts(String? subtitle) {
+    final trimmed = subtitle?.trim();
+    if (trimmed == null || trimmed.isEmpty) return const <String>[];
+
+    final parts = trimmed
+        .split(RegExp(r'\s*(?:->|→)\s*'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.length < 2) return const <String>[];
+    return parts;
   }
 
   String? _zoneFromLocationText(String? value) {

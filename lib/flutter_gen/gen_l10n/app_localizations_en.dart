@@ -45,7 +45,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountEnglish => 'English';
 
   @override
-  String get accountUrdu => 'اردو';
+  String get accountUrdu => 'বাংলা';
 
   @override
   String get accountActions => 'Actions';

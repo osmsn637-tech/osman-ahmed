@@ -53,7 +53,7 @@ class _AccountPageState extends State<AccountPage> {
     final role = user?.canonicalRole ?? 'worker';
     final phone = user?.phone ?? '966533333333';
     final direction = switch (locale) {
-      'ar' || 'ur' => TextDirection.rtl,
+      'ar' => TextDirection.rtl,
       _ => TextDirection.ltr,
     };
     final zone = formatZoneForDisplay(user?.zone);
@@ -277,8 +277,8 @@ class _LanguagePanel extends StatelessWidget {
           Expanded(
             child: _LangButton(
               label: l10n.accountUrdu,
-              selected: locale == 'ur',
-              onTap: () => controller.setLocale('ur'),
+              selected: locale == 'bn',
+              onTap: () => controller.setLocale('bn'),
             ),
           ),
         ],
@@ -370,37 +370,37 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
   String get _requiredFieldsMessage => context.trText(
         english: 'Both password fields are required',
         arabic: 'حقلا كلمة المرور مطلوبان',
-        urdu: 'دونوں پاس ورڈ فیلڈز لازمی ہیں',
+        urdu: 'দুটি পাসওয়ার্ড ক্ষেত্রই আবশ্যক',
       );
 
   String get _passwordUpdatedMessage => context.trText(
         english: 'Password updated successfully',
         arabic: 'تم تحديث كلمة المرور بنجاح',
-        urdu: 'پاس ورڈ کامیابی سے اپ ڈیٹ ہو گیا',
+        urdu: 'পাসওয়ার্ড সফলভাবে আপডেট হয়েছে',
       );
 
   String get _currentPasswordLabel => context.trText(
         english: 'Current Password',
         arabic: 'كلمة المرور الحالية',
-        urdu: 'موجودہ پاس ورڈ',
+        urdu: 'বর্তমান পাসওয়ার্ড',
       );
 
   String get _newPasswordLabel => context.trText(
         english: 'New Password',
         arabic: 'كلمة المرور الجديدة',
-        urdu: 'نیا پاس ورڈ',
+        urdu: 'নতুন পাসওয়ার্ড',
       );
 
   String get _cancelLabel => context.trText(
         english: 'Cancel',
         arabic: 'إلغاء',
-        urdu: 'منسوخ کریں',
+        urdu: 'বাতিল',
       );
 
   String get _updatePasswordLabel => context.trText(
         english: 'Update Password',
         arabic: 'تحديث كلمة المرور',
-        urdu: 'پاس ورڈ اپ ڈیٹ کریں',
+        urdu: 'পাসওয়ার্ড আপডেট করুন',
       );
 
   @override
@@ -648,37 +648,37 @@ class _DeveloperModeDialogState extends State<_DeveloperModeDialog> {
   String get _title => context.trText(
         english: 'Developer Mode',
         arabic: 'وضع المطور',
-        urdu: 'ڈیولپر موڈ',
+        urdu: 'ডেভেলপার মোড',
       );
 
   String get _prompt => context.trText(
         english: 'Enter the PIN to switch environments',
         arabic: 'أدخل الرمز للتبديل بين البيئات',
-        urdu: 'ماحول بدلنے کے لیے پن درج کریں',
+        urdu: 'পরিবেশ পরিবর্তনের জন্য পিন লিখুন',
       );
 
   String get _pinLabel => context.trText(
         english: 'PIN',
         arabic: 'الرمز',
-        urdu: 'پن',
+        urdu: 'পিন',
       );
 
   String get _cancelLabel => context.trText(
         english: 'Cancel',
         arabic: 'إلغاء',
-        urdu: 'منسوخ کریں',
+        urdu: 'বাতিল',
       );
 
   String get _switchLabel => context.trText(
         english: 'Switch',
         arabic: 'تبديل',
-        urdu: 'سوئچ',
+        urdu: 'সুইচ',
       );
 
   String get _incorrectPinLabel => context.trText(
         english: 'Incorrect PIN',
         arabic: 'الرمز غير صحيح',
-        urdu: 'غلط پن',
+        urdu: 'ভুল পিন',
       );
 
   @override

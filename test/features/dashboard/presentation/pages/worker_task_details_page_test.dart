@@ -939,6 +939,232 @@ void main() {
     expect(completedLocation, 'SHELF-01-01');
   });
 
+  testWidgets(
+      'refill quantity field keeps focus instead of being reclaimed by the hidden scanner field',
+      (tester) async {
+    final lookupCompleter = Completer<ItemLocationSummaryEntity>();
+
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            fromLocation: null,
+            toLocation: null,
+          ),
+          onLookupItem: (_) => lookupCompleter.future,
+        ),
+      ),
+    );
+
+    lookupCompleter.complete(buildLookupSummary());
+    await tester.pumpAndSettle();
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012',
+    );
+    await enterLocationManually(tester, 'SHELF-01-01');
+    await tester.pumpAndSettle();
+
+    final quantityField = find.byKey(const Key('refill-quantity-field'));
+    final quantityEditable = find.descendant(
+      of: quantityField,
+      matching: find.byType(EditableText),
+    );
+    final locationEditable = find.descendant(
+      of: find.byKey(const Key('location-validate-field')),
+      matching: find.byType(EditableText),
+    );
+
+    await scrollTo(tester, quantityField);
+    await tester.tap(quantityField);
+    await tester.pump();
+
+    var quantityText = tester.widget<EditableText>(quantityEditable);
+    var locationText = tester.widget<EditableText>(locationEditable);
+
+    expect(quantityText.focusNode.hasFocus, isTrue);
+    expect(locationText.focusNode.hasFocus, isFalse);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    quantityText = tester.widget<EditableText>(quantityEditable);
+    locationText = tester.widget<EditableText>(locationEditable);
+
+    expect(quantityText.focusNode.hasFocus, isTrue);
+    expect(locationText.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('refill quantity field keeps the soft keyboard visible',
+      (tester) async {
+    final lookupCompleter = Completer<ItemLocationSummaryEntity>();
+
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            fromLocation: null,
+            toLocation: null,
+          ),
+          onLookupItem: (_) => lookupCompleter.future,
+        ),
+      ),
+    );
+
+    lookupCompleter.complete(buildLookupSummary());
+    await tester.pumpAndSettle();
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012',
+    );
+    await enterLocationManually(tester, 'SHELF-01-01');
+    await tester.pumpAndSettle();
+
+    final quantityField = find.byKey(const Key('refill-quantity-field'));
+    await scrollTo(tester, quantityField);
+    await tester.tap(quantityField);
+    await tester.pump();
+
+    expect(tester.testTextInput.isVisible, isTrue);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    expect(tester.testTextInput.isVisible, isTrue);
+  });
+
+  testWidgets('refill manual location dialog keeps the soft keyboard visible',
+      (tester) async {
+    final lookupCompleter = Completer<ItemLocationSummaryEntity>();
+
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            fromLocation: null,
+            toLocation: null,
+          ),
+          onLookupItem: (_) => lookupCompleter.future,
+        ),
+      ),
+    );
+
+    lookupCompleter.complete(buildLookupSummary());
+    await tester.pumpAndSettle();
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012',
+    );
+
+    final manualButton = find.byKey(const Key('manual-type-location-button'));
+    await scrollTo(tester, manualButton);
+    await tester.tap(manualButton);
+    await tester.pump();
+
+    expect(tester.testTextInput.isVisible, isTrue);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    expect(tester.testTextInput.isVisible, isTrue);
+  });
+
+  testWidgets('refill first page keeps barcode scanner focus after lookup loads',
+      (tester) async {
+    final lookupCompleter = Completer<ItemLocationSummaryEntity>();
+
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            fromLocation: null,
+            toLocation: null,
+          ),
+          onLookupItem: (_) => lookupCompleter.future,
+        ),
+      ),
+    );
+
+    lookupCompleter.complete(buildLookupSummary());
+    await tester.pumpAndSettle();
+
+    final barcodeEditable = find.descendant(
+      of: find.byKey(const Key('product-validate-field')),
+      matching: find.byType(EditableText),
+    );
+
+    var barcodeText = tester.widget<EditableText>(barcodeEditable);
+    expect(barcodeText.focusNode.hasFocus, isTrue);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    barcodeText = tester.widget<EditableText>(barcodeEditable);
+    expect(barcodeText.focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets(
+      'assigned pending refill task advances after barcode scan and can complete',
+      (tester) async {
+    final lookupCompleter = Completer<ItemLocationSummaryEntity>();
+
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            status: TaskStatus.pending,
+            assignedTo: 'worker-1',
+            fromLocation: null,
+            toLocation: null,
+          ),
+          onLookupItem: (_) => lookupCompleter.future,
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
+        ),
+      ),
+    );
+
+    lookupCompleter.complete(buildLookupSummary());
+    await tester.pumpAndSettle();
+
+    final barcodeEditable = find.descendant(
+      of: find.byKey(const Key('product-validate-field')),
+      matching: find.byType(EditableText),
+    );
+    final barcodeText = tester.widget<EditableText>(barcodeEditable);
+    expect(barcodeText.focusNode.hasFocus, isTrue);
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012',
+    );
+
+    expect(find.text('To Shelf Location'), findsOneWidget);
+
+    await enterLocationManually(tester, 'SHELF-01-01');
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('refill-quantity-field')));
+    await tester.enterText(find.byKey(const Key('refill-quantity-field')), '4');
+    await tester.pumpAndSettle();
+
+    expect(
+      isElevatedButtonEnabled(tester, const Key('complete-task-button')),
+      isTrue,
+    );
+  });
+
   testWidgets('refill task falls back to task locations when lookup fails',
       (tester) async {
     await tester.pumpWidget(
@@ -1384,6 +1610,32 @@ void main() {
     expect(textField.keyboardType, TextInputType.none);
     expect(textField.readOnly, isFalse);
     expect(textField.autofocus, isTrue);
+  });
+
+  testWidgets('barcode validation field re-focuses after losing scanner focus',
+      (tester) async {
+    await tester.pumpWidget(wrap(WorkerTaskDetailsPage(task: buildTask())));
+    await tester.pumpAndSettle();
+
+    final editableFinder = find.descendant(
+      of: find.byKey(const Key('product-validate-field')),
+      matching: find.byType(EditableText),
+    );
+
+    var editableText = tester.widget<EditableText>(editableFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+
+    editableText.focusNode.unfocus();
+    await tester.pump();
+
+    editableText = tester.widget<EditableText>(editableFinder);
+    expect(editableText.focusNode.hasFocus, isFalse);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    editableText = tester.widget<EditableText>(editableFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
   });
 
   testWidgets('failed product scan clears the hidden field after 2 seconds',

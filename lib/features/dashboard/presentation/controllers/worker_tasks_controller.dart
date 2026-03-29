@@ -80,12 +80,10 @@ class WorkerTasksController extends ChangeNotifier {
   WorkerTasksState get state => _state;
 
   Future<void> load() async {
-    final zone = _session.state.user?.zone;
-    if (zone == null || zone.isEmpty) return;
     _state = _state.copyWith(loading: true);
     notifyListeners();
     try {
-      final tasks = await _getTasksForZone.execute(zone);
+      final tasks = await _getTasksForZone.execute('');
       final current = tasks.where((t) => !t.isCompleted).toList();
       final completed = tasks.where((t) => t.isCompleted).toList();
       _state = _state.copyWith(

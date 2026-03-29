@@ -10,8 +10,8 @@ void main() {
   test('forces update on Android when installed version is below minimum',
       () async {
     final controller = AppUpdateController(
-      repository: _FakeAppUpdateRepository(
-        result: const Success<AppUpdateConfig>(
+      repository: const _FakeAppUpdateRepository(
+        result: Success<AppUpdateConfig>(
           AppUpdateConfig(
             latestVersion: '1.2.1',
             minSupportedVersion: '1.2.1',
@@ -39,8 +39,8 @@ void main() {
   test('does not force update when installed version meets the minimum',
       () async {
     final controller = AppUpdateController(
-      repository: _FakeAppUpdateRepository(
-        result: const Success<AppUpdateConfig>(
+      repository: const _FakeAppUpdateRepository(
+        result: Success<AppUpdateConfig>(
           AppUpdateConfig(
             latestVersion: '1.2.1',
             minSupportedVersion: '1.2.1',
@@ -63,8 +63,8 @@ void main() {
 
   test('never forces update on non-Android platforms', () async {
     final controller = AppUpdateController(
-      repository: _FakeAppUpdateRepository(
-        result: const Success<AppUpdateConfig>(
+      repository: const _FakeAppUpdateRepository(
+        result: Success<AppUpdateConfig>(
           AppUpdateConfig(
             latestVersion: '9.0.0',
             minSupportedVersion: '9.0.0',
@@ -88,7 +88,7 @@ void main() {
 
   test('fails open when loading remote config fails', () async {
     final controller = AppUpdateController(
-      repository: _FakeAppUpdateRepository(
+      repository: const _FakeAppUpdateRepository(
         result: Failure<AppUpdateConfig>(UnknownException('boom')),
       ),
       versionComparator: const VersionComparator(),
@@ -106,8 +106,8 @@ void main() {
 
   test('fails open when installed version lookup throws', () async {
     final controller = AppUpdateController(
-      repository: _FakeAppUpdateRepository(
-        result: const Success<AppUpdateConfig>(
+      repository: const _FakeAppUpdateRepository(
+        result: Success<AppUpdateConfig>(
           AppUpdateConfig(
             latestVersion: '1.2.1',
             minSupportedVersion: '1.2.1',

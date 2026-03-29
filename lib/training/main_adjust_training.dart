@@ -26,7 +26,7 @@ const _trainingLocaleCode =
 const List<Locale> trainingSupportedLocales = <Locale>[
   Locale('en'),
   Locale('ar'),
-  Locale('ur'),
+  Locale('bn'),
 ];
 
 Locale resolveTrainingLocale(String code) {
@@ -34,15 +34,15 @@ Locale resolveTrainingLocale(String code) {
   if (normalized == 'ar') {
     return const Locale('ar');
   }
-  if (normalized == 'ur') {
-    return const Locale('ur');
+  if (normalized == 'bn') {
+    return const Locale('bn');
   }
   return const Locale('en');
 }
 
 bool trainingIsRtl(Locale locale) {
   final normalized = locale.languageCode.toLowerCase();
-  return normalized == 'ar' || normalized == 'ur';
+  return normalized == 'ar';
 }
 
 String trainingText({
@@ -55,7 +55,7 @@ String trainingText({
   if (normalized == 'ar') {
     return ar;
   }
-  if (normalized == 'ur') {
+  if (normalized == 'bn') {
     return ur ?? en;
   }
   return en;
@@ -151,7 +151,7 @@ class _TrainingHomePageState extends State<_TrainingHomePage> {
     _setBanner(_text(
         ar: 'الخطوة 1: امسح باركود الصنف لفتح شاشة التعديل',
         en: 'Step 1: Scan the item barcode to open Adjust',
-        ur: 'مرحلہ 1: ایڈجسٹ کھولنے کے لیے آئٹم بارکوڈ اسکین کریں'));
+        ur: 'ধাপ ১: সমন্বয় খুলতে আইটেমের বারকোড স্ক্যান করুন'));
     await Future<void>.delayed(const Duration(milliseconds: 2200));
     if (!mounted) {
       return;
@@ -204,7 +204,7 @@ class _TrainingHomePageState extends State<_TrainingHomePage> {
           _text(
             ar: 'تدريب تعديل الصنف',
             en: 'Adjust Item Training',
-            ur: 'آئٹم ایڈجسٹمنٹ ٹریننگ',
+            ur: 'আইটেম সমন্বয় প্রশিক্ষণ',
           ),
         ),
       ),
@@ -247,7 +247,7 @@ class _TrainingHomePageState extends State<_TrainingHomePage> {
                           _text(
                             ar: 'شاهد خطوات تعديل الصنف باستخدام شاشة التطبيق الحقيقية.',
                             en: 'Watch the real app walkthrough for adjusting an item.',
-                            ur: 'آئٹم ایڈجسٹ کرنے کے لیے اصل ایپ کی رہنمائی دیکھیں۔',
+                            ur: 'একটি আইটেম সমন্বয় করার জন্য আসল অ্যাপের নির্দেশনা দেখুন।',
                           ),
                           textAlign: TextAlign.center,
                           style: theme.textTheme.titleMedium?.copyWith(
@@ -259,7 +259,7 @@ class _TrainingHomePageState extends State<_TrainingHomePage> {
                           _text(
                             ar: 'سيتم فتح شاشة التعديل تلقائيًا خلال لحظات.',
                             en: 'The adjust screen will open automatically.',
-                            ur: 'ایڈجسٹ اسکرین خودکار طور پر کھل جائے گی۔',
+                            ur: 'সমন্বয় স্ক্রিন স্বয়ংক্রিয়ভাবে খুলবে।',
                           ),
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodyMedium,
@@ -308,7 +308,7 @@ class _TrainingAdjustFlowPageState extends State<_TrainingAdjustFlowPage> {
       _setBanner(_text(
           ar: 'الخطوة 1: راجع بيانات الصنف والمواقع',
           en: 'Step 1: Review the item details and locations',
-          ur: 'مرحلہ 1: آئٹم کی تفصیلات اور مقامات کا جائزہ لیں'));
+          ur: 'ধাপ ১: আইটেমের বিবরণ ও অবস্থানগুলো পর্যালোচনা করুন'));
       final lookupController = context.read<ItemLookupController>();
       _lookupListener = () {
         final summary = lookupController.state.summary;
@@ -344,7 +344,7 @@ class _TrainingAdjustFlowPageState extends State<_TrainingAdjustFlowPage> {
     _setBanner(_text(
         ar: 'الخطوة 2: اختر الموقع المراد تعديله',
         en: 'Step 2: Select the location to adjust',
-        ur: 'مرحلہ 2: ایڈجسٹ کرنے کے لیے مقام منتخب کریں'));
+        ur: 'ধাপ ২: সমন্বয় করার জন্য অবস্থান নির্বাচন করুন'));
     adjustmentController.selectLocation(selectedLocation);
     await Future<void>.delayed(const Duration(milliseconds: 2200));
     if (!mounted) {
@@ -354,7 +354,7 @@ class _TrainingAdjustFlowPageState extends State<_TrainingAdjustFlowPage> {
     _setBanner(_text(
         ar: 'الخطوة 3: أدخل الكمية الجديدة',
         en: 'Step 3: Enter the new quantity',
-        ur: 'مرحلہ 3: نئی مقدار درج کریں'));
+        ur: 'ধাপ ৩: নতুন পরিমাণ লিখুন'));
     for (final value in _TrainingScenario.quantitySteps) {
       adjustmentController.setQuantityText(value);
       await Future<void>.delayed(const Duration(milliseconds: 700));
@@ -371,7 +371,7 @@ class _TrainingAdjustFlowPageState extends State<_TrainingAdjustFlowPage> {
     _setBanner(_text(
         ar: 'الخطوة 4: اضغط تأكيد لإرسال التعديل',
         en: 'Step 4: Tap confirm to submit the adjustment',
-        ur: 'مرحلہ 4: ایڈجسٹمنٹ جمع کرنے کے لیے تصدیق پر ٹیپ کریں'));
+        ur: 'ধাপ ৪: সমন্বয় জমা দিতে নিশ্চিত করুন-এ ট্যাপ করুন'));
     unawaited(adjustmentController.submitForItem(summary));
 
     await Future<void>.delayed(const Duration(milliseconds: 1800));
@@ -382,7 +382,7 @@ class _TrainingAdjustFlowPageState extends State<_TrainingAdjustFlowPage> {
     _setBanner(_text(
         ar: 'الخطوة 5: عند ظهور رسالة النجاح تكون العملية اكتملت',
         en: 'Step 5: When the success message appears, the adjustment is complete',
-        ur: 'مرحلہ 5: کامیابی کا پیغام ظاہر ہوتے ہی ایڈجسٹمنٹ مکمل ہو جائے گی'));
+        ur: 'ধাপ ৫: সফলতার বার্তা দেখালে সমন্বয় সম্পন্ন হবে'));
   }
 
   void _setBanner(String value) {

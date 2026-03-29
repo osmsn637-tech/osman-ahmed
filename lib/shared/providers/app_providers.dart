@@ -124,8 +124,12 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     ProxyProvider<ApiClient, DashboardRemoteDataSource>(
       update: (_, client, __) => DashboardRemoteDataSource(client),
     ),
-    ProxyProvider<ApiClient, TaskRemoteDataSource>(
-      update: (_, client, __) => TaskRemoteDataSource(client),
+    ProxyProvider2<ApiClient, AppConfig, TaskRemoteDataSource>(
+      update: (_, client, config, __) => TaskRemoteDataSource(
+        client,
+        defaultTaskType:
+            config.apiBaseUrl == 'https://api.qeu.app' ? 'restock' : null,
+      ),
     ),
     ProxyProvider2<DashboardRemoteDataSource, TaskRemoteDataSource,
         TaskRepository>(

@@ -42,6 +42,27 @@ void main() {
     );
   });
 
+  test(
+      'scanLocation authenticates against the environment-relative login endpoint',
+      () async {
+    final client = _FakeApiClient()
+      ..loginResponse = <String, dynamic>{
+        'token': 'lookup-token',
+      }
+      ..locationScanResponse = <String, dynamic>{
+        'data': <String, dynamic>{
+          'location_id': 'loc-77',
+          'location_code': 'A10.2',
+          'items': const <Map<String, dynamic>>[],
+        },
+      };
+    final dataSource = ItemRemoteDataSourceImpl(client);
+
+    await dataSource.scanLocation('A10.2');
+
+    expect(client.loginPostPath, '/v1/inventory/login');
+  });
+
   test('scanLocation posts to location-scan endpoint and parses items',
       () async {
     final client = _FakeApiClient()
@@ -88,18 +109,64 @@ void main() {
     expect(summary.items.first.quantity, 12);
     expect(summary.items.first.pickedQuantity, 3);
   });
+
+  test(
+      'fetchItemLocations uses the environment-relative barcode lookup endpoint',
+      () async {
+    final client = _FakeApiClient()
+      ..loginResponse = <String, dynamic>{
+        'token': 'lookup-token',
+      }
+      ..lookupGetResponse = <String, dynamic>{
+        'data': <String, dynamic>{
+          'product_id': '1001',
+          'product_name': 'Hajer Water',
+          'barcode': '6287009170024',
+          'product_image': '',
+          'total_quantity': 12,
+          'locations': const <Map<String, dynamic>>[],
+        },
+      };
+    final dataSource = ItemRemoteDataSourceImpl(client);
+
+    await dataSource.fetchItemLocations('6287009170024');
+
+    expect(
+      client.lastGetPath,
+      '/mobile/v1/products/barcode/6287009170024',
+    );
+  });
 }
 
 class _FakeApiClient extends ApiClient {
   _FakeApiClient() : super(Dio(), const ErrorMapper());
 
+  String lastGetPath = '';
   String lastPostPath = '';
   dynamic lastPostData;
+  String loginPostPath = '';
   String locationScanPostPath = '';
   dynamic locationScanPostData;
   dynamic loginResponse = <String, dynamic>{'token': 'lookup-token'};
   dynamic defaultPostResponse = <String, dynamic>{'ok': true};
+  dynamic lookupGetResponse = <String, dynamic>{'ok': true};
   dynamic locationScanResponse = <String, dynamic>{'ok': true};
+
+  @override
+  Future<Result<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
+    T Function(dynamic data)? parser,
+  }) async {
+    lastGetPath = path;
+    final payload = switch (path) {
+      '/mobile/v1/products/barcode/6287009170024' => lookupGetResponse,
+      _ => <String, dynamic>{'ok': true},
+    };
+    final parsed = parser != null ? parser(payload) : payload as T;
+    return Success<T>(parsed);
+  }
 
   @override
   Future<Result<T>> post<T>(
@@ -112,7 +179,10 @@ class _FakeApiClient extends ApiClient {
     lastPostPath = path;
     lastPostData = data;
     final payload = switch (path) {
-      'https://api.qeu.info/v1/inventory/login' => loginResponse,
+      '/v1/inventory/login' => () {
+          loginPostPath = path;
+          return loginResponse;
+        }(),
       '/mobile/v1/locations/scan' => () {
           locationScanPostPath = path;
           locationScanPostData = data;

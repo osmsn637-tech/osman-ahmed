@@ -19,20 +19,20 @@ class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
   static const _arLabel =
       '\u0627\u0644\u0639\u0631\u0628\u064a\u0629'; // العربية
-  static const _urLabel = 'اردو';
+  static const _urLabel = 'বাংলা';
   static const _arWarehouseSystem =
       '\u0646\u0638\u0627\u0645 \u0625\u062f\u0627\u0631\u0629 \u0627\u0644\u0645\u0633\u062a\u0648\u062f\u0639\u0627\u062a'; // نظام إدارة المستودعات
-  static const _urWarehouseSystem = 'گودام مینجمنٹ سسٹم';
+  static const _urWarehouseSystem = 'গুদাম ব্যবস্থাপনা সিস্টেম';
   static const _arMobile =
       '\u0631\u0642\u0645 \u0627\u0644\u062c\u0648\u0627\u0644'; // رقم الجوال
-  static const _urMobile = 'موبائل نمبر';
+  static const _urMobile = 'মোবাইল নম্বর';
   static const _arPassword =
       '\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631'; // كلمة المرور
-  static const _urPassword = 'پاس ورڈ';
+  static const _urPassword = 'পাসওয়ার্ড';
   static const _arSignIn =
       '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644'; // تسجيل الدخول
-  static const _urSignIn = 'سائن اِن کریں';
-  static const List<String> _supportedLanguages = ['en', 'ar', 'ur'];
+  static const _urSignIn = 'সাইন ইন করুন';
+  static const List<String> _supportedLanguages = ['en', 'ar', 'bn'];
 
   String _version = '';
   String _lang = 'en';
@@ -117,8 +117,7 @@ class _LoginPageState extends State<LoginPage>
     final controller = context.read<LoginFormController>();
     final formState = context.watch<LoginFormController>().state;
     final localeController = context.read<LocaleController>();
-    final direction =
-        _lang == 'ar' || _lang == 'ur' ? TextDirection.rtl : TextDirection.ltr;
+    final direction = _lang == 'ar' ? TextDirection.rtl : TextDirection.ltr;
     final disableAnimations =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     if (disableAnimations && _introController.value != 1.0) {
@@ -319,7 +318,7 @@ class _LoginPageState extends State<LoginPage>
   String _languageLabel(String code) {
     return switch (code) {
       'ar' => _arLabel,
-      'ur' => _urLabel,
+      'bn' => _urLabel,
       _ => 'English',
     };
   }
@@ -331,7 +330,7 @@ class _LoginPageState extends State<LoginPage>
   }) {
     return switch (_lang) {
       'ar' => arabic,
-      'ur' => urdu,
+      'bn' => urdu,
       _ => english,
     };
   }

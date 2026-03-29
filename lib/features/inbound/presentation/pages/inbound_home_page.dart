@@ -23,7 +23,7 @@ class InboundHomePage extends StatelessWidget {
         context.trText(
           english: 'Inbound',
           arabic: 'الوارد',
-          urdu: 'وصولی',
+          urdu: 'ইনবাউন্ড',
         );
 
     return Scaffold(
@@ -37,7 +37,7 @@ class InboundHomePage extends StatelessWidget {
               context.trText(
                 english: 'Inbound',
                 arabic: 'الوارد',
-                urdu: 'وصولی',
+                urdu: 'ইনবাউন্ড',
               ),
             ),
           ],
@@ -91,18 +91,18 @@ class InboundHomePage extends StatelessWidget {
       title: context.trText(
         english: 'Scan PO',
         arabic: 'مسح أمر الشراء',
-        urdu: 'پی او اسکین کریں',
+        urdu: 'PO স্ক্যান করুন',
       ),
       hintText: 'PO.00..',
       emptyErrorMessage: context.trText(
         english: 'Enter a valid PO',
         arabic: 'أدخل أمر شراء صالح',
-        urdu: 'درست پی او درج کریں',
+        urdu: 'সঠিক PO লিখুন',
       ),
       continueLabel: context.trText(
         english: 'Continue',
         arabic: 'متابعة',
-        urdu: 'جاری رکھیں',
+        urdu: 'চালিয়ে যান',
       ),
       showKeyboard: false,
     );

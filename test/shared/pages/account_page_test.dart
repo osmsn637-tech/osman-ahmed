@@ -256,7 +256,7 @@ void main() {
     expect(session.state.isAuthenticated, isFalse);
   });
 
-  testWidgets('account page shows and selects Urdu language option',
+  testWidgets('account page shows and selects Bengali language option',
       (tester) async {
     final session = SessionController();
     final localeController = LocaleController();
@@ -280,7 +280,7 @@ void main() {
         ],
         child: const MaterialApp(
           home: AccountPage(),
-          supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
           localizationsDelegates: [
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
@@ -293,12 +293,12 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('اردو'), findsOneWidget);
+    expect(find.text('বাংলা'), findsOneWidget);
 
-    await tester.tap(find.text('اردو'));
+    await tester.tap(find.text('বাংলা'));
     await tester.pumpAndSettle();
 
-    expect(localeController.locale.languageCode, 'ur');
+    expect(localeController.locale.languageCode, 'bn');
   });
 
   testWidgets('account page keeps all language buttons on one line',
@@ -330,7 +330,7 @@ void main() {
         ],
         child: const MaterialApp(
           home: AccountPage(),
-          supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
           localizationsDelegates: [
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
@@ -355,17 +355,17 @@ void main() {
 
     final arabicY = buttonCenterY('Arabic');
     final englishY = buttonCenterY('English');
-    final urduY = buttonCenterY('اردو');
+    final urduY = buttonCenterY('বাংলা');
 
     expect(arabicY, closeTo(englishY, 0.01));
     expect(urduY, closeTo(englishY, 0.01));
   });
 
-  testWidgets('change password dialog renders Urdu labels in Urdu locale',
+  testWidgets('change password dialog renders Bengali labels in Bengali locale',
       (tester) async {
     final session = SessionController();
     final repository = _FakeAuthRepository();
-    final localeController = LocaleController()..setLocale('ur');
+    final localeController = LocaleController()..setLocale('bn');
     session.setUser(
       const User(
         id: '2bcf9d5d-1234-4f1d-8f6d-000000000009',
@@ -385,9 +385,9 @@ void main() {
               value: localeController),
         ],
         child: const MaterialApp(
-          locale: Locale('ur'),
+          locale: Locale('bn'),
           home: AccountPage(),
-          supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
           localizationsDelegates: [
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
@@ -400,14 +400,14 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    await scrollTo(tester, find.text('پاس ورڈ تبدیل کریں'));
-    await tester.tap(find.text('پاس ورڈ تبدیل کریں'));
+    await scrollTo(tester, find.text('পাসওয়ার্ড পরিবর্তন করুন'));
+    await tester.tap(find.text('পাসওয়ার্ড পরিবর্তন করুন'));
     await tester.pumpAndSettle();
 
-    expect(find.text('موجودہ پاس ورڈ'), findsOneWidget);
-    expect(find.text('نیا پاس ورڈ'), findsOneWidget);
-    expect(find.text('منسوخ کریں'), findsOneWidget);
-    expect(find.text('پاس ورڈ اپ ڈیٹ کریں'), findsOneWidget);
+    expect(find.text('বর্তমান পাসওয়ার্ড'), findsOneWidget);
+    expect(find.text('নতুন পাসওয়ার্ড'), findsOneWidget);
+    expect(find.text('বাতিল'), findsOneWidget);
+    expect(find.text('পাসওয়ার্ড আপডেট করুন'), findsOneWidget);
   });
 
   testWidgets('five taps on the zone row opens the developer mode PIN dialog',
@@ -439,7 +439,7 @@ void main() {
         ],
         child: const MaterialApp(
           home: AccountPage(),
-          supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
           localizationsDelegates: [
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
@@ -492,7 +492,7 @@ void main() {
         ],
         child: const MaterialApp(
           home: AccountPage(),
-          supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
           localizationsDelegates: [
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
@@ -548,7 +548,7 @@ void main() {
         ],
         child: const MaterialApp(
           home: AccountPage(),
-          supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
           localizationsDelegates: [
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
@@ -606,7 +606,7 @@ void main() {
         ],
         child: const MaterialApp(
           home: AccountPage(),
-          supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
           localizationsDelegates: [
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,

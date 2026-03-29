@@ -1,0 +1,211 @@
+{
+  "@@locale": "bn",
+  "appTitle": "গুদাম মজুদ",
+  "tabHome": "হোম",
+  "tabAccount": "অ্যাকাউন্ট",
+  "homeWorkerTitle": "পুটঅ্যাওয়ে কর্মী",
+  "accountMyAccount": "আমার অ্যাকাউন্ট",
+  "accountDetails": "অ্যাকাউন্টের বিবরণ",
+  "accountPhone": "ফোন",
+  "accountRole": "ভূমিকা",
+  "accountZone": "জোন",
+  "accountLanguage": "ভাষা",
+  "accountArabic": "العربية",
+  "accountEnglish": "English",
+  "accountUrdu": "বাংলা",
+  "accountActions": "কার্যক্রম",
+  "accountChangePassword": "পাসওয়ার্ড পরিবর্তন করুন",
+  "accountSignOut": "সাইন আউট",
+  "accountComingSoon": "শিগগিরই আসছে",
+  "roleSupervisor": "সুপারভাইজার",
+  "roleInbound": "ইনবাউন্ড",
+  "roleWorker": "কর্মী",
+  "zoneWithCode": "জোন {zone}",
+  "@zoneWithCode": {
+    "placeholders": {
+      "zone": {}
+    }
+  },
+  "receiveTitle": "আইটেম গ্রহণ",
+  "receiveScanItemBarcode": "আইটেমের বারকোড স্ক্যান করুন",
+  "receiveScanDestinationLocation": "গন্তব্য অবস্থান স্ক্যান করুন",
+  "receiveUsePhysicalScanner": "ফিজিক্যাল স্ক্যানারের ট্রিগার ব্যবহার করুন",
+  "receiveConfirmDestinationThenQuantity": "আগে গন্তব্য, তারপর পরিমাণ নিশ্চিত করুন",
+  "receiveConfirmReceive": "গ্রহণ নিশ্চিত করুন",
+  "receiveReceiving": "গ্রহণ করা হচ্ছে...",
+  "receiveAwaitingScan": "স্ক্যানের অপেক্ষায়...",
+  "receiveSkuLabel": "SKU: {barcode}",
+  "@receiveSkuLabel": {
+    "placeholders": {
+      "barcode": {}
+    }
+  },
+  "receiveTotalLabel": "মোট: {quantity}",
+  "@receiveTotalLabel": {
+    "placeholders": {
+      "quantity": {}
+    }
+  },
+  "receiveShelf": "শেলফ",
+  "receiveBulk": "বাল্ক",
+  "receiveDestinationLocationScan": "গন্তব্য অবস্থান (স্ক্যান)",
+  "receiveQuantityToReceive": "গ্রহণের পরিমাণ",
+  "receiveFullQty": "পূর্ণ পরিমাণ",
+  "moveTitle": "আইটেম সরান",
+  "moveScanItemBarcode": "আইটেমের বারকোড স্ক্যান করুন",
+  "moveScanDestinationLocation": "গন্তব্য অবস্থান স্ক্যান করুন",
+  "moveTriggerScannerToCaptureItem": "আইটেম ধরতে স্ক্যানার ট্রিগার করুন",
+  "moveScanTargetLocationThenConfirm": "লক্ষ্য অবস্থান স্ক্যান করে নিশ্চিত করুন",
+  "moveFromLocation": "উৎস অবস্থান",
+  "moveItemSection": "আইটেম",
+  "moveToLocation": "গন্তব্য অবস্থান",
+  "moveQuantitySection": "পরিমাণ",
+  "moveDestinationLocationBarcode": "গন্তব্য অবস্থানের বারকোড",
+  "moveQtyToMove": "সরানোর পরিমাণ",
+  "moveAwaitingScan": "স্ক্যানের অপেক্ষায়...",
+  "moveConfirmMove": "সরানো নিশ্চিত করুন",
+  "moveMoving": "সরানো হচ্ছে...",
+  "moveNoSourceLocations": "কোনও উৎস অবস্থান নেই",
+  "moveSkuLabel": "SKU: {barcode}",
+  "@moveSkuLabel": {
+    "placeholders": {
+      "barcode": {}
+    }
+  },
+  "moveTotalLabel": "মোট: {quantity}",
+  "@moveTotalLabel": {
+    "placeholders": {
+      "quantity": {}
+    }
+  },
+  "stockAdjustmentTitle": "স্টক সমন্বয়",
+  "stockScanItemBarcode": "আইটেমের বারকোড স্ক্যান করুন",
+  "stockScanLocationBarcode": "অবস্থানের বারকোড স্ক্যান করুন",
+  "stockReadyToSubmit": "জমা দেওয়ার জন্য প্রস্তুত",
+  "stockLocationBarcode": "অবস্থানের বারকোড",
+  "stockNewQuantity": "নতুন পরিমাণ",
+  "stockReason": "কারণ",
+  "stockSubmitting": "জমা দেওয়া হচ্ছে...",
+  "stockSubmitAdjustment": "সমন্বয় জমা দিন",
+  "workerRefreshTasks": "টাস্ক রিফ্রেশ করুন",
+  "workerLookup": "অনুসন্ধান",
+  "workerAdjust": "সমন্বয়",
+  "workerAvailableTasks": "উপলব্ধ টাস্ক",
+  "workerMyActiveTasks": "আমার সক্রিয় টাস্ক",
+  "workerNoAvailableTasks": "এই মুহূর্তে কোনও টাস্ক উপলব্ধ নেই",
+  "workerNoActiveTasks": "কোনও সক্রিয় টাস্ক নেই - উপরে থেকে একটি নিন",
+  "workerStart": "শুরু করুন",
+  "workerComplete": "সম্পূর্ণ করুন",
+  "workerWelcomeBack": "আবার স্বাগতম, {name}",
+  "@workerWelcomeBack": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "workerTrackQueue": "আপনার সারি দেখুন এবং দ্রুত টাস্ক শেষ করুন",
+  "metricAvailable": "উপলব্ধ",
+  "metricActive": "সক্রিয়",
+  "metricDone": "সম্পন্ন",
+  "workerDone": "সম্পন্ন",
+  "workerQty": "পরিমাণ {quantity}",
+  "@workerQty": {
+    "placeholders": {
+      "quantity": {}
+    }
+  },
+  "workerTaskDetailsTitle": "টাস্কের বিবরণ",
+  "workerStartTask": "টাস্ক শুরু করুন",
+  "workerItem": "আইটেম",
+  "workerBarcode": "বারকোড",
+  "workerNoBarcodeAvailable": "কোনও বারকোড নেই",
+  "workerScanOrEnterProductBarcode": "পণ্যের বারকোড স্ক্যান/লিখুন",
+  "workerValidateProduct": "পণ্য যাচাই করুন",
+  "workerProductValidated": "পণ্য যাচাই হয়েছে",
+  "workerProductMismatch": "পণ্য মিলছে না",
+  "workerMovement": "মুভমেন্ট",
+  "workerFromWithType": "থেকে ({type})",
+  "@workerFromWithType": {
+    "placeholders": {
+      "type": {}
+    }
+  },
+  "workerToWithType": "এ ({type})",
+  "@workerToWithType": {
+    "placeholders": {
+      "type": {}
+    }
+  },
+  "workerScanOrEnterLocation": "অবস্থান স্ক্যান/লিখুন",
+  "workerValidateLocation": "অবস্থান যাচাই করুন",
+  "workerLocationValidated": "অবস্থান যাচাই হয়েছে",
+  "workerLocationMismatch": "অবস্থান মিলছে না",
+  "workerTaskInfo": "টাস্ক তথ্য",
+  "workerTaskType": "টাস্কের ধরন",
+  "workerQuantity": "পরিমাণ",
+  "workerStatus": "অবস্থা",
+  "supervisorTitle": "সুপারভাইজার",
+  "supervisorRefresh": "রিফ্রেশ",
+  "supervisorNoTasksForZone": "জোন {zone}-এর জন্য কোনও টাস্ক নেই",
+  "@supervisorNoTasksForZone": {
+    "placeholders": {
+      "zone": {}
+    }
+  },
+  "supervisorCreateTask": "টাস্ক তৈরি করুন",
+  "supervisorTaskType": "টাস্কের ধরন",
+  "supervisorItemBarcode": "আইটেমের বারকোড",
+  "supervisorEnterBarcode": "বারকোড লিখুন",
+  "supervisorQuantity": "পরিমাণ",
+  "supervisorEnterValidQuantity": "সঠিক পরিমাণ লিখুন",
+  "supervisorFrom": "থেকে",
+  "supervisorTo": "এ",
+  "supervisorZone": "জোন",
+  "supervisorOperationsOverview": "অপারেশনসমূহের সারসংক্ষেপ",
+  "supervisorPending": "অপেক্ষমাণ",
+  "supervisorUnassigned": "অনির্ধারিত",
+  "supervisorWorkerNumber": "কর্মী #{id}",
+  "@supervisorWorkerNumber": {
+    "placeholders": {
+      "id": {}
+    }
+  },
+  "inboundTitle": "ইনবাউন্ড ব্যবস্থাপনা",
+  "inboundRefresh": "রিফ্রেশ",
+  "inboundPending": "অপেক্ষমাণ ইনবাউন্ড",
+  "inboundInProgress": "চলমান",
+  "inboundCompleted": "সম্পন্ন ইনবাউন্ড",
+  "inboundNoDocuments": "কোনও ইনবাউন্ড নথি নেই",
+  "inboundReceiveDialogTodo": "আইটেম গ্রহণ ডায়ালগ - TODO",
+  "inboundViewTodo": "{documentNumber} দেখুন - TODO",
+  "@inboundViewTodo": {
+    "placeholders": {
+      "documentNumber": {}
+    }
+  },
+  "inboundItemsProgress": "{received}/{total} আইটেম",
+  "@inboundItemsProgress": {
+    "placeholders": {
+      "received": {},
+      "total": {}
+    }
+  },
+  "inboundStart": "শুরু করুন",
+  "inboundReceive": "গ্রহণ",
+  "inboundComplete": "সম্পূর্ণ করুন",
+  "inboundView": "দেখুন",
+  "inboundOverview": "ইনবাউন্ড সারসংক্ষেপ",
+  "inboundTotal": "মোট",
+  "inboundInProgressMetric": "চলমান",
+  "inboundDocumentsCount": "{count}টি নথি",
+  "@inboundDocumentsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "inboundDocumentSingular": "{count}টি নথি",
+  "@inboundDocumentSingular": {
+    "placeholders": {
+      "count": {}
+    }
+  }
+}

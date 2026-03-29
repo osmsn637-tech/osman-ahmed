@@ -181,7 +181,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                                   context.trText(
                                     english: 'Worker',
                                     arabic: 'عامل',
-                                    urdu: 'ورکر',
+                                    urdu: 'কর্মী',
                                   ),
                               availableCount: availableCount,
                               activeCount: activeCount,
@@ -224,7 +224,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                               title: context.trText(
                                 english: 'Tasks',
                                 arabic: 'المهام',
-                                urdu: 'ٹاسکس',
+                                urdu: 'টাস্ক',
                               ),
                               count: orderedCurrentTasks.length,
                               color: AppTheme.accent,
@@ -258,7 +258,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                                       : context.trText(
                                           english: 'Open',
                                           arabic: 'فتح',
-                                          urdu: 'کھولیں',
+                                          urdu: 'খুলুন',
                                         ),
                                   actionColor: canStart
                                       ? AppTheme.accent
@@ -295,7 +295,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                                 title: context.trText(
                                   english: 'Completed Tasks',
                                   arabic: 'المهام المكتملة',
-                                  urdu: 'مکمل ٹاسکس',
+                                  urdu: 'সম্পন্ন টাস্ক',
                                 ),
                                 count: completedTasks.length,
                                 color: AppTheme.success,

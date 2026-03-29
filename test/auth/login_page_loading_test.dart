@@ -192,8 +192,7 @@ void main() {
     expect(button.onPressed, isNull);
   });
 
-  testWidgets(
-      'logout clears stale credentials and keeps sign in disabled',
+  testWidgets('logout clears stale credentials and keeps sign in disabled',
       (tester) async {
     final repository = _RecordingAuthRepository();
     final loading = GlobalLoadingController();
@@ -264,9 +263,9 @@ void main() {
     expect(repository.calls, isEmpty);
   });
 
-  testWidgets('login page renders Urdu copy and RTL when locale is Urdu',
+  testWidgets('login page renders Bengali copy and LTR when locale is Bengali',
       (tester) async {
-    final localeController = LocaleController()..setLocale('ur');
+    final localeController = LocaleController()..setLocale('bn');
     final loginFormController = LoginFormController(
       loginUseCase: LoginUseCase(_RecordingAuthRepository()),
       errors: GlobalErrorController(),
@@ -288,8 +287,8 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          locale: Locale('ur'),
-          supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+          locale: Locale('bn'),
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: GlobalLoadingListener(
             child: LoginPage(),
@@ -299,12 +298,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('گودام مینجمنٹ سسٹم'), findsOneWidget);
-    expect(find.text('موبائل نمبر'), findsOneWidget);
-    expect(find.text('پاس ورڈ'), findsOneWidget);
-    expect(find.text('سائن اِن کریں'), findsOneWidget);
+    expect(find.text('গুদাম ব্যবস্থাপনা সিস্টেম'), findsOneWidget);
+    expect(find.text('মোবাইল নম্বর'), findsOneWidget);
+    expect(find.text('পাসওয়ার্ড'), findsOneWidget);
+    expect(find.text('সাইন ইন করুন'), findsOneWidget);
 
     final context = tester.element(find.byType(LoginPage));
-    expect(context.isRtlLocale, isTrue);
+    expect(context.isRtlLocale, isFalse);
   });
 }

@@ -8,9 +8,9 @@ extension L10nX on BuildContext {
 
   bool get isArabicLocale => languageCode == 'ar';
 
-  bool get isUrduLocale => languageCode == 'ur';
+  bool get isBengaliLocale => languageCode == 'bn';
 
-  bool get isRtlLocale => isArabicLocale || isUrduLocale;
+  bool get isRtlLocale => isArabicLocale;
 
   String trText({
     required String english,
@@ -19,7 +19,7 @@ extension L10nX on BuildContext {
   }) {
     return switch (languageCode) {
       'ar' => arabic,
-      'ur' => urdu ?? english,
+      'bn' => urdu ?? english,
       _ => english,
     };
   }

@@ -3,19 +3,24 @@ import '../../../../core/constants/app_endpoints.dart';
 import 'package:dio/dio.dart';
 
 class TaskRemoteDataSource {
-  TaskRemoteDataSource(this._client);
+  TaskRemoteDataSource(this._client, {String? defaultTaskType})
+      : _defaultTaskType = defaultTaskType;
 
   final ApiClient _client;
+  final String? _defaultTaskType;
 
   Future<Map<String, dynamic>> fetchMyTasks({
     String? taskType,
     String? cursor,
     int pageSize = 400,
   }) async {
+    final resolvedTaskType =
+        taskType != null && taskType.isNotEmpty ? taskType : _defaultTaskType;
     final response = await _client.get<Map<String, dynamic>>(
       AppEndpoints.workerTasks,
       queryParameters: {
-        if (taskType != null && taskType.isNotEmpty) 'task_type': taskType,
+        if (resolvedTaskType != null && resolvedTaskType.isNotEmpty)
+          'task_type': resolvedTaskType,
         if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
         'page_size': pageSize,
       },

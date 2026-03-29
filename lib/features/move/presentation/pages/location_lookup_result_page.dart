@@ -52,7 +52,7 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
           context.trText(
             english: 'Location Lookup Result',
             arabic: 'نتيجة بحث الموقع',
-            urdu: 'مقام تلاش کا نتیجہ',
+            urdu: 'অবস্থান অনুসন্ধানের ফলাফল',
           ),
         ),
       ),
@@ -77,12 +77,12 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
                   title: context.trText(
                     english: 'Loading location details',
                     arabic: 'جارٍ تحميل تفاصيل الموقع',
-                    urdu: 'مقام کی تفصیلات لوڈ ہو رہی ہیں',
+                    urdu: 'অবস্থানের বিবরণ লোড হচ্ছে',
                   ),
                   subtitle: context.trText(
                     english: 'Fetching items stored in this location...',
                     arabic: 'جارٍ جلب الأصناف الموجودة في هذا الموقع...',
-                    urdu: 'اس مقام میں موجود آئٹمز حاصل کیے جا رہے ہیں...',
+                    urdu: 'এই অবস্থানে থাকা আইটেমগুলো আনা হচ্ছে...',
                   ),
                   loading: true,
                 );
@@ -94,7 +94,7 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
                   title: context.trText(
                     english: 'Location not found',
                     arabic: 'الموقع غير موجود',
-                    urdu: 'مقام نہیں ملا',
+                    urdu: 'অবস্থান পাওয়া যায়নি',
                   ),
                 );
               }
@@ -106,7 +106,7 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
                       context.trText(
                         english: 'Could not load location details',
                         arabic: 'تعذر تحميل تفاصيل الموقع',
-                        urdu: 'مقام کی تفصیلات لوڈ نہیں ہو سکیں',
+                        urdu: 'অবস্থানের বিবরণ লোড করা যায়নি',
                       ),
                   action: ElevatedButton(
                     onPressed: controller.retry,
@@ -114,7 +114,7 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
                       context.trText(
                         english: 'Retry',
                         arabic: 'إعادة المحاولة',
-                        urdu: 'دوبارہ کوشش کریں',
+                        urdu: 'আবার চেষ্টা করুন',
                       ),
                     ),
                   ),
@@ -134,7 +134,7 @@ class _LocationLookupResultPageState extends State<LocationLookupResultPage> {
                   title: context.trText(
                     english: 'No location data available',
                     arabic: 'لا توجد بيانات للموقع',
-                    urdu: 'کوئی مقام ڈیٹا دستیاب نہیں',
+                    urdu: 'কোনও অবস্থান তথ্য নেই',
                   ),
                 );
               }
@@ -217,7 +217,7 @@ class _LocationHeaderCard extends StatelessWidget {
                       label: context.trText(
                         english: 'Items',
                         arabic: 'عدد الأصناف',
-                        urdu: 'آئٹمز',
+                        urdu: 'আইটেম',
                       ),
                       value: '${summary.totalItems}',
                       icon: Icons.inventory_2_outlined,
@@ -229,7 +229,7 @@ class _LocationHeaderCard extends StatelessWidget {
                       label: context.trText(
                         english: 'Total Quantity',
                         arabic: 'إجمالي الكمية',
-                        urdu: 'کل مقدار',
+                        urdu: 'মোট পরিমাণ',
                       ),
                       value: '${summary.totalQuantity}',
                       icon: Icons.numbers_rounded,
@@ -321,7 +321,7 @@ class _LocationItemsSection extends StatelessWidget {
                   context.trText(
                     english: 'Items In Location',
                     arabic: 'الأصناف في الموقع',
-                    urdu: 'مقام میں آئٹمز',
+                    urdu: 'অবস্থানে থাকা আইটেম',
                   ),
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
@@ -349,7 +349,7 @@ class _LocationItemsSection extends StatelessWidget {
                 context.trText(
                   english: 'No items in this location',
                   arabic: 'لا توجد أصناف في هذا الموقع',
-                  urdu: 'اس مقام میں کوئی آئٹم نہیں',
+                  urdu: 'এই অবস্থানে কোনও আইটেম নেই',
                 ),
               )
             else
@@ -404,7 +404,7 @@ class _LocationItemCard extends StatelessWidget {
                       ? context.trText(
                           english: 'Unknown Item',
                           arabic: 'صنف غير معروف',
-                          urdu: 'نامعلوم آئٹم',
+                          urdu: 'অজানা আইটেম',
                         )
                       : item.itemName,
                   style: const TextStyle(
@@ -431,7 +431,7 @@ class _LocationItemCard extends StatelessWidget {
                 label: context.trText(
                   english: 'Qty',
                   arabic: 'الكمية',
-                  urdu: 'مقدار',
+                  urdu: 'পরিমাণ',
                 ),
                 value: item.quantity,
                 alignEnd: false,
@@ -441,7 +441,7 @@ class _LocationItemCard extends StatelessWidget {
                 label: context.trText(
                   english: 'Picked Qty',
                   arabic: 'الكمية الملتقطة',
-                  urdu: 'پک شدہ مقدار',
+                  urdu: 'পিক করা পরিমাণ',
                 ),
                 value: item.pickedQuantity,
                 alignEnd: true,

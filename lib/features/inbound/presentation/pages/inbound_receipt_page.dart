@@ -1094,12 +1094,12 @@ class _ScanCaptureSummary extends StatelessWidget {
             ? context.trText(
                 english: 'Scanner status',
                 arabic: 'حالة الماسح',
-                urdu: 'اسکینر کی حالت',
+                urdu: 'স্ক্যানারের অবস্থা',
               )
             : context.trText(
                 english: 'Scanner off',
                 arabic: 'الماسح متوقف',
-                urdu: 'اسکینر بند ہے',
+                urdu: 'স্ক্যানার বন্ধ',
               ));
     final displayValue = isEmpty ? emptyText : currentValue.trim();
     return Container(
@@ -1226,7 +1226,7 @@ class _InboundManualBarcodeDialogState
         context.trText(
           english: 'Manual Type',
           arabic: 'إدخال يدوي',
-          urdu: 'دستی اندراج',
+          urdu: 'ম্যানুয়াল ইনপুট',
         ),
       ),
       content: TextField(
@@ -1238,13 +1238,13 @@ class _InboundManualBarcodeDialogState
           labelText: context.trText(
             english: 'Barcode',
             arabic: 'الباركود',
-            urdu: 'بارکوڈ',
+            urdu: 'বারকোড',
           ),
           prefixIcon: const Icon(Icons.qr_code_rounded),
           hintText: context.trText(
             english: 'Type barcode',
             arabic: 'اكتب الباركود',
-            urdu: 'بارکوڈ درج کریں',
+            urdu: 'বারকোড লিখুন',
           ),
         ),
         onSubmitted: (_) => Navigator.of(context).pop(_controller.text.trim()),
@@ -1256,7 +1256,7 @@ class _InboundManualBarcodeDialogState
             context.trText(
               english: 'Cancel',
               arabic: 'إلغاء',
-              urdu: 'منسوخ کریں',
+              urdu: 'বাতিল',
             ),
           ),
         ),
@@ -1267,7 +1267,7 @@ class _InboundManualBarcodeDialogState
             context.trText(
               english: 'Use Barcode',
               arabic: 'استخدام الباركود',
-              urdu: 'بارکوڈ استعمال کریں',
+              urdu: 'বারকোড ব্যবহার করুন',
             ),
           ),
         ),

@@ -5,16 +5,16 @@ import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:wherehouse/shared/l10n/l10n.dart';
 
 void main() {
-  testWidgets('l10n helper treats Urdu as RTL and picks Urdu text',
+  testWidgets('l10n helper treats Bengali as LTR and picks Bengali text',
       (tester) async {
-    late bool isRtl;
+    late TextDirection direction;
     late String languageCode;
     late String label;
 
     await tester.pumpWidget(
       MaterialApp(
-        locale: const Locale('ur'),
-        supportedLocales: const [Locale('en'), Locale('ar'), Locale('ur')],
+        locale: const Locale('bn'),
+        supportedLocales: const [Locale('en'), Locale('ar'), Locale('bn')],
         localizationsDelegates: const [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -23,12 +23,12 @@ void main() {
         ],
         home: Builder(
           builder: (context) {
-            isRtl = context.isRtlLocale;
+            direction = Directionality.of(context);
             languageCode = context.languageCode;
             label = context.trText(
               english: 'Account',
               arabic: 'الحساب',
-              urdu: 'اکاؤنٹ',
+              urdu: 'অ্যাকাউন্ট',
             );
             return const SizedBox.shrink();
           },
@@ -36,8 +36,8 @@ void main() {
       ),
     );
 
-    expect(isRtl, isTrue);
-    expect(languageCode, 'ur');
-    expect(label, 'اکاؤنٹ');
+    expect(direction, TextDirection.ltr);
+    expect(languageCode, 'bn');
+    expect(label, 'অ্যাকাউন্ট');
   });
 }

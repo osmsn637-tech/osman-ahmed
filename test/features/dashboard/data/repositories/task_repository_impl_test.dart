@@ -667,6 +667,96 @@ void main() {
     expect(remoteDataSource.submittedTargetLocationCode, 'SHELF-03-03');
   });
 
+  test('restock completion submits without calling the complete endpoint',
+      () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'id': 'restock-submit-only-1',
+            'task_type': 'restock',
+            'title': 'Refill Water',
+            'subtitle': 'BULK-09-01 -> SHELF-09-02',
+            'status': 'started',
+            'detail': {
+              'item_id': 912,
+              'item_name': 'Refill Water',
+              'item_barcode': 'RESTOCK-912',
+              'quantity': 5,
+              'bulk_location': 'BULK-09-01',
+              'target_location_code': 'SHELF-09-02',
+              'target_location_id': 'loc-shelf-09-02',
+            },
+          },
+        ],
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('Z09')).single;
+
+    final completed = await repository.completeTask(
+      task.id,
+      quantity: 5,
+      locationId: 'SHELF-09-02',
+    );
+
+    expect(completed.status, TaskStatus.completed);
+    expect(remoteDataSource.submittedTaskId, 'restock-submit-only-1');
+    expect(remoteDataSource.submittedTaskType, 'restock');
+    expect(remoteDataSource.submittedLocationId, 'loc-shelf-09-02');
+    expect(remoteDataSource.submittedTargetLocationCode, 'SHELF-09-02');
+    expect(remoteDataSource.completedTaskId, isNull);
+    expect(remoteDataSource.completedTaskType, isNull);
+  });
+
+  test(
+      'restock submit does not reuse product source location ids for target completion',
+      () async {
+    final remoteDataSource = _FakeTaskRemoteDataSource(
+      const {
+        'tasks': [
+          {
+            'task_type': 'restock',
+            'id': '019d3a58-9c49-767f-ae24-39863749698d',
+            'title': 'Natural White Vinegar Bottles',
+            'subtitle': 'Z08-H01-BLK-L01-P03 -> Z01-AC01-SS-L04-P02',
+            'status': 'started',
+            'priority': 'high',
+            'product_name': 'Natural White Vinegar Bottles',
+            'product_barcode': '6281100021018',
+            'products': [
+              {
+                'product_id': '154',
+                'name': 'Natural White Vinegar Bottles',
+                'barcode': '6281100021018',
+                'quantity': 3,
+                'location_id': '019ba7e3-9f6d-73f6-8b59-cd5d41717d7c',
+                'location_code': 'Z08-H01-BLK-L01-P03',
+              },
+            ],
+            'product_location_code': 'Z08-H01-BLK-L01-P03',
+            'zone': 'Z01',
+          },
+        ],
+      },
+    );
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      remoteDataSource,
+    );
+
+    final task = (await repository.getTasksForZone('')).single;
+    await repository.completeTask(task.id, quantity: 3);
+
+    expect(remoteDataSource.submittedTaskType, 'restock');
+    expect(remoteDataSource.submittedLocationId, 'Z01-AC01-SS-L04-P02');
+    expect(remoteDataSource.submittedTargetLocationCode, 'Z01-AC01-SS-L04-P02');
+  });
+
   test('submits legacy putaway completion using location_code', () async {
     final remoteDataSource = _FakeTaskRemoteDataSource(
       const {
@@ -855,6 +945,65 @@ void main() {
     expect(task.itemBarcode, 'RESTOCK-333');
     expect(task.fromLocation, 'BULK-01-01');
     expect(task.toLocation, 'SHELF-01-01');
+  });
+
+  test('parses new unified restock payloads with source and target wiring',
+      () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'task_type': 'restock',
+              'id': '019d3a58-9c49-767f-ae24-39863749698d',
+              'title': 'Natural White Vinegar Bottles',
+              'subtitle': 'Z08-H01-BLK-L01-P03 -> Z01-AC01-SS-L04-P02',
+              'status': 'pending',
+              'priority': 'high',
+              'product_name': 'Natural White Vinegar Bottles',
+              'product_image':
+                  'http://img.qeu.app/products/6281100021018/6281100021018_image.webp',
+              'product_url': '/products/154',
+              'product_barcode': '6281100021018',
+              'products': [
+                {
+                  'product_id': '154',
+                  'name': 'Natural White Vinegar Bottles',
+                  'image':
+                      'http://img.qeu.app/products/6281100021018/6281100021018_image.webp',
+                  'url': '/products/154',
+                  'barcode': '6281100021018',
+                  'quantity': 3,
+                  'location_id': '019ba7e3-9f6d-73f6-8b59-cd5d41717d7c',
+                  'location_code': 'Z08-H01-BLK-L01-P03',
+                  'unit': 'حبة',
+                  'unit_symbol': 'حبة',
+                },
+              ],
+              'item_count': 1,
+              'product_location_code': 'Z08-H01-BLK-L01-P03',
+              'zone': 'Z01',
+              'no_zone_flag': false,
+              'assigned_to': '019cd26b-bd61-7baa-8b01-fba04c4149da',
+            },
+          ],
+        },
+      ),
+    );
+
+    final task = (await repository.getTasksForZone('')).single;
+
+    expect(task.apiTaskType, 'restock');
+    expect(task.type, TaskType.refill);
+    expect(task.itemName, 'Natural White Vinegar Bottles');
+    expect(task.itemBarcode, '6281100021018');
+    expect(task.quantity, 3);
+    expect(task.unit, 'حبة');
+    expect(task.fromLocation, 'Z08-H01-BLK-L01-P03');
+    expect(task.toLocation, 'Z01-AC01-SS-L04-P02');
+    expect(task.toLocationId, isNull);
+    expect(task.zone, 'Z01');
   });
 
   test('keeps mixed worker task types visible when subtitle is not a zone',

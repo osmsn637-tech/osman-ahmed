@@ -5,11 +5,12 @@ import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:wherehouse/features/dashboard/presentation/pages/home_page.dart';
 
 void main() {
-  testWidgets('home page renders Arabic title in Arabic locale', (tester) async {
+  testWidgets('home page renders Arabic title in Arabic locale',
+      (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         locale: Locale('ar'),
-        supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+        supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
         localizationsDelegates: [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -24,11 +25,12 @@ void main() {
     expect(find.text('عامل الترصيص'), findsOneWidget);
   });
 
-  testWidgets('home page renders Urdu title in Urdu locale', (tester) async {
+  testWidgets('home page renders Bengali title in Bengali locale',
+      (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
-        locale: Locale('ur'),
-        supportedLocales: [Locale('en'), Locale('ar'), Locale('ur')],
+        locale: Locale('bn'),
+        supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
         localizationsDelegates: [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -40,6 +42,6 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.text('پٹ اوے کارکن'), findsOneWidget);
+    expect(find.text('পুটঅ্যাওয়ে কর্মী'), findsOneWidget);
   });
 }

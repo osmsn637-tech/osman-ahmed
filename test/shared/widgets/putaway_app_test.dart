@@ -298,7 +298,7 @@ void main() {
     expect(repository.fetchCount, 1);
   });
 
-  testWidgets('putaway app supports Urdu locale in the app shell',
+  testWidgets('putaway app supports Bengali locale in the app shell',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/home',
@@ -311,7 +311,7 @@ void main() {
         ),
       ],
     );
-    final localeController = LocaleController()..setLocale('ur');
+    final localeController = LocaleController()..setLocale('bn');
 
     await tester.pumpWidget(
       MultiProvider(
@@ -336,11 +336,12 @@ void main() {
     await tester.pumpAndSettle();
 
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
-    expect(app.locale, const Locale('ur'));
-    expect(app.supportedLocales, contains(const Locale('ur')));
+    expect(app.locale, const Locale('bn'));
+    expect(app.supportedLocales, contains(const Locale('bn')));
   });
 
-  testWidgets('putaway app shows a yellow DEV ribbon in the top left in development mode',
+  testWidgets(
+      'putaway app shows a yellow DEV ribbon in the top left in development mode',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/home',
@@ -384,7 +385,8 @@ void main() {
 
     expect(find.text('DEV'), findsOneWidget);
 
-    final ribbon = tester.widget<DecoratedBox>(find.byKey(const Key('dev-ribbon')));
+    final ribbon =
+        tester.widget<DecoratedBox>(find.byKey(const Key('dev-ribbon')));
     final decoration = ribbon.decoration as BoxDecoration;
     expect(decoration.color, const Color(0xFFF2C94C));
 
@@ -406,8 +408,7 @@ void main() {
     );
   });
 
-  testWidgets('putaway app hides DEV badge in production mode',
-      (tester) async {
+  testWidgets('putaway app hides DEV badge in production mode', (tester) async {
     final router = GoRouter(
       initialLocation: '/home',
       routes: [

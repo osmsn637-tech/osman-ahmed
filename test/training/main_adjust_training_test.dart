@@ -3,18 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wherehouse/training/main_adjust_training.dart';
 
 void main() {
-  test('training locale helpers include Urdu support', () {
-    expect(trainingSupportedLocales, contains(const Locale('ur')));
-    expect(resolveTrainingLocale('ur'), const Locale('ur'));
-    expect(trainingIsRtl(const Locale('ur')), isTrue);
+  test('training locale helpers include Bengali support', () {
+    expect(trainingSupportedLocales, contains(const Locale('bn')));
+    expect(resolveTrainingLocale('bn'), const Locale('bn'));
+    expect(trainingIsRtl(const Locale('bn')), isFalse);
     expect(
       trainingText(
-        locale: const Locale('ur'),
+        locale: const Locale('bn'),
         en: 'Adjust Item Training',
         ar: 'تدريب تعديل الصنف',
-        ur: 'آئٹم ایڈجسٹمنٹ ٹریننگ',
+        ur: 'আইটেম সমন্বয় প্রশিক্ষণ',
       ),
-      'آئٹم ایڈجسٹمنٹ ٹریننگ',
+      'আইটেম সমন্বয় প্রশিক্ষণ',
     );
   });
 }

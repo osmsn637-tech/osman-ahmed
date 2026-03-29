@@ -63,43 +63,43 @@ String taskTypeLabelForContext(
       return context.trText(
         english: isPutaway ? 'PUTAWAY' : 'RECEIVE',
         arabic: 'استلام',
-        urdu: isPutaway ? 'پٹ اوے' : 'وصولی',
+        urdu: isPutaway ? 'পুটঅ্যাওয়ে' : 'গ্রহণ',
       );
     case TaskType.move:
       return context.trText(
         english: 'MOVE',
         arabic: 'نقل',
-        urdu: 'منتقلی',
+        urdu: 'সরান',
       );
     case TaskType.returnTask:
       return context.trText(
         english: 'RETURN',
         arabic: 'مرتجع',
-        urdu: 'واپسی',
+        urdu: 'রিটার্ন',
       );
     case TaskType.adjustment:
       return context.trText(
         english: 'ADJUSTMENT',
         arabic: 'تعديل',
-        urdu: 'ایڈجسٹمنٹ',
+        urdu: 'সমন্বয়',
       );
     case TaskType.refill:
       return context.trText(
         english: 'REFILL',
         arabic: 'إعادة تعبئة',
-        urdu: 'ری فل',
+        urdu: 'রি-ফিল',
       );
     case TaskType.exception:
       return context.trText(
         english: 'EXCEPTION',
         arabic: 'استثناء',
-        urdu: 'استثناء',
+        urdu: 'ব্যতিক্রম',
       );
     case TaskType.cycleCount:
       return context.trText(
         english: 'CYCLE COUNT',
         arabic: 'جرد دوري',
-        urdu: 'سائیکل کاؤنٹ',
+        urdu: 'সাইকেল কাউন্ট',
       );
   }
 }
@@ -110,19 +110,19 @@ String taskStatusLabelForContext(BuildContext context, TaskStatus status) {
       return context.trText(
         english: 'PENDING',
         arabic: 'قيد الانتظار',
-        urdu: 'زیر انتظار',
+        urdu: 'অপেক্ষমাণ',
       );
     case TaskStatus.inProgress:
       return context.trText(
         english: 'INPROGRESS',
         arabic: 'قيد التنفيذ',
-        urdu: 'جاری',
+        urdu: 'চলমান',
       );
     case TaskStatus.completed:
       return context.trText(
         english: 'COMPLETED',
         arabic: 'مكتملة',
-        urdu: 'مکمل',
+        urdu: 'সম্পন্ন',
       );
   }
 }
@@ -145,5 +145,3 @@ Color taskTypeColor(TaskType type) {
       return const Color(0xFF0D9488);
   }
 }
-
-

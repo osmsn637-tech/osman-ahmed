@@ -65,7 +65,7 @@ class _PutawayAppState extends State<PutawayApp> with WidgetsBindingObserver {
       onGenerateTitle: (context) => context.l10n.appTitle,
       theme: AppTheme.light(),
       locale: localeController.locale,
-      supportedLocales: const [Locale('en'), Locale('ar'), Locale('ur')],
+      supportedLocales: const [Locale('en'), Locale('ar'), Locale('bn')],
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

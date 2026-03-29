@@ -21,21 +21,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeWorkerTitle => 'Putaway Worker';
 
   @override
-  String get moreTitle => 'More';
-
-  @override
-  String get moreHome => 'Home';
-
-  @override
-  String get moreItemLookup => 'Item Lookup';
-
-  @override
-  String get moreStockAdjustment => 'Stock Adjustment';
-
-  @override
-  String get moreExceptions => 'Exceptions';
-
-  @override
   String get accountMyAccount => 'My Account';
 
   @override
@@ -221,14 +206,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get stockSubmitAdjustment => 'Submit Adjustment';
-
-  @override
-  String get exceptionsTitle => 'Picking Exceptions';
-
-  @override
-  String exceptionsExpected(Object location) {
-    return 'Expected: $location';
-  }
 
   @override
   String get workerRefreshTasks => 'Refresh tasks';
@@ -417,12 +394,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get inboundNoDocuments => 'No inbound documents';
 
   @override
-  String get inboundUseCreatePrompt => 'Use Create Inbound to get started';
-
-  @override
-  String get inboundCreateDialogTodo => 'Create Inbound dialog - TODO';
-
-  @override
   String get inboundReceiveDialogTodo => 'Receive Items dialog - TODO';
 
   @override
@@ -455,9 +426,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get inboundInProgressMetric => 'In Progress';
-
-  @override
-  String get inboundCreateInbound => 'Create Inbound';
 
   @override
   String inboundDocumentsCount(Object count) {

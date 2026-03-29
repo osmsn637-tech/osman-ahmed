@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/providers/session_provider.dart';
-import '../../features/dashboard/presentation/pages/exceptions_page.dart';
 import '../../features/move/domain/usecases/adjust_stock_usecase.dart';
 import '../../features/move/presentation/controllers/item_adjustment_controller.dart';
 import '../../features/move/domain/usecases/lookup_item_by_barcode_usecase.dart';
@@ -13,7 +12,6 @@ import '../../features/move/presentation/controllers/item_lookup_controller.dart
 import '../../features/move/presentation/pages/item_lookup_result_page.dart';
 import '../../features/move/presentation/controllers/location_lookup_controller.dart';
 import '../../features/move/presentation/pages/location_lookup_result_page.dart';
-import '../../features/inbound/presentation/pages/create_inbound_page.dart';
 import '../../features/inbound/domain/entities/inbound_entities.dart';
 import '../../features/inbound/presentation/controllers/inbound_receipt_controller.dart';
 import '../../features/inbound/presentation/pages/inbound_receipt_page.dart';
@@ -47,13 +45,6 @@ GoRouter buildRouter(
       GoRoute(
         path: '/home',
         builder: (context, state) => const MainScaffold(),
-      ),
-      GoRoute(
-        path: '/inbound/create',
-        builder: (context, state) => CreateInboundPage(
-          initialDocumentNumber: state.uri.queryParameters['po'],
-          initialSupplier: state.uri.queryParameters['supplier'],
-        ),
       ),
       GoRoute(
         path: '/inbound/receipt/:id',
@@ -120,14 +111,6 @@ GoRouter buildRouter(
             child: LocationLookupResultPage(locationCode: barcode),
           );
         },
-      ),
-      GoRoute(
-        path: '/exceptions-tab',
-        builder: (context, state) => const ExceptionsPage(),
-      ),
-      GoRoute(
-        path: '/exceptions',
-        builder: (context, state) => const ExceptionsPage(),
       ),
       GoRoute(
         path: '/account',

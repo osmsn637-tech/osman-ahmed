@@ -34,7 +34,6 @@ This note captures what is still mock-backed, missing an API-backed implementati
 ## UI or copy that still signals incomplete work
 
 - Inbound localization strings still contain explicit TODO copy in `l10n/app_en.arb`:
-  - `inboundCreateDialogTodo`
   - `inboundReceiveDialogTodo`
   - `inboundViewTodo`
 - The README is stale and still describes the app as fully mock-backed even though auth, dashboard task flows, and lookup now have API wiring.

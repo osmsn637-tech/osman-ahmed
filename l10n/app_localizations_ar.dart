@@ -21,21 +21,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get homeWorkerTitle => 'عامل الترصيص';
 
   @override
-  String get moreTitle => 'المزيد';
-
-  @override
-  String get moreHome => 'الرئيسية';
-
-  @override
-  String get moreItemLookup => 'البحث عن صنف';
-
-  @override
-  String get moreStockAdjustment => 'تعديل المخزون';
-
-  @override
-  String get moreExceptions => 'الاستثناءات';
-
-  @override
   String get accountMyAccount => 'حسابي';
 
   @override
@@ -219,14 +204,6 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get stockSubmitAdjustment => 'إرسال التعديل';
-
-  @override
-  String get exceptionsTitle => 'استثناءات الالتقاط';
-
-  @override
-  String exceptionsExpected(Object location) {
-    return 'المتوقع: $location';
-  }
 
   @override
   String get workerRefreshTasks => 'تحديث المهام';
@@ -415,12 +392,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get inboundNoDocuments => 'لا توجد مستندات وارد';
 
   @override
-  String get inboundUseCreatePrompt => 'استخدم إنشاء وارد للبدء';
-
-  @override
-  String get inboundCreateDialogTodo => 'نافذة إنشاء وارد - قريبًا';
-
-  @override
   String get inboundReceiveDialogTodo => 'نافذة استلام الأصناف - قريبًا';
 
   @override
@@ -453,9 +424,6 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get inboundInProgressMetric => 'قيد التنفيذ';
-
-  @override
-  String get inboundCreateInbound => 'إنشاء وارد';
 
   @override
   String inboundDocumentsCount(Object count) {

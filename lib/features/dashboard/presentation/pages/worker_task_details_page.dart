@@ -427,6 +427,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
               ),
               const SizedBox(height: 12),
             ],
+            if (_buildTaskNextStepCard(context, task)
+                case final nextStepCard?) ...[
+              nextStepCard,
+              const SizedBox(height: 12),
+            ],
             if (task.type == TaskType.receive) ...[
               _SectionCard(
                 title: '',
@@ -1317,8 +1322,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     required AdjustmentTaskProduct product,
     required bool selected,
   }) {
-    final previewQuantity =
-        selected ? (_adjustmentEnteredQuantity ?? product.systemQuantity) : product.systemQuantity;
+    final previewQuantity = selected
+        ? (_adjustmentEnteredQuantity ?? product.systemQuantity)
+        : product.systemQuantity;
     final previewActive = selected && previewQuantity != product.systemQuantity;
 
     return InkWell(
@@ -1404,7 +1410,8 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     BuildContext context,
     AdjustmentTaskProduct product,
   ) {
-    final previewQuantity = _adjustmentEnteredQuantity ?? product.systemQuantity;
+    final previewQuantity =
+        _adjustmentEnteredQuantity ?? product.systemQuantity;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1459,9 +1466,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
             width: double.infinity,
             child: ElevatedButton(
               key: const Key('adjustment-submit-button'),
-              onPressed: _submittingAdjustment || _adjustmentEnteredQuantity == null
-                  ? null
-                  : _submitAdjustmentChange,
+              onPressed:
+                  _submittingAdjustment || _adjustmentEnteredQuantity == null
+                      ? null
+                      : _submitAdjustmentChange,
               child: Text(
                 _submittingAdjustment
                     ? _tr('Submitting...', 'جارٍ الإرسال...')
@@ -1611,6 +1619,110 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         ),
       ],
     );
+  }
+
+  Widget? _buildTaskNextStepCard(BuildContext context, TaskEntity task) {
+    final message = _taskNextStepMessage(task);
+    if (message == null) {
+      return null;
+    }
+
+    return _NextStepCard(
+      key: const Key('task-next-step-card'),
+      title: _tr('Next step', 'الخطوة التالية', 'اگلا مرحلہ'),
+      message: message,
+      supportingText: _taskNextStepSupportingText(task),
+    );
+  }
+
+  String? _taskNextStepMessage(TaskEntity task) {
+    switch (task.type) {
+      case TaskType.receive:
+        if (_receivePage == 0) {
+          return _tr('Scan product barcode', 'امسح باركود الصنف');
+        }
+        if (!_locationValidated) {
+          return _tr('Scan bulk location', 'امسح موقع التخزين');
+        }
+        return _tr('Complete the task', 'أكمل المهمة');
+      case TaskType.refill:
+        if (_refillPage == 0) {
+          return _tr('Scan product barcode', 'امسح باركود الصنف');
+        }
+        if (!_locationValidated) {
+          return _tr('Scan shelf location', 'امسح موقع الرف');
+        }
+        return _tr(
+            'Enter quantity and complete the move', 'أدخل الكمية وأكمل النقل');
+      case TaskType.returnTask:
+        return _returnPage == 0
+            ? _tr('Scan return item barcode', 'امسح باركود صنف المرتجع')
+            : _tr(
+                'Validate return locations and quantities',
+                'تحقق من مواقع وكميات المرتجع',
+              );
+      case TaskType.cycleCount:
+        if (_cycleCountPage == 0 && !_locationValidated) {
+          return _tr('Scan count location', 'امسح موقع الجرد');
+        }
+        if (_cycleCountPage == 0) {
+          return _tr('Scan item barcode', 'امسح باركود الصنف');
+        }
+        if (_cycleCountDetailOpenedManually &&
+            !_cycleCountDetailBarcodeValidated) {
+          return _tr('Scan item barcode', 'امسح باركود الصنف');
+        }
+        return _tr('Enter counted quantity', 'أدخل الكمية المعدودة');
+      default:
+        return null;
+    }
+  }
+
+  String? _taskNextStepSupportingText(TaskEntity task) {
+    switch (task.type) {
+      case TaskType.receive:
+        return _receivePage == 0
+            ? _tr(
+                'Validate the item first so we can move to its destination.',
+                'تحقق من الصنف أولاً حتى ننتقل إلى وجهته.',
+              )
+            : _tr(
+                'Confirm the destination location to finish receiving.',
+                'أكد موقع الوجهة لإنهاء الاستلام.',
+              );
+      case TaskType.refill:
+        return _refillPage == 0
+            ? _tr(
+                'Match the product before unlocking the shelf destination.',
+                'طابق الصنف قبل فتح وجهة الرف.',
+              )
+            : _tr(
+                'Validate the shelf, then enter the moved quantity.',
+                'تحقق من الرف ثم أدخل الكمية المنقولة.',
+              );
+      case TaskType.returnTask:
+        return _returnPage == 0
+            ? _tr(
+                'Start by validating the return item before handling locations.',
+                'ابدأ بالتحقق من صنف المرتجع قبل التعامل مع المواقع.',
+              )
+            : _tr(
+                'Each line needs the right return location and quantity.',
+                'كل سطر يحتاج موقع المرتجع الصحيح والكمية الصحيحة.',
+              );
+      case TaskType.cycleCount:
+        return _cycleCountPage == 0
+            ? _tr(
+                'Counting starts after the shelf location is confirmed.',
+                'يبدأ العد بعد تأكيد موقع الرف.',
+              )
+            : _tr(
+                'Finish this item before returning to the count list.',
+                'أنه هذا الصنف قبل العودة إلى قائمة الجرد.',
+              );
+      default:
+        return null;
+    }
   }
 
   Widget _buildProductValidationAlert(BuildContext context) {
@@ -3096,8 +3208,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     _scannerFocusRetryTimer?.cancel();
     var retriesLeft = focusNode.hasFocus ? 0 : _scannerFocusRetryCount;
     _requestScannerFocus(focusNode);
-    _scannerFocusRetryTimer =
-        Timer.periodic(_scannerFocusRetryDelay, (timer) {
+    _scannerFocusRetryTimer = Timer.periodic(_scannerFocusRetryDelay, (timer) {
       if (!mounted) {
         timer.cancel();
         return;
@@ -3567,7 +3678,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     if (fallback == null || fallback.isEmpty) return null;
     return fallback;
   }
-
 }
 
 class _TaskHeroCard extends StatelessWidget {
@@ -3991,7 +4101,8 @@ class _CycleCountItemState {
   final String? imageUrl;
   final String? unit;
 
-  String get quantityUnit => unit?.trim().isNotEmpty == true ? unit!.trim() : 'pc';
+  String get quantityUnit =>
+      unit?.trim().isNotEmpty == true ? unit!.trim() : 'pc';
   String formatQuantity(int value) => '$value $quantityUnit';
 
   _CycleCountItemState copyWith({
@@ -4799,6 +4910,93 @@ class _ValidationMessage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NextStepCard extends StatelessWidget {
+  const _NextStepCard({
+    super.key,
+    required this.title,
+    required this.message,
+    this.supportingText,
+  });
+
+  final String title;
+  final String message;
+  final String? supportingText;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.north_east_rounded,
+              color: AppTheme.primary,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.primary,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                if (supportingText != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    supportingText!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textMuted,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

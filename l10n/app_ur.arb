@@ -4,11 +4,6 @@
   "tabHome": "ہوم",
   "tabAccount": "اکاؤنٹ",
   "homeWorkerTitle": "پٹ اوے کارکن",
-  "moreTitle": "مزید",
-  "moreHome": "ہوم",
-  "moreItemLookup": "آئٹم تلاش",
-  "moreStockAdjustment": "اسٹاک ایڈجسٹمنٹ",
-  "moreExceptions": "استثنات",
   "accountMyAccount": "میرا اکاؤنٹ",
   "accountDetails": "اکاؤنٹ کی تفصیلات",
   "accountPhone": "فون",
@@ -92,13 +87,6 @@
   "stockReason": "وجہ",
   "stockSubmitting": "جمع کیا جا رہا ہے...",
   "stockSubmitAdjustment": "ایڈجسٹمنٹ جمع کریں",
-  "exceptionsTitle": "پکنگ استثنات",
-  "exceptionsExpected": "متوقع: {location}",
-  "@exceptionsExpected": {
-    "placeholders": {
-      "location": {}
-    }
-  },
   "workerRefreshTasks": "ٹاسک تازہ کریں",
   "workerLookup": "تلاش",
   "workerAdjust": "ایڈجسٹ",
@@ -187,8 +175,6 @@
   "inboundInProgress": "جاری",
   "inboundCompleted": "مکمل ان باؤنڈز",
   "inboundNoDocuments": "کوئی ان باؤنڈ دستاویز نہیں",
-  "inboundUseCreatePrompt": "شروع کرنے کے لیے Create Inbound استعمال کریں",
-  "inboundCreateDialogTodo": "Create Inbound ڈائیلاگ - TODO",
   "inboundReceiveDialogTodo": "Receive Items ڈائیلاگ - TODO",
   "inboundViewTodo": "{documentNumber} دیکھیں - TODO",
   "@inboundViewTodo": {
@@ -210,7 +196,6 @@
   "inboundOverview": "ان باؤنڈ جائزہ",
   "inboundTotal": "کل",
   "inboundInProgressMetric": "جاری",
-  "inboundCreateInbound": "ان باؤنڈ بنائیں",
   "inboundDocumentsCount": "{count} دستاویزات",
   "@inboundDocumentsCount": {
     "placeholders": {

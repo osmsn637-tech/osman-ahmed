@@ -124,36 +124,6 @@ abstract class AppLocalizations {
   /// **'Putaway Worker'**
   String get homeWorkerTitle;
 
-  /// No description provided for @moreTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'More'**
-  String get moreTitle;
-
-  /// No description provided for @moreHome.
-  ///
-  /// In en, this message translates to:
-  /// **'Home'**
-  String get moreHome;
-
-  /// No description provided for @moreItemLookup.
-  ///
-  /// In en, this message translates to:
-  /// **'Item Lookup'**
-  String get moreItemLookup;
-
-  /// No description provided for @moreStockAdjustment.
-  ///
-  /// In en, this message translates to:
-  /// **'Stock Adjustment'**
-  String get moreStockAdjustment;
-
-  /// No description provided for @moreExceptions.
-  ///
-  /// In en, this message translates to:
-  /// **'Exceptions'**
-  String get moreExceptions;
-
   /// No description provided for @accountMyAccount.
   ///
   /// In en, this message translates to:
@@ -501,18 +471,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Submit Adjustment'**
   String get stockSubmitAdjustment;
-
-  /// No description provided for @exceptionsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Picking Exceptions'**
-  String get exceptionsTitle;
-
-  /// No description provided for @exceptionsExpected.
-  ///
-  /// In en, this message translates to:
-  /// **'Expected: {location}'**
-  String exceptionsExpected(Object location);
 
   /// No description provided for @workerRefreshTasks.
   ///
@@ -862,18 +820,6 @@ abstract class AppLocalizations {
   /// **'No inbound documents'**
   String get inboundNoDocuments;
 
-  /// No description provided for @inboundUseCreatePrompt.
-  ///
-  /// In en, this message translates to:
-  /// **'Use Create Inbound to get started'**
-  String get inboundUseCreatePrompt;
-
-  /// No description provided for @inboundCreateDialogTodo.
-  ///
-  /// In en, this message translates to:
-  /// **'Create Inbound dialog - TODO'**
-  String get inboundCreateDialogTodo;
-
   /// No description provided for @inboundReceiveDialogTodo.
   ///
   /// In en, this message translates to:
@@ -933,12 +879,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'In Progress'**
   String get inboundInProgressMetric;
-
-  /// No description provided for @inboundCreateInbound.
-  ///
-  /// In en, this message translates to:
-  /// **'Create Inbound'**
-  String get inboundCreateInbound;
 
   /// No description provided for @inboundDocumentsCount.
   ///

@@ -241,6 +241,79 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
         date == null ? '' : _formatDate(context, date);
   }
 
+  void _playScanFeedback({required bool isSuccess}) {
+    if (isSuccess) {
+      HapticFeedback.mediumImpact();
+      SystemSound.play(SystemSoundType.click);
+      return;
+    }
+    HapticFeedback.vibrate();
+    SystemSound.play(SystemSoundType.alert);
+  }
+
+  String _listNextStepMessage(
+    BuildContext context,
+    InboundReceiptController controller,
+  ) {
+    return controller.canReceiveItems
+        ? _tr(
+            context,
+            'Scan an item barcode to open its receipt line.',
+            'امسح باركود الصنف لفتح سطر الاستلام الخاص به.',
+            'آئٹم کی بارکوڈ اسکین کریں تاکہ اس کی رسید لائن کھل جائے۔',
+          )
+        : _tr(
+            context,
+            'Start receiving to unlock item scanning.',
+            'ابدأ الاستلام لفتح مسح الأصناف.',
+            'آئٹمز اسکیننگ کھولنے کے لیے وصولی شروع کریں۔',
+          );
+  }
+
+  String _detailNextStepMessage(
+    BuildContext context,
+    InboundReceiptController controller,
+  ) {
+    if (!controller.detailOpenedByScan && !controller.detailBarcodeValidated) {
+      return _tr(
+        context,
+        "Scan this item's barcode to unlock quantity.",
+        'امسح باركود هذا الصنف لفتح الكمية.',
+        'مقدار کھولنے کے لیے اس آئٹم کا بارکوڈ اسکین کریں۔',
+      );
+    }
+    return _tr(
+      context,
+      'Enter received quantity and expiration date.',
+      'أدخل الكمية المستلمة وتاريخ الانتهاء.',
+      'وصول شدہ مقدار اور میعاد ختم ہونے کی تاریخ درج کریں۔',
+    );
+  }
+
+  String? _detailScanFeedbackMessage(
+    BuildContext context,
+    InboundReceiptController controller,
+  ) {
+    if (controller.scanErrorMessage != null) {
+      return controller.scanErrorMessage!;
+    }
+    if (!controller.detailOpenedByScan && controller.detailBarcodeValidated) {
+      return _tr(
+        context,
+        'Correct barcode captured.',
+        'تم التقاط الباركود الصحيح.',
+        'درست بارکوڈ محفوظ ہو گیا۔',
+      );
+    }
+    return null;
+  }
+
+  bool _isDetailScanFeedbackPositive(InboundReceiptController controller) {
+    return controller.scanErrorMessage == null &&
+        !controller.detailOpenedByScan &&
+        controller.detailBarcodeValidated;
+  }
+
   Future<void> _pickExpirationDate(BuildContext context) async {
     final now = DateTime.now();
     final initialDate = _selectedExpirationDate ??
@@ -272,8 +345,19 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
       _ensureScannerFocus(_listScanFocusNode);
       return;
     }
-    _listScanController.text = value;
-    await controller.scanReceiptItem(value);
+    final normalized = value.trim();
+    _listScanController.text = normalized;
+    if (normalized.isEmpty) {
+      _ensureScannerFocus(_listScanFocusNode);
+      return;
+    }
+    await controller.scanReceiptItem(normalized);
+    if (mounted) {
+      _playScanFeedback(
+        isSuccess: controller.selectedItem != null &&
+            controller.scanErrorMessage == null,
+      );
+    }
     if (!mounted || controller.selectedItem != null) return;
     _ensureScannerFocus(_listScanFocusNode);
   }
@@ -292,8 +376,19 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
       _ensureScannerFocus(_detailScanFocusNode);
       return;
     }
-    _detailBarcodeController.text = value;
-    controller.validateSelectedItemBarcode(value);
+    final normalized = value.trim();
+    _detailBarcodeController.text = normalized;
+    if (normalized.isEmpty) {
+      _ensureScannerFocus(_detailScanFocusNode);
+      return;
+    }
+    controller.validateSelectedItemBarcode(normalized);
+    if (mounted) {
+      _playScanFeedback(
+        isSuccess: controller.detailBarcodeValidated &&
+            controller.scanErrorMessage == null,
+      );
+    }
     if (!mounted || controller.isQuantityEnabled) return;
     _ensureScannerFocus(_detailScanFocusNode);
   }
@@ -353,6 +448,18 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
           value: receipt.poNumber,
         ),
         const SizedBox(height: 12),
+        _NextStepCard(
+          key: const Key('inbound-receipt-next-step-card'),
+          title: _tr(context, 'Next step', 'الخطوة التالية', 'اگلا مرحلہ'),
+          message: _listNextStepMessage(context, controller),
+          supportingText: _tr(
+            context,
+            'Keep the scanner on the active field so the flow keeps moving.',
+            'أبقِ الماسح على الحقل النشط ليستمر التدفق.',
+            'فلو جاری رکھنے کے لیے اسکینر کو فعال فیلڈ پر رکھیں۔',
+          ),
+        ),
+        const SizedBox(height: 12),
         _buildHiddenScanField(
           key: const Key('inbound-receipt-hidden-scan-field'),
           controller: _listScanController,
@@ -365,7 +472,13 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
               () async {
                 final normalized = value.trim();
                 _listScanController.clear();
+                if (normalized.isEmpty) return;
                 await controller.scanReceiptItem(normalized);
+                if (!mounted) return;
+                _playScanFeedback(
+                  isSuccess: controller.selectedItem != null &&
+                      controller.scanErrorMessage == null,
+                );
               },
             );
           },
@@ -416,6 +529,7 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
         if (controller.scanErrorMessage != null) ...[
           const SizedBox(height: 8),
           _ValidationMessage(
+            key: const Key('inbound-receipt-scan-feedback'),
             message: controller.scanErrorMessage!,
             isPositive: false,
           ),
@@ -498,42 +612,37 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
   ) {
     final quantityEnabled = controller.isQuantityEnabled;
 
-    final title =
-        _tr(context, 'Receive Item', 'استلام صنف', 'آئٹم وصول کریں');
+    final title = _tr(context, 'Receive Item', 'استلام صنف', 'آئٹم وصول کریں');
     final expectedQtyLabel = _tr(
       context,
       'Expected Qty',
       'الكمية المتوقعة',
       'متوقع مقدار',
     );
-    final scanOrTypeLabel =
-        _tr(
-          context,
-          'Scan or type barcode',
-          'امسح أو اكتب الباركود',
-          'بارکوڈ اسکین کریں یا درج کریں',
-        );
-    final receivedQuantityLabel =
-        _tr(
-          context,
-          'Received quantity',
-          'الكمية المستلمة',
-          'وصول شدہ مقدار',
-        );
-    final expirationDateLabel =
-        _tr(
-          context,
-          'Expiration date',
-          'تاريخ الانتهاء',
-          'میعاد ختم ہونے کی تاریخ',
-        );
-    final confirmQuantityLabel =
-        _tr(
-          context,
-          'Confirm quantity',
-          'تأكيد الكمية',
-          'مقدار کی تصدیق کریں',
-        );
+    final scanOrTypeLabel = _tr(
+      context,
+      'Scan or type barcode',
+      'امسح أو اكتب الباركود',
+      'بارکوڈ اسکین کریں یا درج کریں',
+    );
+    final receivedQuantityLabel = _tr(
+      context,
+      'Received quantity',
+      'الكمية المستلمة',
+      'وصول شدہ مقدار',
+    );
+    final expirationDateLabel = _tr(
+      context,
+      'Expiration date',
+      'تاريخ الانتهاء',
+      'میعاد ختم ہونے کی تاریخ',
+    );
+    final confirmQuantityLabel = _tr(
+      context,
+      'Confirm quantity',
+      'تأكيد الكمية',
+      'مقدار کی تصدیق کریں',
+    );
     final quantityValue = int.tryParse(_quantityController.text);
     final canConfirm = quantityEnabled &&
         !controller.isSubmitting &&
@@ -615,11 +724,13 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
                         Expanded(
                           child: Text(
                             expectedQtyLabel,
-                            style:
-                                Theme.of(context).textTheme.labelLarge?.copyWith(
-                                      color: AppTheme.textMuted,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(
+                                  color: AppTheme.textMuted,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ),
                         Container(
@@ -634,11 +745,13 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
                           ),
                           child: Text(
                             item.expectedQuantity.toString(),
-                            style:
-                                Theme.of(context).textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: AppTheme.textPrimary,
-                                    ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.textPrimary,
+                                ),
                           ),
                         ),
                       ],
@@ -647,6 +760,18 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
                 ),
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _NextStepCard(
+          key: const Key('inbound-receipt-next-step-card'),
+          title: _tr(context, 'Next step', 'الخطوة التالية', 'اگلا مرحلہ'),
+          message: _detailNextStepMessage(context, controller),
+          supportingText: _tr(
+            context,
+            'Finish this line before going back to the receipt list.',
+            'أكمل هذا السطر قبل العودة إلى قائمة الاستلام.',
+            'رسید فہرست میں واپس جانے سے پہلے یہ لائن مکمل کریں۔',
           ),
         ),
         const SizedBox(height: 12),
@@ -660,7 +785,16 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
               _detailScanDebounce?.cancel();
               _detailScanDebounce = Timer(
                 const Duration(milliseconds: 150),
-                () => controller.validateSelectedItemBarcode(value),
+                () {
+                  final normalized = value.trim();
+                  if (normalized.isEmpty) return;
+                  controller.validateSelectedItemBarcode(normalized);
+                  if (!mounted) return;
+                  _playScanFeedback(
+                    isSuccess: controller.detailBarcodeValidated &&
+                        controller.scanErrorMessage == null,
+                  );
+                },
               );
             },
           ),
@@ -746,11 +880,13 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
             ],
           ),
         ),
-        if (controller.scanErrorMessage != null) ...[
+        if (_detailScanFeedbackMessage(context, controller)
+            case final feedback?) ...[
           const SizedBox(height: 8),
           _ValidationMessage(
-            message: controller.scanErrorMessage!,
-            isPositive: false,
+            key: const Key('inbound-receipt-scan-feedback'),
+            message: feedback,
+            isPositive: _isDetailScanFeedbackPositive(controller),
           ),
         ],
       ],
@@ -1001,10 +1137,11 @@ class _ScanCaptureSummary extends StatelessWidget {
                     if (effectiveStatusLabel.isNotEmpty) ...[
                       Text(
                         effectiveStatusLabel,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.textMuted,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.textMuted,
+                                ),
                       ),
                       const SizedBox(height: 4),
                     ],
@@ -1065,7 +1202,8 @@ class _InboundManualBarcodeDialog extends StatefulWidget {
       _InboundManualBarcodeDialogState();
 }
 
-class _InboundManualBarcodeDialogState extends State<_InboundManualBarcodeDialog> {
+class _InboundManualBarcodeDialogState
+    extends State<_InboundManualBarcodeDialog> {
   late final TextEditingController _controller;
 
   @override
@@ -1140,6 +1278,7 @@ class _InboundManualBarcodeDialogState extends State<_InboundManualBarcodeDialog
 
 class _ValidationMessage extends StatelessWidget {
   const _ValidationMessage({
+    super.key,
     required this.message,
     required this.isPositive,
   });
@@ -1149,32 +1288,131 @@ class _ValidationMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor =
-        isPositive ? const Color(0xFFE7F6EC) : const Color(0xFFFDECEC);
     final borderColor = isPositive ? AppTheme.success : const Color(0xFFDC2626);
+    final backgroundColor = borderColor.withValues(alpha: 0.08);
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor.withValues(alpha: 0.28)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor.withValues(alpha: 0.24)),
+        boxShadow: [
+          BoxShadow(
+            color: borderColor.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            isPositive
-                ? Icons.check_circle_rounded
-                : Icons.error_outline_rounded,
-            color: borderColor,
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: borderColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(
+              isPositive
+                  ? Icons.check_circle_rounded
+                  : Icons.error_outline_rounded,
+              color: borderColor,
+              size: 18,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: borderColor,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: borderColor,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NextStepCard extends StatelessWidget {
+  const _NextStepCard({
+    super.key,
+    required this.title,
+    required this.message,
+    this.supportingText,
+  });
+
+  final String title;
+  final String message;
+  final String? supportingText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.north_east_rounded,
+              color: AppTheme.primary,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.primary,
+                        letterSpacing: 0.3,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.textPrimary,
+                      ),
+                ),
+                if (supportingText != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    supportingText!,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textMuted,
+                          height: 1.3,
+                        ),
                   ),
+                ],
+              ],
             ),
           ),
         ],

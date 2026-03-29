@@ -21,21 +21,6 @@ class AppLocalizationsUr extends AppLocalizations {
   String get homeWorkerTitle => 'پٹ اوے کارکن';
 
   @override
-  String get moreTitle => 'مزید';
-
-  @override
-  String get moreHome => 'ہوم';
-
-  @override
-  String get moreItemLookup => 'آئٹم تلاش';
-
-  @override
-  String get moreStockAdjustment => 'اسٹاک ایڈجسٹمنٹ';
-
-  @override
-  String get moreExceptions => 'استثنات';
-
-  @override
   String get accountMyAccount => 'میرا اکاؤنٹ';
 
   @override
@@ -221,14 +206,6 @@ class AppLocalizationsUr extends AppLocalizations {
 
   @override
   String get stockSubmitAdjustment => 'ایڈجسٹمنٹ جمع کریں';
-
-  @override
-  String get exceptionsTitle => 'پکنگ استثنات';
-
-  @override
-  String exceptionsExpected(Object location) {
-    return 'متوقع: $location';
-  }
 
   @override
   String get workerRefreshTasks => 'ٹاسک تازہ کریں';
@@ -419,13 +396,6 @@ class AppLocalizationsUr extends AppLocalizations {
   String get inboundNoDocuments => 'کوئی ان باؤنڈ دستاویز نہیں';
 
   @override
-  String get inboundUseCreatePrompt =>
-      'شروع کرنے کے لیے Create Inbound استعمال کریں';
-
-  @override
-  String get inboundCreateDialogTodo => 'Create Inbound ڈائیلاگ - TODO';
-
-  @override
   String get inboundReceiveDialogTodo => 'Receive Items ڈائیلاگ - TODO';
 
   @override
@@ -458,9 +428,6 @@ class AppLocalizationsUr extends AppLocalizations {
 
   @override
   String get inboundInProgressMetric => 'جاری';
-
-  @override
-  String get inboundCreateInbound => 'ان باؤنڈ بنائیں';
 
   @override
   String inboundDocumentsCount(Object count) {

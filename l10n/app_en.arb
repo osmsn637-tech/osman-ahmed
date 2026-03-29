@@ -4,11 +4,6 @@
   "tabHome": "Home",
   "tabAccount": "Account",
   "homeWorkerTitle": "Putaway Worker",
-  "moreTitle": "More",
-  "moreHome": "Home",
-  "moreItemLookup": "Item Lookup",
-  "moreStockAdjustment": "Stock Adjustment",
-  "moreExceptions": "Exceptions",
   "accountMyAccount": "My Account",
   "accountDetails": "Account Details",
   "accountPhone": "Phone",
@@ -92,13 +87,6 @@
   "stockReason": "Reason",
   "stockSubmitting": "Submitting...",
   "stockSubmitAdjustment": "Submit Adjustment",
-  "exceptionsTitle": "Picking Exceptions",
-  "exceptionsExpected": "Expected: {location}",
-  "@exceptionsExpected": {
-    "placeholders": {
-      "location": {}
-    }
-  },
   "workerRefreshTasks": "Refresh tasks",
   "workerLookup": "Lookup",
   "workerAdjust": "Adjust",
@@ -187,8 +175,6 @@
   "inboundInProgress": "In Progress",
   "inboundCompleted": "Completed Inbounds",
   "inboundNoDocuments": "No inbound documents",
-  "inboundUseCreatePrompt": "Use Create Inbound to get started",
-  "inboundCreateDialogTodo": "Create Inbound dialog - TODO",
   "inboundReceiveDialogTodo": "Receive Items dialog - TODO",
   "inboundViewTodo": "View {documentNumber} - TODO",
   "@inboundViewTodo": {
@@ -210,7 +196,6 @@
   "inboundOverview": "Inbound Overview",
   "inboundTotal": "Total",
   "inboundInProgressMetric": "In Progress",
-  "inboundCreateInbound": "Create Inbound",
   "inboundDocumentsCount": "{count} documents",
   "@inboundDocumentsCount": {
     "placeholders": {

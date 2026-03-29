@@ -15,6 +15,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
   }
 
+  Future<void> scrollToReceiptWidget(
+    WidgetTester tester,
+    Finder finder,
+  ) async {
+    await tester.scrollUntilVisible(
+      finder,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await pumpUi(tester);
+  }
+
   Widget buildReceiptPage({
     required FakeInboundRepository repository,
     required String receiptId,
@@ -111,6 +123,9 @@ void main() {
     expect(find.text('PO-SCANNED-1001'), findsOneWidget);
     expect(find.byKey(const Key('inbound-receipt-po-card')), findsOneWidget);
     expect(find.byKey(const Key('inbound-receipt-po-value')), findsOneWidget);
+    expect(
+        find.byKey(const Key('inbound-receipt-back-button')), findsOneWidget);
+    await scrollToReceiptWidget(tester, find.text('Blue Mug'));
     expect(find.text('Blue Mug'), findsOneWidget);
     expect(find.text('SKU-001'), findsOneWidget);
     expect(find.text('Received Items'), findsOneWidget);
@@ -121,7 +136,6 @@ void main() {
       find.byKey(const Key('inbound-receipt-list-manual-type-button')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('inbound-receipt-back-button')), findsOneWidget);
     expect(find.text('Expected Qty: 4'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Red Mug'),
@@ -148,6 +162,7 @@ void main() {
     expect(find.text('العناصر المستلمة'), findsOneWidget);
     expect(find.text('0 من 2 تم استلامها'), findsOneWidget);
     expect(find.text('امسح باركود الصنف'), findsNothing);
+    await scrollToReceiptWidget(tester, find.text('Blue Mug'));
     expect(find.text('الكمية المتوقعة: 4'), findsOneWidget);
   });
 
@@ -162,6 +177,10 @@ void main() {
     );
     await pumpUi(tester);
 
+    await scrollToReceiptWidget(
+      tester,
+      find.byKey(const Key('inbound-receipt-item-container-item-1')),
+    );
     final image = tester.widget<Image>(
       find.descendant(
         of: find.byKey(const Key('inbound-receipt-item-container-item-1')),
@@ -190,7 +209,13 @@ void main() {
     await tester.tap(find.byKey(const Key('inbound-receipt-start-button')));
     await pumpUi(tester);
 
-    await tester.tap(find.text('Blue Mug'));
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('inbound-receipt-item-container-item-1')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await pumpUi(tester);
+    await tester.tap(find.byKey(const Key('inbound-receipt-item-item-1')));
     await pumpUi(tester);
 
     expect(find.text('Expected Qty'), findsOneWidget);
@@ -227,8 +252,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('inbound-manual-barcode-dialog')), findsOneWidget);
-    expect(find.byKey(const Key('inbound-manual-barcode-field')), findsOneWidget);
+    expect(
+        find.byKey(const Key('inbound-manual-barcode-dialog')), findsOneWidget);
+    expect(
+        find.byKey(const Key('inbound-manual-barcode-field')), findsOneWidget);
   });
 
   testWidgets('receipt detail shows a required expiration date field',
@@ -270,12 +297,51 @@ void main() {
     await pumpUi(tester);
 
     expect(find.text('Start receiving'), findsOneWidget);
-    expect(find.byKey(const Key('inbound-receipt-back-button')), findsOneWidget);
+    expect(
+        find.byKey(const Key('inbound-receipt-back-button')), findsOneWidget);
 
     final scanField = tester.widget<TextField>(
       find.byKey(const Key('inbound-receipt-hidden-scan-field')),
     );
     expect(scanField.enabled, isFalse);
+  });
+
+  testWidgets('receipt list next-step guidance changes after starting',
+      (tester) async {
+    await tester.pumpWidget(
+      buildReceiptPage(
+        repository: buildRepository(),
+        receiptId: 'receipt-1001',
+        initialScanResult: buildScanResult(),
+      ),
+    );
+    await pumpUi(tester);
+
+    final nextStepCard =
+        find.byKey(const Key('inbound-receipt-next-step-card'));
+    expect(nextStepCard, findsOneWidget);
+    expect(
+      find.descendant(of: nextStepCard, matching: find.text('Next step')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: nextStepCard,
+        matching: find.text('Start receiving to unlock item scanning.'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('inbound-receipt-start-button')));
+    await pumpUi(tester);
+
+    expect(
+      find.descendant(
+        of: nextStepCard,
+        matching: find.text('Scan an item barcode to open its receipt line.'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('start receiving stays below the receipt items', (tester) async {
@@ -332,7 +398,8 @@ void main() {
     expect(find.byKey(const Key('inbound-receipt-back-button')), findsNothing);
   });
 
-  testWidgets('receipt list scanner re-focuses after app resume', (tester) async {
+  testWidgets('receipt list scanner re-focuses after app resume',
+      (tester) async {
     await tester.pumpWidget(
       buildReceiptPage(
         repository: buildRepository(),
@@ -379,6 +446,7 @@ void main() {
     await tester.tap(find.byKey(const Key('inbound-receipt-start-button')));
     await pumpUi(tester);
 
+    await scrollToReceiptWidget(tester, find.text('Blue Mug'));
     await tester.tap(find.text('Blue Mug'));
     await pumpUi(tester);
 
@@ -406,6 +474,51 @@ void main() {
     expect(quantityField.enabled, isTrue);
   });
 
+  testWidgets(
+      'receipt detail guidance and scan feedback update after barcode validation',
+      (tester) async {
+    await tester.pumpWidget(
+      buildReceiptPage(
+        repository: buildRepository(),
+        receiptId: 'receipt-1001',
+        initialScanResult: buildScanResult(),
+      ),
+    );
+    await pumpUi(tester);
+
+    await tester.tap(find.byKey(const Key('inbound-receipt-start-button')));
+    await pumpUi(tester);
+
+    await scrollToReceiptWidget(tester, find.text('Blue Mug'));
+    await tester.tap(find.text('Blue Mug'));
+    await pumpUi(tester);
+
+    final nextStepCard =
+        find.byKey(const Key('inbound-receipt-next-step-card'));
+    expect(nextStepCard, findsOneWidget);
+    expect(
+      find.descendant(
+        of: nextStepCard,
+        matching: find.text("Scan this item's barcode to unlock quantity."),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('inbound-receipt-detail-barcode-field')),
+      'SKU-001',
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: nextStepCard,
+        matching: find.text('Enter received quantity and expiration date.'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('receipt detail manual type validates the item barcode',
       (tester) async {
     await tester.pumpWidget(
@@ -420,6 +533,7 @@ void main() {
     await tester.tap(find.byKey(const Key('inbound-receipt-start-button')));
     await pumpUi(tester);
 
+    await scrollToReceiptWidget(tester, find.text('Blue Mug'));
     await tester.tap(find.text('Blue Mug'));
     await pumpUi(tester);
 
@@ -506,7 +620,8 @@ void main() {
     expect(confirmButton.onPressed, isNull);
   });
 
-  testWidgets('receipt detail confirms quantity with expiration date and updates the list',
+  testWidgets(
+      'receipt detail confirms quantity with expiration date and updates the list',
       (tester) async {
     await tester.pumpWidget(
       buildReceiptPage(
@@ -536,6 +651,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK').last);
     await tester.pumpAndSettle();
+    await scrollToReceiptWidget(
+      tester,
+      find.byKey(const Key('inbound-receipt-detail-confirm-button')),
+    );
     await tester.tap(
       find.byKey(const Key('inbound-receipt-detail-confirm-button')),
     );
@@ -581,6 +700,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK').last);
     await tester.pumpAndSettle();
+    await scrollToReceiptWidget(
+      tester,
+      find.byKey(const Key('inbound-receipt-detail-confirm-button')),
+    );
     await tester.tap(
       find.byKey(const Key('inbound-receipt-detail-confirm-button')),
     );
@@ -630,6 +753,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK').last);
     await tester.pumpAndSettle();
+    await scrollToReceiptWidget(
+      tester,
+      find.byKey(const Key('inbound-receipt-detail-confirm-button')),
+    );
     await tester.tap(
       find.byKey(const Key('inbound-receipt-detail-confirm-button')),
     );

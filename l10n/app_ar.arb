@@ -4,11 +4,6 @@
   "tabHome": "الرئيسية",
   "tabAccount": "الحساب",
   "homeWorkerTitle": "عامل الترصيص",
-  "moreTitle": "المزيد",
-  "moreHome": "الرئيسية",
-  "moreItemLookup": "البحث عن صنف",
-  "moreStockAdjustment": "تعديل المخزون",
-  "moreExceptions": "الاستثناءات",
   "accountMyAccount": "حسابي",
   "accountDetails": "تفاصيل الحساب",
   "accountPhone": "الهاتف",
@@ -92,13 +87,6 @@
   "stockReason": "السبب",
   "stockSubmitting": "جارٍ الإرسال...",
   "stockSubmitAdjustment": "إرسال التعديل",
-  "exceptionsTitle": "استثناءات الالتقاط",
-  "exceptionsExpected": "المتوقع: {location}",
-  "@exceptionsExpected": {
-    "placeholders": {
-      "location": {}
-    }
-  },
   "workerRefreshTasks": "تحديث المهام",
   "workerLookup": "بحث",
   "workerAdjust": "تعديل",
@@ -187,8 +175,6 @@
   "inboundInProgress": "قيد التنفيذ",
   "inboundCompleted": "مكتمل",
   "inboundNoDocuments": "لا توجد مستندات وارد",
-  "inboundUseCreatePrompt": "استخدم إنشاء وارد للبدء",
-  "inboundCreateDialogTodo": "نافذة إنشاء وارد - قريبًا",
   "inboundReceiveDialogTodo": "نافذة استلام الأصناف - قريبًا",
   "inboundViewTodo": "عرض {documentNumber} - قريبًا",
   "@inboundViewTodo": {
@@ -210,7 +196,6 @@
   "inboundOverview": "نظرة عامة على الوارد",
   "inboundTotal": "الإجمالي",
   "inboundInProgressMetric": "قيد التنفيذ",
-  "inboundCreateInbound": "إنشاء وارد",
   "inboundDocumentsCount": "{count} مستندات",
   "@inboundDocumentsCount": {
     "placeholders": {

@@ -276,7 +276,8 @@ void main() {
               'expectedQuantity': 12,
             },
           ),
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {
             throw const ValidationException('complete endpoint rejected');
           },
         ),
@@ -364,6 +365,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Location mismatch'), findsOneWidget);
     expect(find.byKey(const Key('validate-location-button')), findsNothing);
+  });
+
+  testWidgets(
+      'receive flow shows next-step guidance and advances after product validation',
+      (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(type: TaskType.receive, fromLocation: null),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final nextStepCard = find.byKey(const Key('task-next-step-card'));
+    expect(nextStepCard, findsOneWidget);
+    expect(
+      find.descendant(of: nextStepCard, matching: find.text('Next step')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: nextStepCard,
+        matching: find.text('Scan product barcode'),
+      ),
+      findsOneWidget,
+    );
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012',
+    );
+
+    expect(
+      find.descendant(
+        of: nextStepCard,
+        matching: find.text('Scan bulk location'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows manual type actions for barcode and location validation',
@@ -571,7 +613,8 @@ void main() {
         WorkerTaskDetailsPage(
           task: task,
           onStartTask: () async {},
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -618,7 +661,8 @@ void main() {
             toLocation: 'BULK-01-02',
           ),
           onStartTask: () async {},
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -677,7 +721,8 @@ void main() {
             fromLocation: null,
             toLocation: 'BULK-01-02',
           ),
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -716,7 +761,8 @@ void main() {
             fromLocation: null,
             toLocation: 'BULK-01-02',
           ),
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -775,7 +821,8 @@ void main() {
             validateCalls += 1;
             return <String, dynamic>{'valid': true};
           },
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {
             completedLocation = locationId;
           },
         ),
@@ -795,6 +842,7 @@ void main() {
     expect(validateCalls, 0);
     expect(find.text('Location validated'), findsOneWidget);
 
+    await scrollTo(tester, find.byKey(const Key('complete-task-button')));
     await tester.tap(find.byKey(const Key('complete-task-button')));
     await tester.pumpAndSettle();
 
@@ -832,7 +880,8 @@ void main() {
             toLocation: null,
           ),
           onLookupItem: (_) => lookupCompleter.future,
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {
             completedTaskId = taskId;
             completedQuantity = quantity;
             completedLocation = locationId;
@@ -980,7 +1029,8 @@ void main() {
               ],
             },
           ),
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {
             completedQuantity = quantity;
             completedLocation = locationId;
           },
@@ -1129,7 +1179,8 @@ void main() {
             submittedAdjustmentItemId = adjustmentItemId;
             submittedQuantity = quantity;
           },
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {
             completed = true;
           },
         ),
@@ -1208,7 +1259,8 @@ void main() {
               'expectedQuantity': 12,
             },
           ),
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {
             completedQuantity = quantity;
             completedLocation = locationId;
           },
@@ -1518,7 +1570,8 @@ void main() {
           onSaveCycleCountProgress: (taskId, {required progress}) async {
             savedProgress = progress;
           },
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -1585,7 +1638,8 @@ void main() {
           onSaveCycleCountProgress: (taskId, {required progress}) async {
             savedProgress = progress;
           },
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );

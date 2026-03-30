@@ -8,6 +8,7 @@ import '../../../../flutter_gen/gen_l10n/app_localizations.dart';
 import '../../../../shared/l10n/l10n.dart';
 import '../../../../shared/theme/app_theme.dart';
 import '../../domain/entities/adjustment_task_entities.dart';
+import '../../../move/domain/entities/item_location_entity.dart';
 import '../../../move/domain/entities/item_location_summary_entity.dart';
 import '../../../move/presentation/pages/item_lookup_scan_dialog.dart';
 import '../../domain/entities/task_entity.dart';
@@ -94,6 +95,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   late final FocusNode _cycleCountScanFocusNode;
   late final FocusNode _cycleCountDetailBarcodeFocusNode;
   late final FocusNode _refillQuantityFocusNode;
+  final List<FocusNode> _returnItemQuantityFocusNodes = <FocusNode>[];
   final List<TextEditingController> _cycleCountLineControllers =
       <TextEditingController>[];
 
@@ -138,10 +140,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   final List<bool> _returnItemValidated = <bool>[];
   bool _manualInputTapInProgress = false;
 
-  String _tr(String english, String arabic, [String? urdu]) => context.trText(
+  String _tr(String english, String arabic, [String? bengali]) => context.trText(
         english: english,
         arabic: arabic,
-        urdu: urdu,
+        bengali: bengali,
       );
 
   String get _manualTypeLabel =>
@@ -204,18 +206,25 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       _cycleCountLineControllers.add(TextEditingController());
     }
     for (final _ in task.returnItems) {
+      final quantityFocusNode = FocusNode(
+        debugLabel: 'return-quantity-${_returnItemQuantityFocusNodes.length}',
+      );
+      quantityFocusNode.addListener(_handleManualInputFocusChanged);
       _returnItemValidated.add(false);
       _returnItemLocationValidated.add(false);
       _returnItemLocationControllers.add(TextEditingController());
       _returnItemQuantityControllers.add(TextEditingController());
+      _returnItemQuantityFocusNodes.add(quantityFocusNode);
     }
     if (task.type == TaskType.refill) {
-      _refillLookupLoading = true;
+      _refillLookupLoading = !_hasExplicitRefillRoute;
       _bulkLocationController.text = '';
       _locationController.text = '';
       _quantityController.text = '';
       _refillQuantity = 0;
-      Future<void>.microtask(_loadRefillLookup);
+      if (_refillLookupLoading) {
+        Future<void>.microtask(_loadRefillLookup);
+      }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _restoreActiveValidationFocus();
@@ -266,6 +275,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     }
     for (final controller in _returnItemQuantityControllers) {
       controller.dispose();
+    }
+    for (final focusNode in _returnItemQuantityFocusNodes) {
+      focusNode.removeListener(_handleManualInputFocusChanged);
+      focusNode.dispose();
     }
     super.dispose();
   }
@@ -774,10 +787,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
           decoration: InputDecoration(
             labelText: _tr('Enter quantity', 'أدخل الكمية'),
             hintText: _tr('Quantity to move', 'الكمية المطلوب نقلها'),
-            suffixText: _tr(
-              'max ${task.formatQuantity(task.quantity)}',
-              'الحد الأقصى ${task.formatQuantity(task.quantity)}',
-            ),
             prefixIcon: const Icon(Icons.format_list_numbered_rounded),
             filled: true,
             fillColor: Colors.white,
@@ -997,6 +1006,16 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
               ),
         ),
         const SizedBox(height: 12),
+        _buildHiddenLocationCaptureField(),
+        _buildScanCaptureSummary(
+          emptyText: _nextPendingReturnLocationPrompt,
+          currentValue: _locationController.text,
+          manualButtonText: _manualTypeLabel,
+          manualButtonKey: const Key('manual-type-return-location-button'),
+          onManualType: _openManualLocationDialog,
+          icon: Icons.location_on_outlined,
+        ),
+        const SizedBox(height: 12),
         for (var index = 0; index < items.length; index++) ...[
           _buildReturnExecutionLine(
             context,
@@ -1099,7 +1118,11 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.surfaceAlt),
+        border: Border.all(
+          color: validated
+              ? AppTheme.success.withValues(alpha: 0.35)
+              : AppTheme.surfaceAlt,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1174,18 +1197,23 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                key: Key('return-line-$index-scan-location-button'),
-                onPressed: () => _scanReturnItemLocation(index),
-                style: IconButton.styleFrom(
-                  backgroundColor: typeColor.withValues(alpha: 0.10),
-                  side: BorderSide(color: typeColor.withValues(alpha: 0.25)),
+              const SizedBox(width: 12),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: (validated ? AppTheme.success : typeColor)
+                      .withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (validated ? AppTheme.success : typeColor)
+                        .withValues(alpha: 0.25),
+                  ),
                 ),
-                icon: Icon(
+                child: Icon(
                   validated
                       ? Icons.check_circle_rounded
-                      : Icons.qr_code_scanner_rounded,
+                      : Icons.location_searching_rounded,
                   color: validated ? AppTheme.success : typeColor,
                 ),
               ),
@@ -1195,7 +1223,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
           TextField(
             key: Key('return-line-$index-quantity-field'),
             controller: _returnItemQuantityControllers[index],
+            focusNode: _returnItemQuantityFocusNodes[index],
             keyboardType: TextInputType.number,
+            onTap: _handleReturnQuantityTap,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: _tr('Returned Quantity', 'الكمية المرتجعة'),
@@ -2227,6 +2257,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
 
   List<FocusNode> get _manualInputFocusNodes => <FocusNode>[
         _refillQuantityFocusNode,
+        ..._returnItemQuantityFocusNodes,
       ];
 
   bool get _hasManualInputFocus =>
@@ -2239,6 +2270,14 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
 
   bool get _scannerFocusRecoveryBlocked =>
       _manualInputTapInProgress || _hasManualInputFocus || _isRouteCovered;
+
+  void _scheduleDeferredScannerFocusRecovery() {
+    _scannerFocusRetryTimer?.cancel();
+    _scannerFocusRetryTimer = Timer(_scannerFocusRetryDelay, () {
+      if (!mounted) return;
+      _scheduleScannerFocusRecovery();
+    });
+  }
 
   FocusNode? get _preferredScannerFocusNode {
     if (widget.task.type == TaskType.cycleCount &&
@@ -2289,9 +2328,15 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     });
   }
 
+  void _handleReturnQuantityTap() => _handleRefillQuantityTap();
+
   void _scheduleScannerFocusRecovery() {
-    if (_scannerFocusRecoveryBlocked) {
+    if (_manualInputTapInProgress || _hasManualInputFocus) {
       _scannerFocusRetryTimer?.cancel();
+      return;
+    }
+    if (_isRouteCovered) {
+      _scheduleDeferredScannerFocusRecovery();
       return;
     }
     final preferredFocusNode = _preferredScannerFocusNode;
@@ -2743,9 +2788,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       final task = widget.task;
       if (task.type == TaskType.refill) {
         final shelfLocation = _locationController.text.trim();
+        final requiresValidatedShelf = !_hasExplicitRefillRoute;
         if (_refillQuantity <= 0 ||
             shelfLocation.isEmpty ||
-            !_locationValidated) {
+            (requiresValidatedShelf && !_locationValidated)) {
           setState(() => _completionMessage = _tr(
                 'Enter quantity to move and confirm the shelf location before completing.',
                 'أدخل الكمية المراد نقلها وأكد موقع الرف قبل الإكمال.',
@@ -2991,19 +3037,28 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   bool _isRefillFlowComplete() {
     if (widget.task.type != TaskType.refill) return true;
     final shelf = _locationController.text.trim();
+    final shelfReady = _hasExplicitRefillRoute || _locationValidated;
     return _refillPage == 1 &&
         !_refillLookupLoading &&
         _refillLookupError == null &&
         _itemValidated &&
-        _locationValidated &&
+        shelfReady &&
         shelf.isNotEmpty &&
-        _refillQuantity > 0 &&
-        _refillQuantity <= widget.task.quantity;
+        _refillQuantity > 0;
   }
 
   bool _isReceiveFlowComplete() {
     if (widget.task.type != TaskType.receive) return true;
     return _receivePage == 1 && _itemValidated && _locationValidated;
+  }
+
+  bool get _hasExplicitRefillRoute {
+    final fromLocation = widget.task.fromLocation?.trim();
+    final toLocation = widget.task.toLocation?.trim();
+    return fromLocation != null &&
+        fromLocation.isNotEmpty &&
+        toLocation != null &&
+        toLocation.isNotEmpty;
   }
 
   bool _isReturnValidationComplete() {
@@ -3070,6 +3125,25 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     return _returnItemLocationControllers.last.text.trim();
   }
 
+  int? get _nextPendingReturnLocationIndex {
+    for (var index = 0; index < _returnItemLocationValidated.length; index++) {
+      if (!_returnItemLocationValidated[index]) return index;
+    }
+    return null;
+  }
+
+  String get _nextPendingReturnLocationPrompt {
+    final index = _nextPendingReturnLocationIndex;
+    if (index == null || index >= widget.task.returnItems.length) {
+      return _tr('Scan return location', 'امسح موقع المرتجع');
+    }
+    final location = widget.task.returnItems[index].location?.trim();
+    if (location == null || location.isEmpty) {
+      return _tr('Scan return location', 'امسح موقع المرتجع');
+    }
+    return _tr('Scan $location', 'امسح $location');
+  }
+
   int get _cycleCountTotalCountedQuantity {
     var total = 0;
     for (final item in _cycleCountItems) {
@@ -3078,20 +3152,37 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     return total;
   }
 
+  String _normalizeDecimalDigits(String value) {
+    if (value.isEmpty) return value;
+    final buffer = StringBuffer();
+    for (final rune in value.runes) {
+      if (rune >= 0x0660 && rune <= 0x0669) {
+        buffer.writeCharCode(0x30 + (rune - 0x0660));
+      } else if (rune >= 0x06F0 && rune <= 0x06F9) {
+        buffer.writeCharCode(0x30 + (rune - 0x06F0));
+      } else {
+        buffer.writeCharCode(rune);
+      }
+    }
+    return buffer.toString();
+  }
+
   int? _parsePositiveInt(String value) {
-    final parsed = int.tryParse(value.trim());
+    final parsed = int.tryParse(_normalizeDecimalDigits(value).trim());
     if (parsed == null || parsed <= 0) return null;
     return parsed;
   }
 
   int? _parseNonNegativeInt(String value) {
-    final parsed = int.tryParse(value.trim());
+    final parsed = int.tryParse(_normalizeDecimalDigits(value).trim());
     if (parsed == null || parsed < 0) return null;
     return parsed;
   }
 
   void _updateRefillQuantity() {
-    final parsed = int.tryParse(_quantityController.text.trim());
+    final parsed = int.tryParse(
+      _normalizeDecimalDigits(_quantityController.text).trim(),
+    );
     final next = parsed == null || parsed <= 0 ? 0 : parsed;
     if (_refillQuantity != next) {
       setState(() => _refillQuantity = next);
@@ -3120,7 +3211,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     if (task.type == TaskType.returnTask) {
       return _returnPage == 0
           ? _ActiveValidationTarget.returnBarcode
-          : _ActiveValidationTarget.none;
+          : _ActiveValidationTarget.location;
     }
     if (task.type == TaskType.adjustment) {
       return _ActiveValidationTarget.none;
@@ -3177,7 +3268,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       _productValidationDebounce?.cancel();
       return;
     }
-    _scheduleProductFailureClear(normalized);
     _productValidationDebounce?.cancel();
     _productValidationDebounce = Timer(
       const Duration(milliseconds: 150),
@@ -3192,6 +3282,10 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   }
 
   void _handleLocationInputChanged(String value) {
+    if (widget.task.type == TaskType.returnTask && _returnPage == 1) {
+      _handleReturnLocationInputChanged(value);
+      return;
+    }
     _locationFailureClearTimer?.cancel();
     final normalized = value.trim().toUpperCase();
     final isRepeatedValidatedValue = _lastAutoValidatedLocation == normalized &&
@@ -3212,7 +3306,6 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       _locationValidationInFlightValue = null;
       return;
     }
-    _scheduleLocationFailureClear(normalized);
     if (!_canAutoValidateLocation()) return;
     _locationValidationDebounce?.cancel();
     _locationValidationDebounce = Timer(
@@ -3223,6 +3316,27 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         if (!_canAutoValidateLocation()) return;
         _validateLocation();
       },
+    );
+  }
+
+  void _handleReturnLocationInputChanged(String value) {
+    final normalized = _normalizeReturnBarcode(value);
+    if (normalized.isEmpty) {
+      _locationValidationDebounce?.cancel();
+      return;
+    }
+
+    _locationValidationDebounce?.cancel();
+    if (value.contains('\n') || value.contains('\r')) {
+      _submitReturnLocationScan(normalized);
+      return;
+    }
+
+    _locationValidationDebounce = Timer(
+      const Duration(milliseconds: 150),
+      () => _submitReturnLocationScan(
+        _normalizeReturnBarcode(_locationController.text),
+      ),
     );
   }
 
@@ -3297,6 +3411,41 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     _restoreActiveValidationFocus();
   }
 
+  void _submitReturnLocationScan(String normalized) {
+    if (!mounted) return;
+    _locationValidationDebounce?.cancel();
+    _locationController.clear();
+    if (widget.task.type != TaskType.returnTask ||
+        _returnPage != 1 ||
+        normalized.isEmpty) {
+      return;
+    }
+
+    for (var index = 0; index < widget.task.returnItems.length; index++) {
+      if (_returnItemLocationValidated[index]) continue;
+      final expected =
+          (widget.task.returnItems[index].location ?? '').trim().toUpperCase();
+      if (expected.isEmpty || expected != normalized) continue;
+      setState(() {
+        _returnItemLocationControllers[index].text = normalized;
+        _returnItemLocationValidated[index] = true;
+        _completionMessage = null;
+      });
+      _playScanFeedback(isSuccess: true);
+      _restoreActiveValidationFocus();
+      return;
+    }
+
+    setState(() {
+      _completionMessage = _tr(
+        'Scanned location is not in the remaining return lines.',
+        'الموقع الممسوح غير موجود ضمن أسطر المرتجع المتبقية.',
+      );
+    });
+    _playScanFeedback(isSuccess: false);
+    _restoreActiveValidationFocus();
+  }
+
   void _restoreActiveValidationFocus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -3320,18 +3469,50 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     });
   }
 
-  void _requestScannerFocus(FocusNode focusNode) {
+  EditableTextState? _scannerEditableTextStateFor(FocusNode focusNode) {
+    final focusContext = focusNode.context;
+    if (focusContext == null) return null;
+    if (!focusContext.mounted) return null;
+    return focusContext.findAncestorStateOfType<EditableTextState>();
+  }
+
+  void _primeScannerInputConnection(
+    FocusNode focusNode, {
+    required bool primeInputMethod,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _scannerFocusRecoveryBlocked || !focusNode.hasFocus) {
+        return;
+      }
+      final editableTextState = _scannerEditableTextStateFor(focusNode);
+      editableTextState?.requestKeyboard();
+      if (primeInputMethod || editableTextState == null) {
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+      }
+    });
+  }
+
+  void _requestScannerFocus(
+    FocusNode focusNode, {
+    bool primeInputMethod = false,
+  }) {
     FocusScope.of(context).requestFocus(focusNode);
     focusNode.requestFocus();
     focusNode.consumeKeyboardToken();
-    SystemChannels.textInput.invokeMethod('TextInput.hide');
+    _primeScannerInputConnection(
+      focusNode,
+      primeInputMethod: primeInputMethod,
+    );
   }
 
   void _ensureScannerFocus(FocusNode focusNode) {
     if (_scannerFocusRecoveryBlocked) return;
     _scannerFocusRetryTimer?.cancel();
     var retriesLeft = focusNode.hasFocus ? 0 : _scannerFocusRetryCount;
-    _requestScannerFocus(focusNode);
+    _requestScannerFocus(
+      focusNode,
+      primeInputMethod: !focusNode.hasFocus,
+    );
     _scannerFocusRetryTimer = Timer.periodic(_scannerFocusRetryDelay, (timer) {
       if (!mounted) {
         timer.cancel();
@@ -3346,7 +3527,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         return;
       }
       retriesLeft -= 1;
-      _requestScannerFocus(focusNode);
+      _requestScannerFocus(focusNode, primeInputMethod: true);
     });
   }
 
@@ -3510,6 +3691,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
     if (!_isReturnValidationComplete()) return;
     setState(() {
       _returnPage = 1;
+      _locationController.clear();
       _completionMessage = null;
     });
   }
@@ -3792,21 +3974,43 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   String? get _refillShelfLocation => _firstShelfLocation(_refillSummary);
 
   String? _firstBulkLocation(ItemLocationSummaryEntity? summary) {
-    if (summary != null && summary.bulkLocations.isNotEmpty) {
-      return summary.bulkLocations.first.code;
-    }
-    final fallback = widget.task.fromLocation?.trim();
-    if (fallback == null || fallback.isEmpty) return null;
-    return fallback;
+    return _preferredRefillLocation(
+      summary,
+      explicitCode: widget.task.fromLocation,
+      locations: (value) => value.bulkLocations,
+    );
   }
 
   String? _firstShelfLocation(ItemLocationSummaryEntity? summary) {
-    if (summary != null && summary.shelfLocations.isNotEmpty) {
-      return summary.shelfLocations.first.code;
+    return _preferredRefillLocation(
+      summary,
+      explicitCode: widget.task.toLocation,
+      locations: (value) => value.shelfLocations,
+    );
+  }
+
+  String? _preferredRefillLocation(
+    ItemLocationSummaryEntity? summary, {
+    required String? explicitCode,
+    required List<ItemLocationEntity> Function(ItemLocationSummaryEntity)
+        locations,
+  }) {
+    final preferred = explicitCode?.trim();
+    if (preferred != null && preferred.isNotEmpty) {
+      final normalizedPreferred = preferred.toUpperCase();
+      if (summary != null) {
+        for (final location in locations(summary)) {
+          if (location.code.trim().toUpperCase() == normalizedPreferred) {
+            return location.code;
+          }
+        }
+      }
+      return preferred;
     }
-    final fallback = widget.task.toLocation?.trim();
-    if (fallback == null || fallback.isEmpty) return null;
-    return fallback;
+    if (summary == null) return null;
+    final resolvedLocations = locations(summary);
+    if (resolvedLocations.isEmpty) return null;
+    return resolvedLocations.first.code;
   }
 }
 
@@ -4373,10 +4577,10 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
 
   bool get _canSubmit => !_submitting && _noteController.text.trim().isNotEmpty;
 
-  String _tr(String english, String arabic, [String? urdu]) => context.trText(
+  String _tr(String english, String arabic, [String? bengali]) => context.trText(
         english: english,
         arabic: arabic,
-        urdu: urdu,
+        bengali: bengali,
       );
 
   @override

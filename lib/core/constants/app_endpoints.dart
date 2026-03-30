@@ -46,4 +46,5 @@ class AppEndpoints {
       '/mobile/v1/inbound/receipts/$receiptId/scan-item';
   static String inboundReceiptItemConfirm(String itemId) =>
       '/mobile/v1/inbound/receipt-items/$itemId/confirm';
+  static const deviceRegister = '/mobile/v1/devices/register';
 }

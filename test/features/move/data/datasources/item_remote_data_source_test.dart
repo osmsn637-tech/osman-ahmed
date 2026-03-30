@@ -43,7 +43,7 @@ void main() {
   });
 
   test(
-      'scanLocation authenticates against the environment-relative login endpoint',
+      'scanLocation reuses the existing session instead of logging in separately',
       () async {
     final client = _FakeApiClient()
       ..loginResponse = <String, dynamic>{
@@ -60,7 +60,8 @@ void main() {
 
     await dataSource.scanLocation('A10.2');
 
-    expect(client.loginPostPath, '/v1/inventory/login');
+    expect(client.loginPostPath, isEmpty);
+    expect(client.locationScanHeaders, isNull);
   });
 
   test('scanLocation posts to location-scan endpoint and parses items',
@@ -135,6 +136,8 @@ void main() {
       client.lastGetPath,
       '/mobile/v1/products/barcode/6287009170024',
     );
+    expect(client.loginPostPath, isEmpty);
+    expect(client.lastGetHeaders, isNull);
   });
 }
 
@@ -142,11 +145,13 @@ class _FakeApiClient extends ApiClient {
   _FakeApiClient() : super(Dio(), const ErrorMapper());
 
   String lastGetPath = '';
+  Map<String, dynamic>? lastGetHeaders;
   String lastPostPath = '';
   dynamic lastPostData;
   String loginPostPath = '';
   String locationScanPostPath = '';
   dynamic locationScanPostData;
+  Map<String, dynamic>? locationScanHeaders;
   dynamic loginResponse = <String, dynamic>{'token': 'lookup-token'};
   dynamic defaultPostResponse = <String, dynamic>{'ok': true};
   dynamic lookupGetResponse = <String, dynamic>{'ok': true};
@@ -160,6 +165,7 @@ class _FakeApiClient extends ApiClient {
     T Function(dynamic data)? parser,
   }) async {
     lastGetPath = path;
+    lastGetHeaders = headers;
     final payload = switch (path) {
       '/mobile/v1/products/barcode/6287009170024' => lookupGetResponse,
       _ => <String, dynamic>{'ok': true},
@@ -186,6 +192,7 @@ class _FakeApiClient extends ApiClient {
       '/mobile/v1/locations/scan' => () {
           locationScanPostPath = path;
           locationScanPostData = data;
+          locationScanHeaders = headers;
           return locationScanResponse;
         }(),
       _ => defaultPostResponse,

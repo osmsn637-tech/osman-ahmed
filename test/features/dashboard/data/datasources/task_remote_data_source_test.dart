@@ -6,18 +6,19 @@ import 'package:wherehouse/core/utils/result.dart';
 import 'package:wherehouse/features/dashboard/data/datasources/task_remote_data_source.dart';
 
 void main() {
-  test('fetchMyTasks defaults to restock in development', () async {
+  test('fetchMyTasks includes task_type when a default is configured',
+      () async {
     final client = _FakeApiClient();
     final dataSource = TaskRemoteDataSource(
       client,
-      defaultTaskType: 'restock',
+      defaultTaskType: 'cycle_count',
     );
 
     await dataSource.fetchMyTasks(pageSize: 400);
 
     expect(client.lastPath, '/mobile/v1/worker/tasks');
     expect(client.lastQueryParameters, <String, dynamic>{
-      'task_type': 'restock',
+      'task_type': 'cycle_count',
       'page_size': 400,
     });
   });

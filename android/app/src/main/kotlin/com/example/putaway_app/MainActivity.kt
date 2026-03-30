@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -44,6 +45,7 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                     "getDeviceType" -> result.success(scannerManager.deviceType())
+                    "getDeviceInfo" -> result.success(scannerManager.getDeviceInfo())
                     else -> result.notImplemented()
                 }
             }
@@ -108,6 +110,35 @@ class ScannerManager(private val context: Context) {
     fun disableScanner() {
         zebraService?.disable()
         honeywellService?.disable()
+    }
+
+    fun getDeviceInfo(): Map<String, String> {
+        return mapOf(
+            "deviceSerial" to resolveDeviceSerial(),
+            "model" to Build.MODEL.orEmpty(),
+            "osVersion" to Build.VERSION.RELEASE.orEmpty(),
+        )
+    }
+
+    private fun resolveDeviceSerial(): String {
+        val serial = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Build.getSerial()
+            } else {
+                @Suppress("DEPRECATION")
+                Build.SERIAL
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+        if (!serial.isNullOrBlank() && !serial.equals(Build.UNKNOWN, ignoreCase = true)) {
+            return serial
+        }
+
+        return Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+            ?.takeIf { it.isNotBlank() }
+            .orEmpty()
     }
 }
 

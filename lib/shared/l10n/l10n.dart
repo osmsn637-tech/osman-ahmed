@@ -15,11 +15,13 @@ extension L10nX on BuildContext {
   String trText({
     required String english,
     required String arabic,
+    String? bengali,
     String? urdu,
   }) {
+    final resolvedBengali = bengali ?? urdu;
     return switch (languageCode) {
       'ar' => arabic,
-      'bn' => urdu ?? english,
+      'bn' => resolvedBengali ?? english,
       _ => english,
     };
   }

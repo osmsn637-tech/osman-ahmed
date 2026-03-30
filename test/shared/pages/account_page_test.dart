@@ -8,8 +8,11 @@ import 'package:wherehouse/core/utils/result.dart';
 import 'package:wherehouse/features/auth/domain/entities/user.dart';
 import 'package:wherehouse/features/auth/domain/entities/login_params.dart';
 import 'package:wherehouse/features/auth/domain/repositories/auth_repository.dart';
+import 'package:wherehouse/features/device_management/domain/repositories/device_management_repository.dart';
 import 'package:wherehouse/features/auth/presentation/providers/session_provider.dart';
 import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:wherehouse/shared/device/device_metadata.dart';
+import 'package:wherehouse/shared/device/device_metadata_service.dart';
 import 'package:wherehouse/shared/pages/account_page.dart';
 import 'package:wherehouse/shared/providers/locale_controller.dart';
 
@@ -410,6 +413,129 @@ void main() {
     expect(find.text('পাসওয়ার্ড আপডেট করুন'), findsOneWidget);
   });
 
+  testWidgets(
+      'three taps on the account name opens the device registration dialog',
+      (tester) async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: '2bcf9d5d-1234-4f1d-8f6d-000000000020',
+        name: 'Worker One',
+        role: 'worker',
+        phone: '966500000000',
+        zone: 'Z01',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<AuthRepository>.value(value: _FakeAuthRepository()),
+          Provider<DeviceManagementRepository>.value(
+            value: _FakeDeviceManagementRepository(),
+          ),
+          Provider<DeviceMetadataService>.value(
+            value: _FakeDeviceMetadataService(),
+          ),
+          ChangeNotifierProvider<SessionController>.value(value: session),
+          ChangeNotifierProvider<LocaleController>(
+            create: (_) => LocaleController(),
+          ),
+        ],
+        child: const MaterialApp(
+          home: AccountPage(),
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final nameTrigger = find.byKey(const Key('account-name-trigger'));
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(nameTrigger);
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+
+    expect(find.text('Register Device'), findsOneWidget);
+    expect(find.text('Device Name'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets(
+      'device registration dialog submits typed name with device metadata',
+      (tester) async {
+    final session = SessionController();
+    final repository = _FakeDeviceManagementRepository();
+    final metadataService = _FakeDeviceMetadataService(
+      metadata: const DeviceMetadata(
+        deviceSerial: 'serial-fallback-1',
+        model: 'TC21',
+        osVersion: '13',
+      ),
+    );
+    session.setUser(
+      const User(
+        id: '2bcf9d5d-1234-4f1d-8f6d-000000000021',
+        name: 'Worker One',
+        role: 'worker',
+        phone: '966500000000',
+        zone: 'Z01',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<AuthRepository>.value(value: _FakeAuthRepository()),
+          Provider<DeviceManagementRepository>.value(value: repository),
+          Provider<DeviceMetadataService>.value(value: metadataService),
+          ChangeNotifierProvider<SessionController>.value(value: session),
+          ChangeNotifierProvider<LocaleController>(
+            create: (_) => LocaleController(),
+          ),
+        ],
+        child: const MaterialApp(
+          home: AccountPage(),
+          supportedLocales: [Locale('en'), Locale('ar'), Locale('bn')],
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final nameTrigger = find.byKey(const Key('account-name-trigger'));
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(nameTrigger);
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Floor Zebra 07');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+    await tester.pumpAndSettle();
+
+    expect(repository.deviceId, 'Floor Zebra 07');
+    expect(repository.deviceSerial, 'serial-fallback-1');
+    expect(repository.model, 'TC21');
+    expect(repository.osVersion, '13');
+    expect(find.text('Register Device'), findsNothing);
+    expect(find.text('Device registered successfully'), findsOneWidget);
+  });
+
   testWidgets('five taps on the zone row opens the developer mode PIN dialog',
       (tester) async {
     final session = SessionController();
@@ -685,4 +811,41 @@ class _FakeAppEnvironmentController extends AppEnvironmentController {
         : AppEnvironment.production;
     notifyListeners();
   }
+}
+
+class _FakeDeviceManagementRepository implements DeviceManagementRepository {
+  Result<void> result = const Success<void>(null);
+  String? deviceId;
+  String? deviceSerial;
+  String? model;
+  String? osVersion;
+
+  @override
+  Future<Result<void>> registerDevice({
+    required String deviceId,
+    required String deviceSerial,
+    required String model,
+    required String osVersion,
+  }) async {
+    this.deviceId = deviceId;
+    this.deviceSerial = deviceSerial;
+    this.model = model;
+    this.osVersion = osVersion;
+    return result;
+  }
+}
+
+class _FakeDeviceMetadataService implements DeviceMetadataService {
+  _FakeDeviceMetadataService({
+    this.metadata = const DeviceMetadata(
+      deviceSerial: 'serial-default',
+      model: 'Default Model',
+      osVersion: '1',
+    ),
+  });
+
+  final DeviceMetadata metadata;
+
+  @override
+  Future<DeviceMetadata> loadDeviceMetadata() async => metadata;
 }

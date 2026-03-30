@@ -28,7 +28,7 @@ void main() {
             label = context.trText(
               english: 'Account',
               arabic: 'الحساب',
-              urdu: 'অ্যাকাউন্ট',
+              bengali: 'অ্যাকাউন্ট',
             );
             return const SizedBox.shrink();
           },
@@ -38,6 +38,36 @@ void main() {
 
     expect(direction, TextDirection.ltr);
     expect(languageCode, 'bn');
+    expect(label, 'অ্যাকাউন্ট');
+  });
+
+  testWidgets('l10n helper keeps legacy urdu alias working for Bengali',
+      (tester) async {
+    late String label;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('bn'),
+        supportedLocales: const [Locale('en'), Locale('ar'), Locale('bn')],
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Builder(
+          builder: (context) {
+            label = context.trText(
+              english: 'Account',
+              arabic: 'الحساب',
+              urdu: 'অ্যাকাউন্ট',
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
     expect(label, 'অ্যাকাউন্ট');
   });
 }

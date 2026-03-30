@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wherehouse/core/errors/app_exception.dart';
@@ -138,29 +139,32 @@ void main() {
     );
   }
 
-  ItemLocationSummaryEntity buildLookupSummary() {
-    return const ItemLocationSummaryEntity(
+  ItemLocationSummaryEntity buildLookupSummary({
+    List<ItemLocationEntity>? locations,
+  }) {
+    return ItemLocationSummaryEntity(
       itemId: 1001,
       itemName: 'Demo Item',
       barcode: '123456789012',
       itemImageUrl: 'https://example.com/lookup-item.png',
       totalQuantity: 12,
-      locations: [
-        ItemLocationEntity(
-          locationId: 1,
-          zone: 'Z01',
-          type: 'bulk',
-          code: 'BULK-01-01',
-          quantity: 20,
-        ),
-        ItemLocationEntity(
-          locationId: 2,
-          zone: 'Z01',
-          type: 'shelf',
-          code: 'SHELF-01-01',
-          quantity: 8,
-        ),
-      ],
+      locations: locations ??
+          const [
+            ItemLocationEntity(
+              locationId: 1,
+              zone: 'Z01',
+              type: 'bulk',
+              code: 'BULK-01-01',
+              quantity: 20,
+            ),
+            ItemLocationEntity(
+              locationId: 2,
+              zone: 'Z01',
+              type: 'shelf',
+              code: 'SHELF-01-01',
+              quantity: 8,
+            ),
+          ],
     );
   }
 
@@ -1113,6 +1117,36 @@ void main() {
     expect(barcodeText.focusNode.hasFocus, isTrue);
   });
 
+  testWidgets('refill barcode scan advances when scanner appends a newline',
+      (tester) async {
+    final lookupCompleter = Completer<ItemLocationSummaryEntity>();
+
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            fromLocation: null,
+            toLocation: null,
+          ),
+          onLookupItem: (_) => lookupCompleter.future,
+        ),
+      ),
+    );
+
+    lookupCompleter.complete(buildLookupSummary());
+    await tester.pumpAndSettle();
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012\n',
+    );
+
+    expect(find.text('To Shelf Location'), findsOneWidget);
+    expect(find.byKey(const Key('refill-quantity-field')), findsOneWidget);
+  });
+
   testWidgets(
       'assigned pending refill task advances after barcode scan and can complete',
       (tester) async {
@@ -1156,6 +1190,164 @@ void main() {
     await enterLocationManually(tester, 'SHELF-01-01');
     await tester.pumpAndSettle();
     await scrollTo(tester, find.byKey(const Key('refill-quantity-field')));
+    await tester.enterText(find.byKey(const Key('refill-quantity-field')), '1');
+    await tester.pumpAndSettle();
+
+    expect(
+      isElevatedButtonEnabled(tester, const Key('complete-task-button')),
+      isTrue,
+    );
+  });
+
+  testWidgets('refill lookup keeps the task route when lookup returns other shelves',
+      (tester) async {
+    final lookupCompleter = Completer<ItemLocationSummaryEntity>();
+
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            status: TaskStatus.pending,
+            assignedTo: 'worker-1',
+            fromLocation: 'Z08-H01-BLK-L01-P03',
+            toLocation: 'Z01-AC01-SS-L04-P02',
+            quantity: 4,
+          ),
+          onLookupItem: (_) => lookupCompleter.future,
+          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
+        ),
+      ),
+    );
+
+    lookupCompleter.complete(
+      buildLookupSummary(
+        locations: const [
+          ItemLocationEntity(
+            locationId: 11,
+            zone: 'Z01',
+            type: 'bulk',
+            code: 'Z08-H01-BLK-L01-P03',
+            quantity: 20,
+          ),
+          ItemLocationEntity(
+            locationId: 12,
+            zone: 'Z01',
+            type: 'shelf',
+            code: 'Z01-AC01-SS-L01-P01',
+            quantity: 6,
+          ),
+          ItemLocationEntity(
+            locationId: 13,
+            zone: 'Z01',
+            type: 'shelf',
+            code: 'Z01-AC01-SS-L04-P02',
+            quantity: 3,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Z08-H01-BLK-L01-P03'), findsOneWidget);
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Z01-AC01-SS-L04-P02'), findsWidgets);
+
+    await enterLocationManually(tester, 'Z01-AC01-SS-L04-P02');
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('refill-quantity-field')));
+    await tester.enterText(find.byKey(const Key('refill-quantity-field')), '4');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Location validated'), findsOneWidget);
+    expect(
+      isElevatedButtonEnabled(tester, const Key('complete-task-button')),
+      isTrue,
+    );
+  });
+
+  testWidgets('refill completion enables with Arabic-Indic quantity digits',
+      (tester) async {
+    final lookupCompleter = Completer<ItemLocationSummaryEntity>();
+
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            status: TaskStatus.pending,
+            assignedTo: 'worker-1',
+            fromLocation: null,
+            toLocation: null,
+          ),
+          onLookupItem: (_) => lookupCompleter.future,
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
+        ),
+        locale: const Locale('ar'),
+      ),
+    );
+
+    lookupCompleter.complete(buildLookupSummary());
+    await tester.pumpAndSettle();
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012',
+    );
+    await enterLocationManually(tester, 'SHELF-01-01');
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('refill-quantity-field')));
+    await tester.enterText(find.byKey(const Key('refill-quantity-field')), '٤');
+    await tester.pumpAndSettle();
+
+    expect(
+      isElevatedButtonEnabled(tester, const Key('complete-task-button')),
+      isTrue,
+    );
+  });
+
+  testWidgets('refill completion ignores the requested quantity cap',
+      (tester) async {
+    final lookupCompleter = Completer<ItemLocationSummaryEntity>();
+
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            status: TaskStatus.pending,
+            assignedTo: 'worker-1',
+            fromLocation: null,
+            toLocation: null,
+            quantity: 1,
+          ),
+          onLookupItem: (_) => lookupCompleter.future,
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
+        ),
+      ),
+    );
+
+    lookupCompleter.complete(buildLookupSummary());
+    await tester.pumpAndSettle();
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012',
+    );
+    await enterLocationManually(tester, 'SHELF-01-01');
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('refill-quantity-field')));
     await tester.enterText(find.byKey(const Key('refill-quantity-field')), '4');
     await tester.pumpAndSettle();
 
@@ -1165,24 +1357,36 @@ void main() {
     );
   });
 
-  testWidgets('refill task falls back to task locations when lookup fails',
+  testWidgets(
+      'refill task with explicit route skips lookup preload and can complete',
       (tester) async {
+    var lookupCalls = 0;
+
     await tester.pumpWidget(
       wrap(
         WorkerTaskDetailsPage(
           task: buildTask(
             type: TaskType.refill,
+            status: TaskStatus.pending,
+            assignedTo: 'worker-1',
             fromLocation: 'BULK-02-01',
             toLocation: 'SHELF-02-09',
+            quantity: 3,
           ),
-          onLookupItem: (_) async => throw Exception('lookup failed'),
+          onLookupItem: (_) {
+            lookupCalls += 1;
+            return Completer<ItemLocationSummaryEntity>().future;
+          },
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
 
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('Could not load refill locations.'), findsNothing);
+    expect(lookupCalls, 0);
     expect(find.text('From Bulk Location'), findsOneWidget);
     expect(find.text('BULK-02-01'), findsOneWidget);
     expect(find.text('SHELF-02-09'), findsNothing);
@@ -1195,6 +1399,99 @@ void main() {
 
     expect(find.text('To Shelf Location'), findsOneWidget);
     expect(find.text('SHELF-02-09'), findsOneWidget);
+
+    await enterLocationManually(tester, 'SHELF-02-09');
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('refill-quantity-field')));
+    await tester.enterText(find.byKey(const Key('refill-quantity-field')), '1');
+    await tester.pumpAndSettle();
+
+    expect(
+      isElevatedButtonEnabled(tester, const Key('complete-task-button')),
+      isTrue,
+    );
+  });
+
+  testWidgets(
+      'refill task with explicit route does not require shelf validation to enable completion',
+      (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            status: TaskStatus.pending,
+            assignedTo: 'worker-1',
+            fromLocation: 'BULK-02-01',
+            toLocation: 'SHELF-02-09',
+            quantity: 1,
+          ),
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012',
+    );
+    await enterLocationManually(tester, 'WRONG-SHELF');
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('refill-quantity-field')));
+    await tester.enterText(find.byKey(const Key('refill-quantity-field')), '1');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Location validated'), findsNothing);
+    expect(
+      isElevatedButtonEnabled(tester, const Key('complete-task-button')),
+      isTrue,
+    );
+  });
+
+  testWidgets(
+      'validated refill shelf input is not cleared while entering quantity',
+      (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            status: TaskStatus.pending,
+            assignedTo: 'worker-1',
+            fromLocation: 'BULK-02-01',
+            toLocation: 'SHELF-02-09',
+            quantity: 1,
+          ),
+          onCompleteTask:
+              (taskId, {cycleCountItems, quantity, locationId}) async {},
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await enterScannerValue(
+      tester,
+      const Key('product-validate-field'),
+      '123456789012',
+    );
+    await enterLocationManually(tester, 'SHELF-02-09');
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('refill-quantity-field')));
+    await tester.enterText(find.byKey(const Key('refill-quantity-field')), '1');
+    await tester.pumpAndSettle();
+
+    expect(find.text('SHELF-02-09'), findsAtLeastNWidgets(2));
+    expect(
+      isElevatedButtonEnabled(tester, const Key('complete-task-button')),
+      isTrue,
+    );
   });
 
   testWidgets('auto-validates generic task location for manual entry',
@@ -1222,7 +1519,7 @@ void main() {
   });
 
   testWidgets(
-      'return task uses a two-page multi-item workflow before completion',
+      'return task uses always-on hidden location scanning on page two before completion',
       (tester) async {
     int? completedQuantity;
     String? completedLocation;
@@ -1308,32 +1605,22 @@ void main() {
       isFalse,
     );
 
-    await scrollTo(
+    await enterScannerValue(
       tester,
-      find.byKey(const Key('return-line-0-scan-location-button')),
+      const Key('location-validate-field'),
+      'RET-01-04',
     );
-    await tester
-        .tap(find.byKey(const Key('return-line-0-scan-location-button')));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-        find.byKey(const Key('scan_barcode_field')), 'RET-01-04');
-    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('return-line-0-quantity-field')),
       '5',
     );
 
-    await scrollTo(
+    await enterScannerValue(
       tester,
-      find.byKey(const Key('return-line-1-scan-location-button')),
+      const Key('location-validate-field'),
+      'RET-01-05',
     );
-    await tester
-        .tap(find.byKey(const Key('return-line-1-scan-location-button')));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-        find.byKey(const Key('scan_barcode_field')), 'RET-01-05');
-    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('return-line-1-quantity-field')),
@@ -1351,6 +1638,74 @@ void main() {
 
     expect(completedQuantity, 7);
     expect(completedLocation, 'RET-01-05');
+  });
+
+  testWidgets(
+      'return page two quantity field keeps focus instead of being reclaimed by the hidden location scanner',
+      (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.returnTask,
+            fromLocation: 'RT-204',
+            toLocation: 'RET-01-04',
+            quantity: 7,
+            workflowData: const {
+              'returnContainerId': 'RT-204',
+              'returnItems': [
+                {
+                  'itemName': 'Blue Mug',
+                  'itemBarcode': '123456789101',
+                  'quantity': 5,
+                  'location': 'RET-01-04',
+                },
+              ],
+            },
+          ),
+          onCompleteTask:
+              (taskId, {cycleCountItems, quantity, locationId}) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await enterScannerValue(
+      tester,
+      const Key('return-validate-field'),
+      '123456789101',
+    );
+    await tester.tap(find.byKey(const Key('return-page-next-button')));
+    await tester.pumpAndSettle();
+
+    final quantityField = find.byKey(const Key('return-line-0-quantity-field'));
+    final quantityEditable = find.descendant(
+      of: quantityField,
+      matching: find.byType(EditableText),
+    );
+    final locationEditable = find.descendant(
+      of: find.byKey(const Key('location-validate-field')),
+      matching: find.byType(EditableText),
+    );
+
+    await scrollTo(tester, quantityField);
+    await tester.tap(quantityField);
+    await tester.pump();
+
+    var quantityText = tester.widget<EditableText>(quantityEditable);
+    var locationText = tester.widget<EditableText>(locationEditable);
+
+    expect(quantityText.focusNode.hasFocus, isTrue);
+    expect(locationText.focusNode.hasFocus, isFalse);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    quantityText = tester.widget<EditableText>(quantityEditable);
+    locationText = tester.widget<EditableText>(locationEditable);
+
+    expect(quantityText.focusNode.hasFocus, isTrue);
+    expect(locationText.focusNode.hasFocus, isFalse);
   });
 
   testWidgets(
@@ -1610,6 +1965,74 @@ void main() {
     expect(textField.keyboardType, TextInputType.none);
     expect(textField.readOnly, isFalse);
     expect(textField.autofocus, isTrue);
+  });
+
+  testWidgets(
+      'barcode validation focus recovery avoids extra text input hide calls',
+      (tester) async {
+    final messenger = tester.binding.defaultBinaryMessenger;
+    final recordedCalls = <String>[];
+    messenger.setMockMethodCallHandler(SystemChannels.textInput, (call) async {
+      recordedCalls.add(call.method);
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.textInput, null),
+    );
+
+    await tester.pumpWidget(wrap(WorkerTaskDetailsPage(task: buildTask())));
+    await tester.pumpAndSettle();
+
+    recordedCalls.clear();
+
+    final editableFinder = find.descendant(
+      of: find.byKey(const Key('product-validate-field')),
+      matching: find.byType(EditableText),
+    );
+    var editableText = tester.widget<EditableText>(editableFinder);
+    editableText.focusNode.unfocus();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    editableText = tester.widget<EditableText>(editableFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+    expect(
+      recordedCalls.where((call) => call == 'TextInput.hide').length,
+      1,
+    );
+  });
+
+  testWidgets('barcode validation focus recovery re-primes text input',
+      (tester) async {
+    final messenger = tester.binding.defaultBinaryMessenger;
+    final recordedCalls = <String>[];
+    messenger.setMockMethodCallHandler(SystemChannels.textInput, (call) async {
+      recordedCalls.add(call.method);
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.textInput, null),
+    );
+
+    await tester.pumpWidget(wrap(WorkerTaskDetailsPage(task: buildTask())));
+    await tester.pumpAndSettle();
+
+    recordedCalls.clear();
+
+    final editableFinder = find.descendant(
+      of: find.byKey(const Key('product-validate-field')),
+      matching: find.byType(EditableText),
+    );
+    var editableText = tester.widget<EditableText>(editableFinder);
+    editableText.focusNode.unfocus();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    editableText = tester.widget<EditableText>(editableFinder);
+    expect(editableText.focusNode.hasFocus, isTrue);
+    expect(recordedCalls, contains('TextInput.show'));
   });
 
   testWidgets('barcode validation field re-focuses after losing scanner focus',

@@ -12,7 +12,10 @@ import '../../core/network/token_refresh_handler.dart';
 import '../../core/storage/secure_token_storage.dart';
 import '../../features/auth/data/datasources/auth_remote_data_source.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
+import '../../features/device_management/data/datasources/device_management_remote_data_source.dart';
+import '../../features/device_management/data/repositories/device_management_repository_impl.dart';
 import '../../features/dashboard/domain/repositories/task_repository.dart';
+import '../../features/device_management/domain/repositories/device_management_repository.dart';
 import '../../features/dashboard/domain/usecases/get_dashboard_tasks_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_tasks_for_zone_usecase.dart';
 import '../../features/dashboard/domain/usecases/get_tasks_for_worker_usecase.dart';
@@ -56,10 +59,15 @@ import '../../features/inbound/presentation/controllers/inbound_controller.dart'
 import '../providers/router_provider.dart';
 import '../providers/global_error_provider.dart';
 import '../providers/global_loading_provider.dart';
+import '../device/device_metadata_service.dart';
 import 'locale_controller.dart';
 import '../scanner/scanner_provider.dart';
 
 typedef Logger = void Function(String message);
+
+String? defaultWorkerTaskTypeFilterForConfig(AppConfig _) {
+  return null;
+}
 
 List<SingleChildWidget> appProviders(AppConfig config) {
   return [
@@ -95,6 +103,9 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     ProxyProvider2<DioClient, ErrorMapper, ApiClient>(
       update: (_, dio, mapper, __) => ApiClient(dio.dio, mapper),
     ),
+    Provider<DeviceMetadataService>(
+      create: (_) => const PlatformDeviceMetadataService(),
+    ),
     Provider<PlatformInfo>(create: (_) => const DefaultPlatformInfo()),
     Provider<InstalledAppVersionProvider>(
       create: (_) => const PackageInfoInstalledAppVersionProvider(),
@@ -124,11 +135,16 @@ List<SingleChildWidget> appProviders(AppConfig config) {
     ProxyProvider<ApiClient, DashboardRemoteDataSource>(
       update: (_, client, __) => DashboardRemoteDataSource(client),
     ),
+    ProxyProvider<ApiClient, DeviceManagementRemoteDataSource>(
+      update: (_, client, __) => DeviceManagementRemoteDataSource(client),
+    ),
+    ProxyProvider<DeviceManagementRemoteDataSource, DeviceManagementRepository>(
+      update: (_, remote, __) => DeviceManagementRepositoryImpl(remote),
+    ),
     ProxyProvider2<ApiClient, AppConfig, TaskRemoteDataSource>(
       update: (_, client, config, __) => TaskRemoteDataSource(
         client,
-        defaultTaskType:
-            config.apiBaseUrl == 'https://api.qeu.app' ? 'restock' : null,
+        defaultTaskType: defaultWorkerTaskTypeFilterForConfig(config),
       ),
     ),
     ProxyProvider2<DashboardRemoteDataSource, TaskRemoteDataSource,

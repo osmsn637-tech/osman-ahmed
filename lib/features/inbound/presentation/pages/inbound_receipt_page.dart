@@ -197,12 +197,12 @@ class _InboundReceiptPageState extends State<InboundReceiptPage>
     BuildContext context,
     String english,
     String arabic, [
-    String? urdu,
+    String? bengali,
   ]) {
     return context.trText(
       english: english,
       arabic: arabic,
-      urdu: urdu,
+      bengali: bengali,
     );
   }
 

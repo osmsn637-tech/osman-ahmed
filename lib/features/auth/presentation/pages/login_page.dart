@@ -19,19 +19,19 @@ class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
   static const _arLabel =
       '\u0627\u0644\u0639\u0631\u0628\u064a\u0629'; // العربية
-  static const _urLabel = 'বাংলা';
+  static const _bnLabel = 'বাংলা';
   static const _arWarehouseSystem =
       '\u0646\u0638\u0627\u0645 \u0625\u062f\u0627\u0631\u0629 \u0627\u0644\u0645\u0633\u062a\u0648\u062f\u0639\u0627\u062a'; // نظام إدارة المستودعات
-  static const _urWarehouseSystem = 'গুদাম ব্যবস্থাপনা সিস্টেম';
+  static const _bnWarehouseSystem = 'গুদাম ব্যবস্থাপনা সিস্টেম';
   static const _arMobile =
       '\u0631\u0642\u0645 \u0627\u0644\u062c\u0648\u0627\u0644'; // رقم الجوال
-  static const _urMobile = 'মোবাইল নম্বর';
+  static const _bnMobile = 'মোবাইল নম্বর';
   static const _arPassword =
       '\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631'; // كلمة المرور
-  static const _urPassword = 'পাসওয়ার্ড';
+  static const _bnPassword = 'পাসওয়ার্ড';
   static const _arSignIn =
       '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644'; // تسجيل الدخول
-  static const _urSignIn = 'সাইন ইন করুন';
+  static const _bnSignIn = 'সাইন ইন করুন';
   static const List<String> _supportedLanguages = ['en', 'ar', 'bn'];
 
   String _version = '';
@@ -210,7 +210,7 @@ class _LoginPageState extends State<LoginPage>
                                   _tr(
                                     english: 'Warehouse Management System',
                                     arabic: _arWarehouseSystem,
-                                    urdu: _urWarehouseSystem,
+                                    bengali: _bnWarehouseSystem,
                                   ),
                                   textAlign: TextAlign.center,
                                   style: Theme.of(context).textTheme.bodyMedium,
@@ -223,7 +223,7 @@ class _LoginPageState extends State<LoginPage>
                                     labelText: _tr(
                                       english: 'Mobile Number',
                                       arabic: _arMobile,
-                                      urdu: _urMobile,
+                                      bengali: _bnMobile,
                                     ),
                                     prefixIcon:
                                         const Icon(Icons.phone_outlined),
@@ -246,7 +246,7 @@ class _LoginPageState extends State<LoginPage>
                                     labelText: _tr(
                                       english: 'Password',
                                       arabic: _arPassword,
-                                      urdu: _urPassword,
+                                      bengali: _bnPassword,
                                     ),
                                     prefixIcon: const Icon(Icons.lock_outline),
                                     suffixIcon: GestureDetector(
@@ -284,7 +284,7 @@ class _LoginPageState extends State<LoginPage>
                                           _tr(
                                             english: 'Sign In',
                                             arabic: _arSignIn,
-                                            urdu: _urSignIn,
+                                            bengali: _bnSignIn,
                                           ),
                                         ),
                                       );
@@ -318,7 +318,7 @@ class _LoginPageState extends State<LoginPage>
   String _languageLabel(String code) {
     return switch (code) {
       'ar' => _arLabel,
-      'bn' => _urLabel,
+      'bn' => _bnLabel,
       _ => 'English',
     };
   }
@@ -326,11 +326,13 @@ class _LoginPageState extends State<LoginPage>
   String _tr({
     required String english,
     required String arabic,
-    required String urdu,
+    String? bengali,
+    String? urdu,
   }) {
+    final resolvedBengali = bengali ?? urdu;
     return switch (_lang) {
       'ar' => arabic,
-      'bn' => urdu,
+      'bn' => resolvedBengali ?? english,
       _ => english,
     };
   }

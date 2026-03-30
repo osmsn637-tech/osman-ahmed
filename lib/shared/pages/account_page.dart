@@ -7,7 +7,9 @@ import '../../core/errors/app_exception.dart';
 import '../../core/utils/result.dart';
 import '../../features/auth/domain/entities/user.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../../features/device_management/domain/repositories/device_management_repository.dart';
 import '../../features/auth/presentation/providers/session_provider.dart';
+import '../device/device_metadata_service.dart';
 import '../l10n/l10n.dart';
 import '../providers/locale_controller.dart';
 import '../theme/app_theme.dart';
@@ -22,6 +24,7 @@ class AccountPage extends StatefulWidget {
 
 class _AccountPageState extends State<AccountPage> {
   int _zoneTapCount = 0;
+  int _nameTapCount = 0;
 
   Future<void> _handleZoneTap() async {
     final environmentController = context.read<AppEnvironmentController?>();
@@ -41,6 +44,33 @@ class _AccountPageState extends State<AccountPage> {
     }
 
     await environmentController.toggleEnvironment();
+  }
+
+  Future<void> _handleNameTap() async {
+    final deviceRepository = context.read<DeviceManagementRepository?>();
+    final metadataService = context.read<DeviceMetadataService?>();
+    if (deviceRepository == null || metadataService == null) {
+      return;
+    }
+
+    _nameTapCount += 1;
+    if (_nameTapCount < 3) {
+      return;
+    }
+    _nameTapCount = 0;
+
+    final successMessage = await _showRegisterDeviceDialog(
+      context,
+      repository: deviceRepository,
+      metadataService: metadataService,
+    );
+    if (successMessage == null || !mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(successMessage)),
+    );
   }
 
   @override
@@ -78,7 +108,11 @@ class _AccountPageState extends State<AccountPage> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               child: Column(
                 children: [
-                  _HeroPanel(name: name, role: role),
+                  _HeroPanel(
+                    name: name,
+                    role: role,
+                    onNameTap: _handleNameTap,
+                  ),
                   const SizedBox(height: 14),
                   _InfoPanel(
                     phone: phone,
@@ -105,10 +139,12 @@ class _HeroPanel extends StatelessWidget {
   const _HeroPanel({
     required this.name,
     required this.role,
+    required this.onNameTap,
   });
 
   final String name;
   final String role;
+  final VoidCallback onNameTap;
 
   @override
   Widget build(BuildContext context) {
@@ -160,12 +196,17 @@ class _HeroPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
+                    GestureDetector(
+                      key: const Key('account-name-trigger'),
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onNameTap,
+                      child: Text(
+                        name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -351,6 +392,20 @@ Future<void> _showChangePasswordDialog(
   );
 }
 
+Future<String?> _showRegisterDeviceDialog(
+  BuildContext context, {
+  required DeviceManagementRepository repository,
+  required DeviceMetadataService metadataService,
+}) {
+  return showDialog<String>(
+    context: context,
+    builder: (dialogContext) => _RegisterDeviceDialog(
+      repository: repository,
+      metadataService: metadataService,
+    ),
+  );
+}
+
 class _ChangePasswordDialog extends StatefulWidget {
   const _ChangePasswordDialog({required this.l10n});
 
@@ -506,6 +561,171 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : Text(_updatePasswordLabel),
+        ),
+      ],
+    );
+  }
+}
+
+class _RegisterDeviceDialog extends StatefulWidget {
+  const _RegisterDeviceDialog({
+    required this.repository,
+    required this.metadataService,
+  });
+
+  final DeviceManagementRepository repository;
+  final DeviceMetadataService metadataService;
+
+  @override
+  State<_RegisterDeviceDialog> createState() => _RegisterDeviceDialogState();
+}
+
+class _RegisterDeviceDialogState extends State<_RegisterDeviceDialog> {
+  late final TextEditingController _deviceNameController;
+
+  bool _isSubmitting = false;
+  String? _errorMessage;
+
+  String get _title => context.trText(
+        english: 'Register Device',
+        arabic: 'تسجيل الجهاز',
+        bengali: 'ডিভাইস নিবন্ধন করুন',
+      );
+
+  String get _deviceNameLabel => context.trText(
+        english: 'Device Name',
+        arabic: 'اسم الجهاز',
+        bengali: 'ডিভাইসের নাম',
+      );
+
+  String get _requiredDeviceNameMessage => context.trText(
+        english: 'Device name is required',
+        arabic: 'اسم الجهاز مطلوب',
+        bengali: 'ডিভাইসের নাম আবশ্যক',
+      );
+
+  String get _cancelLabel => context.trText(
+        english: 'Cancel',
+        arabic: 'إلغاء',
+        bengali: 'বাতিল',
+      );
+
+  String get _registerLabel => context.trText(
+        english: 'Register',
+        arabic: 'تسجيل',
+        bengali: 'নিবন্ধন করুন',
+      );
+
+  String get _successMessage => context.trText(
+        english: 'Device registered successfully',
+        arabic: 'تم تسجيل الجهاز بنجاح',
+        bengali: 'ডিভাইস সফলভাবে নিবন্ধিত হয়েছে',
+      );
+
+  @override
+  void initState() {
+    super.initState();
+    _deviceNameController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _deviceNameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final deviceId = _deviceNameController.text.trim();
+    if (deviceId.isEmpty) {
+      setState(() {
+        _errorMessage = _requiredDeviceNameMessage;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final metadata = await widget.metadataService.loadDeviceMetadata();
+      final result = await widget.repository.registerDevice(
+        deviceId: deviceId,
+        deviceSerial: metadata.deviceSerial,
+        model: metadata.model,
+        osVersion: metadata.osVersion,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      switch (result) {
+        case Success<void>():
+          Navigator.of(context).pop(_successMessage);
+        case Failure<void>(error: final error):
+          setState(() {
+            _isSubmitting = false;
+            _errorMessage =
+                error is AppException ? error.message : error.toString();
+          });
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isSubmitting = false;
+        _errorMessage =
+            error is AppException ? error.message : error.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(_title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _deviceNameController,
+            enabled: !_isSubmitting,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: _deviceNameLabel,
+            ),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+          ),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(
+                color: AppTheme.error,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: Text(_cancelLabel),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(_registerLabel),
         ),
       ],
     );

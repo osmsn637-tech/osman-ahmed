@@ -29,6 +29,7 @@ class WorkerHomePage extends StatefulWidget {
 class _WorkerHomePageState extends State<WorkerHomePage> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _requestedInitialLoad = false;
+  _CurrentTaskFilterOption? _selectedCurrentTaskFilter;
 
   @override
   void initState() {
@@ -120,6 +121,18 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
             }
             return a.$1.compareTo(b.$1);
           });
+        final currentTaskFilters = _buildCurrentTaskFilters(
+          orderedCurrentTasks.map((entry) => entry.$2),
+        );
+        final activeCurrentTaskFilter =
+            currentTaskFilters.contains(_selectedCurrentTaskFilter)
+                ? _selectedCurrentTaskFilter
+                : null;
+        final filteredCurrentTasks = activeCurrentTaskFilter == null
+            ? orderedCurrentTasks
+            : orderedCurrentTasks
+                .where((entry) => activeCurrentTaskFilter.matches(entry.$2))
+                .toList(growable: false);
         final completedTasks = ctrl.state.completed;
         final loading = ctrl.state.loading;
         final availableCount = currentTasks
@@ -226,13 +239,35 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                                 arabic: 'المهام',
                                 urdu: 'টাস্ক',
                               ),
-                              count: orderedCurrentTasks.length,
+                              count: filteredCurrentTasks.length,
                               color: AppTheme.accent,
                             ),
                           ),
                         ),
                         const SliverToBoxAdapter(child: SizedBox(height: 10)),
-                        if (orderedCurrentTasks.isEmpty)
+                        if (orderedCurrentTasks.isNotEmpty)
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            sliver: SliverToBoxAdapter(
+                              child: _CurrentTaskFilterRow(
+                                filters: currentTaskFilters,
+                                selectedFilter: activeCurrentTaskFilter,
+                                onSelectAll: () {
+                                  setState(() {
+                                    _selectedCurrentTaskFilter = null;
+                                  });
+                                },
+                                onSelectFilter: (filter) {
+                                  setState(() {
+                                    _selectedCurrentTaskFilter = filter;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                        if (orderedCurrentTasks.isNotEmpty)
+                          const SliverToBoxAdapter(child: SizedBox(height: 10)),
+                        if (filteredCurrentTasks.isEmpty)
                           SliverPadding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             sliver: SliverToBoxAdapter(
@@ -247,7 +282,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             sliver: SliverList.separated(
                               itemBuilder: (context, index) {
-                                final task = orderedCurrentTasks[index].$2;
+                                final task = filteredCurrentTasks[index].$2;
                                 final canStart =
                                     task.status == TaskStatus.pending &&
                                         task.assignedTo == null;
@@ -282,7 +317,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                               },
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 10),
-                              itemCount: orderedCurrentTasks.length,
+                              itemCount: filteredCurrentTasks.length,
                             ),
                           ),
                         if (completedTasks.isNotEmpty) ...[
@@ -345,6 +380,22 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
     return 2;
   }
 
+  List<_CurrentTaskFilterOption> _buildCurrentTaskFilters(
+    Iterable<TaskEntity> tasks,
+  ) {
+    final filters = <_CurrentTaskFilterOption>[];
+    final seenKeys = <String>{};
+
+    for (final task in tasks) {
+      final filter = _CurrentTaskFilterOption.fromTask(task);
+      if (seenKeys.add(filter.key)) {
+        filters.add(filter);
+      }
+    }
+
+    return filters;
+  }
+
   Future<void> _openTaskDetails(
     BuildContext context,
     TaskEntity task, {
@@ -356,6 +407,9 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       MaterialPageRoute<void>(
         builder: (_) => WorkerTaskDetailsPage(
           task: task,
+          initialResumeState: controller.taskDetailResumeStateFor(task.id),
+          onResumeStateChanged: (state) =>
+              controller.saveTaskDetailResumeState(task.id, state),
           onStartTask: onStartTask,
           onCompleteTask: (taskId,
                   {int? quantity,
@@ -564,6 +618,156 @@ class _MetricPill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CurrentTaskFilterRow extends StatelessWidget {
+  const _CurrentTaskFilterRow({
+    required this.filters,
+    required this.selectedFilter,
+    required this.onSelectAll,
+    required this.onSelectFilter,
+  });
+
+  final List<_CurrentTaskFilterOption> filters;
+  final _CurrentTaskFilterOption? selectedFilter;
+  final VoidCallback onSelectAll;
+  final ValueChanged<_CurrentTaskFilterOption> onSelectFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    final allLabel = context.trText(
+      english: 'ALL',
+      arabic: 'الكل',
+      bengali: 'সব',
+    );
+
+    return SingleChildScrollView(
+      key: const Key('current-task-filter-row'),
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _TaskFilterPill(
+            key: const Key('task-filter-all'),
+            label: allLabel,
+            color: AppTheme.primary,
+            selected: selectedFilter == null,
+            onTap: onSelectAll,
+          ),
+          for (final filter in filters) ...[
+            const SizedBox(width: 8),
+            _TaskFilterPill(
+              key: Key('task-filter-${filter.key}'),
+              label: filter.label(context),
+              color: filter.color,
+              selected: selectedFilter == filter,
+              onTap: () => onSelectFilter(filter),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TaskFilterPill extends StatelessWidget {
+  const _TaskFilterPill({
+    required super.key,
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final foregroundColor = selected ? Colors.white : color;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? color : color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? color : color.withValues(alpha: 0.22),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: foregroundColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CurrentTaskFilterOption {
+  const _CurrentTaskFilterOption({
+    required this.type,
+    required this.isPutaway,
+  });
+
+  final TaskType type;
+  final bool isPutaway;
+
+  factory _CurrentTaskFilterOption.fromTask(TaskEntity task) {
+    return _CurrentTaskFilterOption(
+      type: task.type,
+      isPutaway: task.type == TaskType.receive && task.isPutawayTask,
+    );
+  }
+
+  String get key {
+    if (type == TaskType.receive && isPutaway) {
+      return 'putaway';
+    }
+    return type.code.replaceAll('_', '-');
+  }
+
+  Color get color => taskTypeColor(type);
+
+  String label(BuildContext context) {
+    return taskTypeLabelForContext(
+      context,
+      type,
+      isPutaway: isPutaway,
+    );
+  }
+
+  bool matches(TaskEntity task) {
+    if (task.type != type) {
+      return false;
+    }
+    if (type != TaskType.receive) {
+      return true;
+    }
+    return task.isPutawayTask == isPutaway;
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _CurrentTaskFilterOption &&
+        other.type == type &&
+        other.isPutaway == isPutaway;
+  }
+
+  @override
+  int get hashCode => Object.hash(type, isPutaway);
 }
 
 class _TaskCard extends StatelessWidget {

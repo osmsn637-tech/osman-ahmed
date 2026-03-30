@@ -13,6 +13,7 @@ import '../../domain/usecases/skip_task_usecase.dart';
 import '../../domain/usecases/submit_adjustment_count_usecase.dart';
 import '../../domain/usecases/validate_task_location_usecase.dart';
 import '../../../auth/presentation/providers/session_provider.dart';
+import '../models/task_detail_resume_state.dart';
 
 class WorkerTasksState {
   const WorkerTasksState({
@@ -75,9 +76,27 @@ class WorkerTasksController extends ChangeNotifier {
   final SubmitAdjustmentCountUseCase _submitAdjustmentCount;
   final ValidateTaskLocationUseCase _validateTaskLocation;
   final SessionController _session;
+  final Map<int, TaskDetailResumeState> _taskDetailResumeStates =
+      <int, TaskDetailResumeState>{};
 
   WorkerTasksState _state;
   WorkerTasksState get state => _state;
+
+  TaskDetailResumeState? taskDetailResumeStateFor(int taskId) {
+    return _taskDetailResumeStates[taskId];
+  }
+
+  void saveTaskDetailResumeState(int taskId, TaskDetailResumeState state) {
+    if (state.isInitial) {
+      clearTaskDetailResumeState(taskId);
+      return;
+    }
+    _taskDetailResumeStates[taskId] = state;
+  }
+
+  void clearTaskDetailResumeState(int taskId) {
+    _taskDetailResumeStates.remove(taskId);
+  }
 
   Future<void> load() async {
     _state = _state.copyWith(loading: true);
@@ -86,6 +105,7 @@ class WorkerTasksController extends ChangeNotifier {
       final tasks = await _getTasksForZone.execute('');
       final current = tasks.where((t) => !t.isCompleted).toList();
       final completed = tasks.where((t) => t.isCompleted).toList();
+      _pruneTaskDetailResumeStates(current);
       _state = _state.copyWith(
         current: current,
         completed: completed,
@@ -199,6 +219,13 @@ class WorkerTasksController extends ChangeNotifier {
       adjustmentItemId: adjustmentItemId,
       quantity: quantity,
       notes: notes,
+    );
+  }
+
+  void _pruneTaskDetailResumeStates(List<TaskEntity> currentTasks) {
+    final activeTaskIds = currentTasks.map((task) => task.id).toSet();
+    _taskDetailResumeStates.removeWhere(
+      (taskId, _) => !activeTaskIds.contains(taskId),
     );
   }
 }

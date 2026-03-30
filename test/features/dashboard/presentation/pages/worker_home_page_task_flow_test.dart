@@ -174,6 +174,157 @@ void main() {
     expect(find.text('Qty 7 box'), findsOneWidget);
   });
 
+  testWidgets('worker home shows a one-row current task type filter',
+      (tester) async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+
+    final taskRepo = FakeTaskRepository();
+    taskRepo.addTask(buildTestTask(
+      id: 9203,
+      itemId: 9203,
+      itemName: 'Move Filter Task',
+      quantity: 1,
+      zone: 'Z01',
+      type: TaskType.move,
+    ));
+    taskRepo.addTask(buildTestTask(
+      id: 9204,
+      itemId: 9204,
+      itemName: 'Return Filter Task',
+      quantity: 1,
+      zone: 'Z01',
+      type: TaskType.returnTask,
+    ));
+
+    final workerController = WorkerTasksController(
+      getTasksForZone: GetTasksForZoneUseCase(taskRepo),
+      claimTask: ClaimTaskUseCase(taskRepo),
+      completeTask: CompleteTaskUseCase(taskRepo),
+      getTaskSuggestion: GetTaskSuggestionUseCase(taskRepo),
+      scanAdjustmentLocation: ScanAdjustmentLocationUseCase(taskRepo),
+      saveCycleCountProgress: SaveCycleCountProgressUseCase(taskRepo),
+      submitAdjustmentCount: SubmitAdjustmentCountUseCase(taskRepo),
+      validateTaskLocation: ValidateTaskLocationUseCase(taskRepo),
+      session: session,
+    );
+
+    await pumpWorkerHome(
+      tester,
+      session: session,
+      workerController: workerController,
+    );
+
+    final filterRow = find.byKey(const Key('current-task-filter-row'));
+    expect(filterRow, findsOneWidget);
+    expect(
+      find.descendant(of: filterRow, matching: find.text('ALL')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: filterRow, matching: find.text('MOVE')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: filterRow, matching: find.text('RETURN')),
+      findsOneWidget,
+    );
+
+    final allY = tester.getCenter(find.byKey(const Key('task-filter-all'))).dy;
+    final moveY =
+        tester.getCenter(find.byKey(const Key('task-filter-move'))).dy;
+    final returnY =
+        tester.getCenter(find.byKey(const Key('task-filter-return'))).dy;
+
+    expect(allY, closeTo(moveY, 0.01));
+    expect(returnY, closeTo(moveY, 0.01));
+  });
+
+  testWidgets('current task filter only filters the current task section',
+      (tester) async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+
+    final taskRepo = FakeTaskRepository();
+    taskRepo.addTask(buildTestTask(
+      id: 9205,
+      itemId: 9205,
+      itemName: 'Move Current Task',
+      quantity: 1,
+      zone: 'Z01',
+      type: TaskType.move,
+      status: TaskStatus.pending,
+    ));
+    taskRepo.addTask(buildTestTask(
+      id: 9206,
+      itemId: 9206,
+      itemName: 'Return Current Task',
+      quantity: 1,
+      zone: 'Z01',
+      type: TaskType.returnTask,
+      status: TaskStatus.pending,
+    ));
+    taskRepo.addTask(buildTestTask(
+      id: 9207,
+      itemId: 9207,
+      itemName: 'Completed Refill Task',
+      quantity: 1,
+      zone: 'Z01',
+      type: TaskType.refill,
+      status: TaskStatus.completed,
+    ));
+
+    final workerController = WorkerTasksController(
+      getTasksForZone: GetTasksForZoneUseCase(taskRepo),
+      claimTask: ClaimTaskUseCase(taskRepo),
+      completeTask: CompleteTaskUseCase(taskRepo),
+      getTaskSuggestion: GetTaskSuggestionUseCase(taskRepo),
+      scanAdjustmentLocation: ScanAdjustmentLocationUseCase(taskRepo),
+      saveCycleCountProgress: SaveCycleCountProgressUseCase(taskRepo),
+      submitAdjustmentCount: SubmitAdjustmentCountUseCase(taskRepo),
+      validateTaskLocation: ValidateTaskLocationUseCase(taskRepo),
+      session: session,
+    );
+
+    await pumpWorkerHome(
+      tester,
+      session: session,
+      workerController: workerController,
+    );
+
+    await tester.tap(find.byKey(const Key('task-filter-return')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Return Current Task'), findsOneWidget);
+    expect(find.text('Move Current Task'), findsNothing);
+
+    await tester.scrollUntilVisible(
+      find.text('Completed Refill Task'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Completed Tasks'), findsOneWidget);
+    expect(find.text('Completed Refill Task'), findsOneWidget);
+  });
+
   testWidgets(
       'started tasks auto-open, stay in the main list as Open, and move to completed tasks after completion',
       (tester) async {
@@ -306,6 +457,106 @@ void main() {
       ),
       findsNothing,
     );
+  });
+
+  testWidgets(
+      'reopening a receive task keeps it on page 2 after page 1 was done',
+      (tester) async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+
+    final taskRepo = FakeTaskRepository();
+    taskRepo.addTask(buildTestTask(
+      id: 9101,
+      itemId: 9101,
+      itemName: 'Receive Resume Task',
+      quantity: 2,
+      zone: 'Z01',
+      type: TaskType.receive,
+      status: TaskStatus.inProgress,
+      assignedTo: 'worker-1',
+      fromLocation: null,
+      toLocation: 'BULK-01-02',
+      itemBarcode: '123456789012',
+    ));
+
+    final workerController = WorkerTasksController(
+      getTasksForZone: GetTasksForZoneUseCase(taskRepo),
+      claimTask: ClaimTaskUseCase(taskRepo),
+      completeTask: CompleteTaskUseCase(taskRepo),
+      getTaskSuggestion: GetTaskSuggestionUseCase(taskRepo),
+      scanAdjustmentLocation: ScanAdjustmentLocationUseCase(taskRepo),
+      saveCycleCountProgress: SaveCycleCountProgressUseCase(taskRepo),
+      submitAdjustmentCount: SubmitAdjustmentCountUseCase(taskRepo),
+      validateTaskLocation: ValidateTaskLocationUseCase(taskRepo),
+      session: session,
+    );
+
+    await pumpWorkerHome(
+      tester,
+      session: session,
+      workerController: workerController,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Receive Resume Task'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    final taskCard = find
+        .ancestor(
+          of: find.text('Receive Resume Task'),
+          matching: find.byType(Card),
+        )
+        .first;
+    await tester.tap(find.descendant(
+      of: taskCard,
+      matching: find.widgetWithText(ElevatedButton, 'Open'),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('product-validate-field')),
+      '123456789012',
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bulk Location'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Receive Resume Task'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    final reopenedTaskCard = find
+        .ancestor(
+          of: find.text('Receive Resume Task'),
+          matching: find.byType(Card),
+        )
+        .first;
+    await tester.tap(find.descendant(
+      of: reopenedTaskCard,
+      matching: find.widgetWithText(ElevatedButton, 'Open'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bulk Location'), findsOneWidget);
+    expect(find.byKey(const Key('location-validate-field')), findsOneWidget);
+    expect(find.byKey(const Key('product-validate-field')), findsNothing);
   });
 
   testWidgets(

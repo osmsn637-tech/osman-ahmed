@@ -18,6 +18,7 @@ import 'package:wherehouse/features/dashboard/domain/usecases/save_cycle_count_p
 import 'package:wherehouse/features/dashboard/domain/usecases/submit_adjustment_count_usecase.dart';
 import 'package:wherehouse/features/dashboard/domain/usecases/validate_task_location_usecase.dart';
 import 'package:wherehouse/features/dashboard/presentation/controllers/worker_tasks_controller.dart';
+import 'package:wherehouse/features/dashboard/presentation/models/task_detail_resume_state.dart';
 
 void main() {
   test('load shows tasks from any zone for workers', () async {
@@ -117,6 +118,56 @@ void main() {
     expect(claimed, isNotNull);
     expect(claimed!.status, TaskStatus.inProgress);
     expect(claimed.assignedTo, 'worker-1');
+  });
+
+  test('task detail resume state stores current tasks and prunes stale entries',
+      () async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+    final repository = _FakeTaskRepository();
+    final controller = WorkerTasksController(
+      getTasksForZone: GetTasksForZoneUseCase(repository),
+      claimTask: ClaimTaskUseCase(repository),
+      completeTask: CompleteTaskUseCase(repository),
+      getTaskSuggestion: GetTaskSuggestionUseCase(repository),
+      reportTaskIssue: ReportTaskIssueUseCase(repository),
+      scanAdjustmentLocation: ScanAdjustmentLocationUseCase(repository),
+      saveCycleCountProgress: SaveCycleCountProgressUseCase(repository),
+      submitAdjustmentCount: SubmitAdjustmentCountUseCase(repository),
+      validateTaskLocation: ValidateTaskLocationUseCase(repository),
+      session: session,
+    );
+
+    controller.saveTaskDetailResumeState(
+      1,
+      const TaskDetailResumeState(page: 1),
+    );
+    controller.saveTaskDetailResumeState(
+      999,
+      const TaskDetailResumeState(page: 1),
+    );
+
+    await controller.load();
+
+    expect(
+      controller.taskDetailResumeStateFor(1),
+      const TaskDetailResumeState(page: 1),
+    );
+    expect(controller.taskDetailResumeStateFor(999), isNull);
+
+    controller.saveTaskDetailResumeState(
+      1,
+      const TaskDetailResumeState.initial(),
+    );
+    expect(controller.taskDetailResumeStateFor(1), isNull);
   });
 
   test(

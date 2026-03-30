@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +8,7 @@ import 'package:wherehouse/core/errors/app_exception.dart';
 import 'package:wherehouse/flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:wherehouse/features/dashboard/domain/entities/adjustment_task_entities.dart';
 import 'package:wherehouse/features/dashboard/domain/entities/task_entity.dart';
+import 'package:wherehouse/features/dashboard/presentation/models/task_detail_resume_state.dart';
 import 'package:wherehouse/features/dashboard/presentation/pages/worker_task_details_page.dart';
 import 'package:wherehouse/features/dashboard/presentation/shared/task_report_photo_attachment.dart';
 import 'package:wherehouse/features/move/domain/entities/item_location_entity.dart';
@@ -806,6 +806,28 @@ void main() {
   });
 
   testWidgets(
+      'receive task restores directly to page 2 from saved resume state',
+      (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.receive,
+            fromLocation: null,
+            toLocation: 'BULK-01-02',
+          ),
+          initialResumeState: const TaskDetailResumeState(page: 1),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bulk Location'), findsOneWidget);
+    expect(find.byKey(const Key('location-validate-field')), findsOneWidget);
+    expect(find.byKey(const Key('product-validate-field')), findsNothing);
+  });
+
+  testWidgets(
       'putaway receive flow validates locally and completes with stored location id',
       (tester) async {
     var validateCalls = 0;
@@ -941,6 +963,28 @@ void main() {
     expect(completedTaskId, 1);
     expect(completedQuantity, 4);
     expect(completedLocation, 'SHELF-01-01');
+  });
+
+  testWidgets('refill task restores directly to page 2 from saved resume state',
+      (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.refill,
+            fromLocation: 'BULK-02-01',
+            toLocation: 'SHELF-02-09',
+            quantity: 3,
+          ),
+          initialResumeState: const TaskDetailResumeState(page: 1),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('To Shelf Location'), findsOneWidget);
+    expect(find.byKey(const Key('refill-quantity-field')), findsOneWidget);
+    expect(find.byKey(const Key('product-validate-field')), findsNothing);
   });
 
   testWidgets(
@@ -1082,7 +1126,8 @@ void main() {
     expect(tester.testTextInput.isVisible, isTrue);
   });
 
-  testWidgets('refill first page keeps barcode scanner focus after lookup loads',
+  testWidgets(
+      'refill first page keeps barcode scanner focus after lookup loads',
       (tester) async {
     final lookupCompleter = Completer<ItemLocationSummaryEntity>();
 
@@ -1199,7 +1244,8 @@ void main() {
     );
   });
 
-  testWidgets('refill lookup keeps the task route when lookup returns other shelves',
+  testWidgets(
+      'refill lookup keeps the task route when lookup returns other shelves',
       (tester) async {
     final lookupCompleter = Completer<ItemLocationSummaryEntity>();
 
@@ -1215,7 +1261,8 @@ void main() {
             quantity: 4,
           ),
           onLookupItem: (_) => lookupCompleter.future,
-          onCompleteTask: (taskId, {cycleCountItems, quantity, locationId}) async {},
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -1466,8 +1513,8 @@ void main() {
             toLocation: 'SHELF-02-09',
             quantity: 1,
           ),
-          onCompleteTask:
-              (taskId, {cycleCountItems, quantity, locationId}) async {},
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -1640,6 +1687,25 @@ void main() {
     expect(completedLocation, 'RET-01-05');
   });
 
+  testWidgets('return task restores directly to page 2 from saved resume state',
+      (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(type: TaskType.returnTask),
+          initialResumeState: const TaskDetailResumeState(page: 1),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Return Items'), findsOneWidget);
+    expect(
+        find.byKey(const Key('return-line-0-quantity-field')), findsOneWidget);
+    expect(
+        find.byKey(const Key('return-validate-line-0-button')), findsNothing);
+  });
+
   testWidgets(
       'return page two quantity field keeps focus instead of being reclaimed by the hidden location scanner',
       (tester) async {
@@ -1663,8 +1729,8 @@ void main() {
               ],
             },
           ),
-          onCompleteTask:
-              (taskId, {cycleCountItems, quantity, locationId}) async {},
+          onCompleteTask: (taskId,
+              {cycleCountItems, quantity, locationId}) async {},
         ),
       ),
     );
@@ -1898,6 +1964,37 @@ void main() {
 
     expect(completedQuantity, 10);
     expect(completedLocation, 'SHELF-01-01');
+  });
+
+  testWidgets(
+      'cycle count restores directly to the detail page from saved resume state',
+      (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        WorkerTaskDetailsPage(
+          task: buildTask(
+            type: TaskType.cycleCount,
+            toLocation: 'SHELF-01-01',
+            quantity: 12,
+            workflowData: const {
+              'cycleCountMode': 'single_item',
+              'expectedQuantity': 12,
+            },
+          ),
+          initialResumeState: const TaskDetailResumeState(
+            page: 1,
+            cycleCountItemKey: '123456789012',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Count Item'), findsOneWidget);
+    expect(find.byKey(const Key('cycle-count-detail-quantity-field')),
+        findsOneWidget);
+    expect(
+        find.byKey(const Key('cycle-count-hidden-scan-field')), findsNothing);
   });
 
   testWidgets('cycle count scan capture field stays scanner friendly',

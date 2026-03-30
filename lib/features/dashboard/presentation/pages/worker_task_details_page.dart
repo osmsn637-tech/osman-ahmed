@@ -12,6 +12,7 @@ import '../../../move/domain/entities/item_location_entity.dart';
 import '../../../move/domain/entities/item_location_summary_entity.dart';
 import '../../../move/presentation/pages/item_lookup_scan_dialog.dart';
 import '../../domain/entities/task_entity.dart';
+import '../models/task_detail_resume_state.dart';
 import '../shared/dashboard_common_widgets.dart';
 import '../shared/location_format.dart';
 import '../shared/task_report_photo_attachment.dart';
@@ -32,6 +33,8 @@ class WorkerTaskDetailsPage extends StatefulWidget {
     this.onCaptureReportPhoto,
     this.onValidateLocation,
     this.onLookupItem,
+    this.initialResumeState,
+    this.onResumeStateChanged,
   });
 
   final TaskEntity task;
@@ -67,6 +70,8 @@ class WorkerTaskDetailsPage extends StatefulWidget {
       onValidateLocation;
   final Future<ItemLocationSummaryEntity> Function(String barcode)?
       onLookupItem;
+  final TaskDetailResumeState? initialResumeState;
+  final ValueChanged<TaskDetailResumeState>? onResumeStateChanged;
 
   @override
   State<WorkerTaskDetailsPage> createState() => _WorkerTaskDetailsPageState();
@@ -140,7 +145,8 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   final List<bool> _returnItemValidated = <bool>[];
   bool _manualInputTapInProgress = false;
 
-  String _tr(String english, String arabic, [String? bengali]) => context.trText(
+  String _tr(String english, String arabic, [String? bengali]) =>
+      context.trText(
         english: english,
         arabic: arabic,
         bengali: bengali,
@@ -226,6 +232,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         Future<void>.microtask(_loadRefillLookup);
       }
     }
+    _restoreInitialResumeState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _restoreActiveValidationFocus();
       _restoreCycleCountScannerFocus();
@@ -2150,9 +2157,8 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
   TaskEntity get _effectiveTask {
     final assignedTo = widget.task.assignedTo?.trim();
     final hasAssignedWorker = assignedTo != null && assignedTo.isNotEmpty;
-    final shouldPromotePendingTask =
-        widget.task.status == TaskStatus.pending &&
-            (_startedLocally || hasAssignedWorker);
+    final shouldPromotePendingTask = widget.task.status == TaskStatus.pending &&
+        (_startedLocally || hasAssignedWorker);
     if (!shouldPromotePendingTask) {
       return widget.task;
     }
@@ -2180,6 +2186,134 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       sourceEventId: widget.task.sourceEventId,
       workflowData: widget.task.workflowData,
     );
+  }
+
+  void _restoreInitialResumeState() {
+    final resumeState = widget.initialResumeState;
+    if (resumeState == null ||
+        resumeState.isInitial ||
+        !resumeState.supports(widget.task.type)) {
+      return;
+    }
+
+    final locationValue = resumeState.locationValue?.trim();
+    switch (widget.task.type) {
+      case TaskType.receive:
+        if (resumeState.page != 1) return;
+        _receivePage = 1;
+        _itemValidated = true;
+        if (locationValue != null && locationValue.isNotEmpty) {
+          _locationController.text = locationValue;
+        }
+        _locationValidated = resumeState.locationValidated;
+        break;
+      case TaskType.refill:
+        if (resumeState.page != 1) return;
+        _refillPage = 1;
+        _itemValidated = true;
+        if (locationValue != null && locationValue.isNotEmpty) {
+          _locationController.text = locationValue;
+        }
+        _locationValidated = resumeState.locationValidated;
+        break;
+      case TaskType.returnTask:
+        if (resumeState.page != 1) return;
+        _returnPage = 1;
+        for (var index = 0; index < _returnItemValidated.length; index++) {
+          _returnItemValidated[index] = true;
+        }
+        break;
+      case TaskType.cycleCount:
+        _restoreCycleCountResumeState(resumeState);
+        break;
+      default:
+        break;
+    }
+  }
+
+  void _restoreCycleCountResumeState(TaskDetailResumeState resumeState) {
+    final locationValue = resumeState.locationValue?.trim();
+    if (locationValue != null && locationValue.isNotEmpty) {
+      _locationController.text = locationValue;
+    }
+    _locationValidated = resumeState.locationValidated;
+    if (resumeState.page != 1) {
+      return;
+    }
+
+    final selectedItemKey = resumeState.cycleCountItemKey?.trim();
+    if (selectedItemKey == null || selectedItemKey.isEmpty) {
+      return;
+    }
+
+    _CycleCountItemState? selectedItem;
+    for (final item in _cycleCountItems) {
+      if (item.key == selectedItemKey) {
+        selectedItem = item;
+        break;
+      }
+    }
+    if (selectedItem == null) {
+      return;
+    }
+
+    _selectedCycleCountItemKey = selectedItem.key;
+    _cycleCountPage = 1;
+    _cycleCountDetailOpenedManually =
+        resumeState.cycleCountDetailOpenedManually;
+    _cycleCountDetailBarcodeValidated =
+        resumeState.cycleCountDetailBarcodeValidated;
+    _cycleCountScanController.clear();
+    _cycleCountDetailBarcodeController.clear();
+    _cycleCountDetailQuantityController.text = selectedItem.countedQuantity > 0
+        ? selectedItem.countedQuantity.toString()
+        : '';
+  }
+
+  TaskDetailResumeState get _currentResumeState {
+    final locationValue = _locationController.text.trim();
+    final normalizedLocation = locationValue.isEmpty ? null : locationValue;
+    return switch (widget.task.type) {
+      TaskType.receive => TaskDetailResumeState(
+          page: _receivePage,
+          locationValue: normalizedLocation,
+          locationValidated: _locationValidated,
+        ),
+      TaskType.refill => TaskDetailResumeState(
+          page: _refillPage,
+          locationValue: normalizedLocation,
+          locationValidated: _locationValidated,
+        ),
+      TaskType.returnTask => TaskDetailResumeState(
+          page: _returnPage,
+          locationValue: _returnPage == 1 ? normalizedLocation : null,
+        ),
+      TaskType.cycleCount => TaskDetailResumeState(
+          page: _cycleCountPage,
+          locationValue: normalizedLocation,
+          locationValidated: _locationValidated,
+          cycleCountItemKey: _selectedCycleCountItemKey,
+          cycleCountDetailOpenedManually: _cycleCountDetailOpenedManually,
+          cycleCountDetailBarcodeValidated: _cycleCountDetailBarcodeValidated,
+        ),
+      _ => const TaskDetailResumeState.initial(),
+    };
+  }
+
+  void _reportResumeState() {
+    final callback = widget.onResumeStateChanged;
+    if (callback == null) {
+      return;
+    }
+    callback(_currentResumeState);
+  }
+
+  void _clearResumeState() {
+    final callback = widget.onResumeStateChanged;
+    if (callback == null) {
+      return;
+    }
+    callback(const TaskDetailResumeState.initial());
   }
 
   List<_CycleCountItemState> _buildInitialCycleCountItems(TaskEntity task) {
@@ -2352,10 +2486,9 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       final primaryFocus = FocusManager.instance.primaryFocus;
       final scannerFocusActive =
           primaryFocus != null && _scannerFocusNodes.contains(primaryFocus);
-      final manualEditableFocused =
-          _scannerFocusRecoveryBlocked ||
-              (primaryFocus?.context?.widget is EditableText &&
-                  !scannerFocusActive);
+      final manualEditableFocused = _scannerFocusRecoveryBlocked ||
+          (primaryFocus?.context?.widget is EditableText &&
+              !scannerFocusActive);
       if (manualEditableFocused) {
         return;
       }
@@ -2397,6 +2530,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       _cycleCountScanError = null;
       _completionMessage = null;
     });
+    _reportResumeState();
     if (openedManually) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted ||
@@ -2419,6 +2553,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       _cycleCountDetailBarcodeController.clear();
       _completionMessage = null;
     });
+    _reportResumeState();
     _restoreCycleCountScannerFocus();
   }
 
@@ -2612,6 +2747,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         _cycleCountDetailBarcodeValidated = false;
         _cycleCountDetailBarcodeController.clear();
       });
+      _reportResumeState();
       _restoreCycleCountScannerFocus();
     } catch (_) {
       if (!mounted) return;
@@ -2843,6 +2979,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       } else {
         await widget.onCompleteTask!(task.id);
       }
+      _clearResumeState();
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
       setState(() {
@@ -3263,6 +3400,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         }
       }
     });
+    _reportResumeState();
     if (normalized.isEmpty) {
       _lastAutoValidatedProduct = null;
       _productValidationDebounce?.cancel();
@@ -3300,6 +3438,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         _locationValidationMessage = null;
       }
     });
+    _reportResumeState();
     if (normalized.isEmpty) {
       _lastAutoValidatedLocation = null;
       _locationValidationDebounce?.cancel();
@@ -3661,6 +3800,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
         _itemValidated = isValid;
       }
     });
+    _reportResumeState();
     _playScanFeedback(isSuccess: isValid);
     if (!isValid && scanned.isNotEmpty) {
       _scheduleProductFailureClear(scanned);
@@ -3694,27 +3834,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       _locationController.clear();
       _completionMessage = null;
     });
-  }
-
-  Future<void> _scanReturnItemLocation(int index) async {
-    if (index < 0 || index >= widget.task.returnItems.length) return;
-    final scanned = await showItemLookupScanDialog(
-      context,
-      title: _tr('Scan return location', 'امسح موقع المرتجع'),
-      hintText: _tr(
-        'Scan or enter return location',
-        'امسح أو أدخل موقع المرتجع',
-      ),
-      showKeyboard: false,
-    );
-    if (!mounted || scanned == null) return;
-    final expected =
-        (widget.task.returnItems[index].location ?? '').trim().toUpperCase();
-    setState(() {
-      _returnItemLocationControllers[index].text = scanned.trim();
-      _returnItemLocationValidated[index] =
-          scanned.trim().isNotEmpty && scanned.trim().toUpperCase() == expected;
-    });
+    _reportResumeState();
   }
 
   Future<void> _loadSuggestion() async {
@@ -3834,6 +3954,7 @@ class _WorkerTaskDetailsPageState extends State<WorkerTaskDetailsPage>
       }
       _lastAutoValidatedLocation = scanned;
     });
+    _reportResumeState();
     _playScanFeedback(isSuccess: isValid);
     if (!isValid && scanned.isNotEmpty) {
       _scheduleLocationFailureClear(scanned);
@@ -4577,7 +4698,8 @@ class _TaskReportDialogState extends State<_TaskReportDialog> {
 
   bool get _canSubmit => !_submitting && _noteController.text.trim().isNotEmpty;
 
-  String _tr(String english, String arabic, [String? bengali]) => context.trText(
+  String _tr(String english, String arabic, [String? bengali]) =>
+      context.trText(
         english: english,
         arabic: arabic,
         bengali: bengali,

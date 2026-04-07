@@ -352,9 +352,9 @@ class _TrainingAdjustFlowPageState extends State<_TrainingAdjustFlowPage> {
     }
 
     _setBanner(_text(
-        ar: 'الخطوة 3: أدخل الكمية الجديدة',
-        en: 'Step 3: Enter the new quantity',
-        ur: 'ধাপ ৩: নতুন পরিমাণ লিখুন'));
+        ar: 'الخطوة 3: أدخل الكمية المعدلة',
+        en: 'Step 3: Enter the adjusted quantity',
+        ur: 'ধাপ ৩: সমন্বিত পরিমাণ লিখুন'));
     for (final value in _TrainingScenario.quantitySteps) {
       adjustmentController.setQuantityText(value);
       await Future<void>.delayed(const Duration(milliseconds: 700));
@@ -369,9 +369,13 @@ class _TrainingAdjustFlowPageState extends State<_TrainingAdjustFlowPage> {
     }
 
     _setBanner(_text(
-        ar: 'الخطوة 4: اضغط تأكيد لإرسال التعديل',
+        ar: 'الخطوة 4: اختر سبب التعديل',
         en: 'Step 4: Tap confirm to submit the adjustment',
-        ur: 'ধাপ ৪: সমন্বয় জমা দিতে নিশ্চিত করুন-এ ট্যাপ করুন'));
+        ur: 'ধাপ ৪: সমন্বয়ের কারণ নির্বাচন করুন'));
+    _setBanner(_text(
+        ar: 'الخطوة 5: اضغط تأكيد لإرسال التعديل',
+        en: 'Step 4: Tap confirm to submit the adjustment',
+        ur: 'ধাপ ৫: সমন্বয় জমা দিতে নিশ্চিত করুন-এ ট্যাপ করুন'));
     unawaited(adjustmentController.submitForItem(summary));
 
     await Future<void>.delayed(const Duration(milliseconds: 1800));
@@ -380,9 +384,9 @@ class _TrainingAdjustFlowPageState extends State<_TrainingAdjustFlowPage> {
     }
 
     _setBanner(_text(
-        ar: 'الخطوة 5: عند ظهور رسالة النجاح تكون العملية اكتملت',
+        ar: 'الخطوة 6: عند ظهور رسالة النجاح تكون العملية اكتملت',
         en: 'Step 5: When the success message appears, the adjustment is complete',
-        ur: 'ধাপ ৫: সফলতার বার্তা দেখালে সমন্বয় সম্পন্ন হবে'));
+        ur: 'ধাপ ৬: সফলতার বার্তা দেখালে সমন্বয় সম্পন্ন হবে'));
   }
 
   void _setBanner(String value) {
@@ -494,30 +498,30 @@ class _TrainingScenario {
 
   static const barcode = '6291001001797';
   static const quantitySteps = <String>['1', '12'];
-
   static const summary = ItemLocationSummaryEntity(
     itemId: 1001,
     itemName: 'Hajer Water 330 ml',
     barcode: barcode,
+    warehouseId: 'wh-training',
     itemImageUrl: 'assets/images/hajer_water.jpg',
     totalQuantity: 29,
     locations: [
       ItemLocationEntity(
-        locationId: 11,
+        locationId: '11',
         zone: 'A',
         type: 'shelf',
         code: 'A10.2',
         quantity: 7,
       ),
       ItemLocationEntity(
-        locationId: 12,
+        locationId: '12',
         zone: 'A',
         type: 'shelf',
         code: 'A10.4',
         quantity: 5,
       ),
       ItemLocationEntity(
-        locationId: 21,
+        locationId: '21',
         zone: 'B',
         type: 'bulk',
         code: 'BLK-A1.3',

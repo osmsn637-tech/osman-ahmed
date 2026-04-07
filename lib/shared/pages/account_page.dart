@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/config/app_environment_controller.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/result.dart';
+import '../../features/app_update/presentation/controllers/app_update_controller.dart';
 import '../../features/auth/domain/entities/user.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/device_management/domain/repositories/device_management_repository.dart';
@@ -25,6 +26,31 @@ class AccountPage extends StatefulWidget {
 class _AccountPageState extends State<AccountPage> {
   int _zoneTapCount = 0;
   int _nameTapCount = 0;
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final versionProvider = context.read<InstalledAppVersionProvider?>();
+      if (versionProvider == null) {
+        return;
+      }
+
+      final version = await versionProvider.getVersion();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _version = version;
+      });
+    } catch (_) {}
+  }
 
   Future<void> _handleZoneTap() async {
     final environmentController = context.read<AppEnvironmentController?>();
@@ -125,6 +151,15 @@ class _AccountPageState extends State<AccountPage> {
                   _LanguagePanel(locale: locale, l10n: l10n),
                   const SizedBox(height: 14),
                   _ActionsPanel(l10n: l10n),
+                  const SizedBox(height: 18),
+                  Text(
+                    'v${_version.isEmpty ? '--' : _version}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),

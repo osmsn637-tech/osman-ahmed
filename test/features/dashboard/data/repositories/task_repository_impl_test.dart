@@ -56,6 +56,52 @@ void main() {
     expect(task.status, TaskStatus.pending);
   });
 
+  test('filters approval-pending tasks from the worker queue', () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'id': 'putaway-visible-1',
+              'task_type': 'putaway',
+              'title': 'Visible Task',
+              'subtitle': 'Z02-BLK-C01-L01-P01',
+              'status': 'pending',
+              'detail': {
+                'item_id': 801,
+                'product_name': 'Visible Task',
+                'product_barcode': 'VISIBLE-801',
+                'quantity': 2,
+                'to_location': 'Z02-BLK-C01-L01-P01',
+              },
+            },
+            {
+              'id': 'putaway-hidden-approval-1',
+              'task_type': 'putaway',
+              'title': 'Approval Pending Task',
+              'subtitle': 'Z02-BLK-C01-L01-P02',
+              'status': 'pending approval',
+              'detail': {
+                'item_id': 802,
+                'product_name': 'Approval Pending Task',
+                'product_barcode': 'HIDDEN-802',
+                'quantity': 1,
+                'to_location': 'Z02-BLK-C01-L01-P02',
+              },
+            },
+          ],
+        },
+      ),
+    );
+
+    final tasks = await repository.getTasksForZone('Z02');
+
+    expect(tasks, hasLength(1));
+    expect(tasks.single.remoteTaskId, 'putaway-visible-1');
+    expect(tasks.single.itemName, 'Visible Task');
+  });
+
   test('parses unified tasks when quantity is only present at the root level',
       () async {
     final repository = TaskRepositoryImpl(
@@ -1004,6 +1050,41 @@ void main() {
     expect(task.toLocation, 'Z01-AC01-SS-L04-P02');
     expect(task.toLocationId, isNull);
     expect(task.zone, 'Z01');
+    expect(task.assignedTo, '019cd26b-bd61-7baa-8b01-fba04c4149da');
+  });
+
+  test(
+      'keeps the api assigned worker id for in-progress unified tasks instead of a placeholder',
+      () async {
+    final repository = TaskRepositoryImpl(
+      _FakeDashboardRemoteDataSource(),
+      _FakeTaskRemoteDataSource(
+        const {
+          'tasks': [
+            {
+              'id': 'putaway-assigned-1',
+              'task_type': 'putaway',
+              'title': 'Assigned Putaway Widget',
+              'subtitle': 'Z01-BLK-C01-L01-P01',
+              'status': 'in_progress',
+              'assigned_to': 'worker-42',
+              'detail': {
+                'item_id': 1102,
+                'product_name': 'Assigned Putaway Widget',
+                'product_barcode': 'PUT-1102',
+                'quantity': 2,
+                'to_location': 'Z01-BLK-C01-L01-P01',
+              },
+            },
+          ],
+        },
+      ),
+    );
+
+    final task = (await repository.getTasksForZone('Z01')).single;
+
+    expect(task.status, TaskStatus.inProgress);
+    expect(task.assignedTo, 'worker-42');
   });
 
   test('keeps mixed worker task types visible when subtitle is not a zone',
@@ -1659,23 +1740,65 @@ void main() {
     expect(remote.submittedAdjustmentNotes, 'damaged box');
   });
 
-  test('reportTaskIssue uses remote task id and forwards note and photo path',
+  test(
+      'reportTaskIssue forwards backend task_type values for report requests',
       () async {
     final remote = _FakeTaskRemoteDataSource(
       const {
         'tasks': [
           {
-            'id': 'receiving-report-1',
-            'task_type': 'receiving',
-            'title': 'Receipt Report',
-            'subtitle': 'Inbound',
+            'id': 'putaway-report-1',
+            'task_type': 'putaway',
+            'title': 'Putaway Report',
+            'subtitle': 'Z01-BLK-C01-L01-P01',
+            'status': 'pending',
+            'detail': {
+              'item_id': 601,
+              'product_name': 'Putaway Report',
+              'product_barcode': 'PUT-601',
+              'quantity': 2,
+              'to_location': 'Z01-BLK-C01-L01-P01',
+            },
+          },
+          {
+            'id': 'restock-report-1',
+            'task_type': 'restock',
+            'title': 'Restock Report',
+            'subtitle': 'Aisle 1',
+            'status': 'pending',
+            'detail': {
+              'item_id': 602,
+              'item_name': 'Restock Report',
+              'item_barcode': 'RESTOCK-602',
+              'quantity': 3,
+              'bulk_location': 'BULK-01-01',
+              'target_location_code': 'SHELF-01-01',
+            },
+          },
+          {
+            'id': 'return-report-1',
+            'task_type': 'return',
+            'title': 'Return Report',
+            'subtitle': 'RT-204',
+            'status': 'pending',
+            'detail': {
+              'item_id': 603,
+              'item_name': 'Return Report',
+              'item_barcode': 'RETURN-603',
+              'quantity': 1,
+            },
+          },
+          {
+            'id': 'cycle-count-report-1',
+            'task_type': 'cycle_count',
+            'title': 'Cycle Count Report',
+            'subtitle': 'SHELF-03-03',
             'status': 'started',
             'detail': {
-              'item_id': 501,
-              'product_name': 'Blue Mug',
-              'product_barcode': 'ABC-1',
-              'quantity': 5,
-              'to_location': 'Z01-BLK-C01-L01-P01',
+              'item_id': 604,
+              'product_name': 'Cycle Count Report',
+              'quantity': 4,
+              'location_code': 'SHELF-03-03',
             },
           },
         ],
@@ -1686,16 +1809,30 @@ void main() {
       remote,
     );
 
-    final task = (await repository.getTasksForZone('Z01')).single;
-    await repository.reportTaskIssue(
-      taskId: task.id,
-      note: 'Damaged package',
-      photoPath: 'C:/tmp/report-photo.jpg',
-    );
+    final tasks = await repository.getTasksForZone('');
+    final expectations = <({String remoteTaskId, String taskType})>[
+      (remoteTaskId: 'putaway-report-1', taskType: 'putaway'),
+      (remoteTaskId: 'restock-report-1', taskType: 'restock'),
+      (remoteTaskId: 'return-report-1', taskType: 'return'),
+      (remoteTaskId: 'cycle-count-report-1', taskType: 'cycle_count'),
+    ];
 
-    expect(remote.reportedTaskId, 'receiving-report-1');
-    expect(remote.reportedNote, 'Damaged package');
-    expect(remote.reportedPhotoPath, 'C:/tmp/report-photo.jpg');
+    for (final expectation in expectations) {
+      final task = tasks.singleWhere(
+        (entry) => entry.remoteTaskId == expectation.remoteTaskId,
+      );
+
+      await repository.reportTaskIssue(
+        taskId: task.id,
+        note: 'Damaged package',
+        photoPath: 'C:/tmp/report-photo.jpg',
+      );
+
+      expect(remote.reportedTaskId, expectation.remoteTaskId);
+      expect(remote.reportedTaskType, expectation.taskType);
+      expect(remote.reportedNote, 'Damaged package');
+      expect(remote.reportedPhotoPath, 'C:/tmp/report-photo.jpg');
+    }
   });
 
   test(
@@ -1759,6 +1896,7 @@ class _FakeTaskRemoteDataSource implements TaskRemoteDataSource {
   String? submittedTaskId;
   String? submittedTaskType;
   String? reportedTaskId;
+  String? reportedTaskType;
   String? reportedNote;
   String? reportedPhotoPath;
   int? submittedAdjustmentQuantity;
@@ -1844,10 +1982,12 @@ class _FakeTaskRemoteDataSource implements TaskRemoteDataSource {
   @override
   Future<void> reportTaskIssue({
     required String taskId,
+    required String taskType,
     required String note,
     String? photoPath,
   }) async {
     reportedTaskId = taskId;
+    reportedTaskType = taskType;
     reportedNote = note;
     reportedPhotoPath = photoPath;
   }

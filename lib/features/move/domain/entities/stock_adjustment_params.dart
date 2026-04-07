@@ -1,19 +1,21 @@
 class StockAdjustmentParams {
   const StockAdjustmentParams({
     required this.itemId,
+    required this.warehouseId,
     required this.locationId,
     required this.locationBarcode,
-    required this.newQuantity,
-    required this.reason,
+    required this.systemQuantity,
+    required this.actualQuantity,
     required this.workerId,
     this.note,
   });
 
   final int itemId;
-  final int locationId;
+  final String warehouseId;
+  final String locationId;
   final String locationBarcode;
-  final int newQuantity;
-  final String reason;
+  final int systemQuantity;
+  final int actualQuantity;
   final String workerId;
   final String? note;
 }

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:wherehouse/core/config/app_environment_controller.dart';
 import 'package:wherehouse/core/errors/app_exception.dart';
 import 'package:wherehouse/core/utils/result.dart';
+import 'package:wherehouse/features/app_update/presentation/controllers/app_update_controller.dart';
 import 'package:wherehouse/features/auth/domain/entities/user.dart';
 import 'package:wherehouse/features/auth/domain/entities/login_params.dart';
 import 'package:wherehouse/features/auth/domain/repositories/auth_repository.dart';
@@ -68,6 +69,50 @@ void main() {
     expect(find.text('WORKER'), findsWidgets);
     expect(find.text('Zone'), findsOneWidget);
     expect(find.text('B'), findsOneWidget);
+  });
+
+  testWidgets('account page shows the installed app version at the bottom',
+      (tester) async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: '2bcf9d5d-1234-4f1d-8f6d-000000000002',
+        name: 'Worker One',
+        role: 'worker',
+        phone: '966500000000',
+        zone: 'zone b',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<AuthRepository>.value(value: _FakeAuthRepository()),
+          Provider<InstalledAppVersionProvider>.value(
+            value: const _FakeInstalledAppVersionProvider('1.2.5'),
+          ),
+          ChangeNotifierProvider<SessionController>.value(value: session),
+          ChangeNotifierProvider<LocaleController>(
+            create: (_) => LocaleController(),
+          ),
+        ],
+        child: const MaterialApp(
+          home: AccountPage(),
+          supportedLocales: [Locale('en'), Locale('ar')],
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('v1.2.5'));
+
+    expect(find.text('v1.2.5'), findsOneWidget);
   });
 
   testWidgets('account page shows inbound label for reciver alias',
@@ -848,4 +893,13 @@ class _FakeDeviceMetadataService implements DeviceMetadataService {
 
   @override
   Future<DeviceMetadata> loadDeviceMetadata() async => metadata;
+}
+
+class _FakeInstalledAppVersionProvider implements InstalledAppVersionProvider {
+  const _FakeInstalledAppVersionProvider(this.version);
+
+  final String version;
+
+  @override
+  Future<String> getVersion() async => version;
 }

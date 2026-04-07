@@ -68,14 +68,17 @@ class TaskRemoteDataSource {
 
   Future<void> reportTaskIssue({
     required String taskId,
+    required String taskType,
     required String note,
     String? photoPath,
   }) async {
     final trimmedNote = note.trim();
+    final trimmedTaskType = taskType.trim();
     final trimmedPhotoPath = photoPath?.trim();
     final response = await _client.post<void>(
       AppEndpoints.workerTaskFlag(taskId),
       data: FormData.fromMap({
+        'task_type': trimmedTaskType,
         'note': trimmedNote,
         if (trimmedPhotoPath != null && trimmedPhotoPath.isNotEmpty)
           'photo': await MultipartFile.fromFile(

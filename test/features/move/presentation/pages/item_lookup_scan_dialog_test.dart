@@ -639,6 +639,57 @@ void main() {
   });
 
   testWidgets(
+      'lookup auto-detect manual mode treats bulk-a117 as a location result',
+      (tester) async {
+    LookupScanResult? result;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        supportedLocales: const [Locale('en'), Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () async {
+                  result = await showLookupScanDialog(
+                    context,
+                    showKeyboard: false,
+                  );
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('lookup_manual_entry_button')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('lookup_manual_text_field')),
+      'bulk-a117',
+    );
+    await tester.pump();
+
+    await tester.tap(confirmButtonFinder());
+    await tester.pumpAndSettle();
+
+    expect(result, isNotNull);
+    expect(result!.kind, LookupScanKind.location);
+    expect(result!.value, 'bulk-a117');
+  });
+
+  testWidgets(
       'lookup auto-detect manual mode returns an item result for numeric barcodes',
       (tester) async {
     LookupScanResult? result;

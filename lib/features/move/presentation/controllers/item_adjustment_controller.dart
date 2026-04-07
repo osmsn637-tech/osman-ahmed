@@ -21,7 +21,7 @@ class ItemAdjustmentState {
 
   static const Object _unset = Object();
 
-  final int? selectedLocationId;
+  final String? selectedLocationId;
   final String? selectedLocationCode;
   final String? selectedLocationType;
   final int quantity;
@@ -31,7 +31,6 @@ class ItemAdjustmentState {
   final bool success;
 
   bool get canSubmit =>
-      selectedLocationId != null &&
       selectedLocationCode != null &&
       selectedLocationCode!.trim().isNotEmpty &&
       hasQuantityInput &&
@@ -50,7 +49,7 @@ class ItemAdjustmentState {
     return ItemAdjustmentState(
       selectedLocationId: selectedLocationId == _unset
           ? this.selectedLocationId
-          : selectedLocationId as int?,
+          : selectedLocationId as String?,
       selectedLocationCode: selectedLocationCode == _unset
           ? this.selectedLocationCode
           : selectedLocationCode as String?,
@@ -75,10 +74,9 @@ class ItemAdjustmentController extends ChangeNotifier {
   })  : _adjustStock = adjustStock,
         _session = session;
 
-  final Future<Result<void>> Function(StockAdjustmentParams params) _adjustStock;
+  final Future<Result<void>> Function(StockAdjustmentParams params)
+      _adjustStock;
   final SessionController _session;
-
-  static const String _defaultReason = 'Count Correction';
 
   ItemAdjustmentState _state = const ItemAdjustmentState();
   ItemAdjustmentState get state => _state;
@@ -108,10 +106,11 @@ class ItemAdjustmentController extends ChangeNotifier {
 
     _setState(
       _state.copyWith(
-        selectedLocationCode: value,
-        selectedLocationId: matched?.locationId ?? _stableIntFromString(normalized),
-        selectedLocationType:
-            matched?.type.isNotEmpty == true ? matched!.type : _inferType(normalized),
+        selectedLocationCode: normalized.isEmpty ? null : value,
+        selectedLocationId: matched?.locationId,
+        selectedLocationType: matched?.type.isNotEmpty == true
+            ? matched!.type
+            : (normalized.isEmpty ? null : _inferType(normalized)),
         errorMessage: null,
         success: false,
       ),
@@ -150,7 +149,19 @@ class ItemAdjustmentController extends ChangeNotifier {
     if (!_state.canSubmit) {
       _setState(
         _state.copyWith(
-          errorMessage: 'Select a location and quantity.',
+          errorMessage: 'Select a valid location and quantity.',
+          success: false,
+        ),
+      );
+      return;
+    }
+
+    final selectedLocation = _resolveSelectedLocation(summary);
+    final selectedLocationCode = (_state.selectedLocationCode ?? '').trim();
+    if (selectedLocationCode.isEmpty) {
+      _setState(
+        _state.copyWith(
+          errorMessage: 'Select a valid location and quantity.',
           success: false,
         ),
       );
@@ -165,37 +176,47 @@ class ItemAdjustmentController extends ChangeNotifier {
       ),
     );
 
-    final result = await _adjustStock(
-      StockAdjustmentParams(
-        itemId: summary.itemId,
-        locationId: _state.selectedLocationId!,
-        locationBarcode: (_state.selectedLocationCode ?? '').trim(),
-        newQuantity: _state.quantity,
-        reason: _defaultReason,
-        workerId: workerId,
-      ),
+    final params = StockAdjustmentParams(
+      itemId: summary.itemId,
+      warehouseId: summary.warehouseId?.trim() ?? '',
+      locationId: selectedLocation?.locationId ?? '',
+      locationBarcode: selectedLocation?.code.trim() ?? selectedLocationCode,
+      systemQuantity: selectedLocation?.quantity ?? 0,
+      actualQuantity: _state.quantity,
+      workerId: workerId,
     );
 
-    result.when(
-      success: (_) {
-        _setState(
-          _state.copyWith(
-            isSubmitting: false,
-            errorMessage: null,
-            success: true,
-          ),
-        );
-      },
-      failure: (error) {
-        _setState(
-          _state.copyWith(
-            isSubmitting: false,
-            errorMessage: error.toString(),
-            success: false,
-          ),
-        );
-      },
-    );
+    try {
+      final result = await _adjustStock(params);
+      result.when(
+        success: (_) {
+          _setState(
+            _state.copyWith(
+              isSubmitting: false,
+              errorMessage: null,
+              success: true,
+            ),
+          );
+        },
+        failure: (error) {
+          _setState(
+            _state.copyWith(
+              isSubmitting: false,
+              errorMessage: error.toString(),
+              success: false,
+            ),
+          );
+        },
+      );
+    } catch (error) {
+      _setState(
+        _state.copyWith(
+          isSubmitting: false,
+          errorMessage: error.toString(),
+          success: false,
+        ),
+      );
+    }
   }
 
   void _setState(ItemAdjustmentState nextState) {
@@ -203,17 +224,26 @@ class ItemAdjustmentController extends ChangeNotifier {
     notifyListeners();
   }
 
-  static int? _stableIntFromString(String value) {
-    if (value.isEmpty) return null;
-    var hash = 0;
-    for (final unit in value.toUpperCase().codeUnits) {
-      hash = ((hash * 31) + unit) & 0x7fffffff;
+  ItemLocationEntity? _resolveSelectedLocation(
+      ItemLocationSummaryEntity summary) {
+    final selectedId = _state.selectedLocationId;
+    final selectedCode =
+        (_state.selectedLocationCode ?? '').trim().toUpperCase();
+    for (final location in summary.locations) {
+      if (selectedId != null && location.locationId == selectedId) {
+        return location;
+      }
+      if (selectedCode.isNotEmpty &&
+          location.code.trim().toUpperCase() == selectedCode) {
+        return location;
+      }
     }
-    return hash == 0 ? null : hash;
+    return null;
   }
 
   static String _inferType(String code) {
     final upper = code.toUpperCase();
+    if (isGroundLocationCode(upper)) return 'ground';
     if (isBulkLocationCode(upper)) return 'bulk';
     if (upper.isEmpty) return '';
     return 'shelf';

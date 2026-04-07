@@ -124,10 +124,11 @@ void main() {
   test('stock adjustment params supports optional note', () {
     const params = StockAdjustmentParams(
       itemId: 1001,
-      locationId: 1,
+      warehouseId: 'wh-1',
+      locationId: '019b4267-c3d0-718a-b256-6e564c8201e1',
       locationBarcode: 'Z012-C01-L02-P02',
-      newQuantity: 2,
-      reason: 'Damaged',
+      systemQuantity: 4,
+      actualQuantity: 2,
       workerId: 'worker-1',
       note: 'box torn',
     );
@@ -142,10 +143,20 @@ void main() {
       buildApp(buildRouter(mode: ItemLookupPageMode.adjust)),
     );
     await tester.pumpAndSettle();
-    await scrollTo(tester, find.byKey(const Key('location-row-1-0')));
+    await scrollTo(
+      tester,
+      find.byKey(
+        const Key('location-row-019b4267-c3d0-718a-b256-6e564c8201e1-0'),
+      ),
+    );
 
     expect(find.text('Adjust Item'), findsOneWidget);
-    expect(find.byKey(const Key('location-row-1-0')), findsOneWidget);
+    expect(
+      find.byKey(
+        const Key('location-row-019b4267-c3d0-718a-b256-6e564c8201e1-0'),
+      ),
+      findsOneWidget,
+    );
     await scrollTo(tester, find.byKey(const Key('adjust_quantity_field')));
     expect(find.byKey(const Key('adjust_location_code_field')), findsOneWidget);
     expect(find.byKey(const Key('adjust_quantity_field')), findsOneWidget);
@@ -195,8 +206,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await scrollTo(tester, find.byKey(const Key('location-row-1-0')));
-    await tester.tap(find.byKey(const Key('location-row-1-0')));
+    await scrollTo(
+      tester,
+      find.byKey(
+        const Key('location-row-019b4267-c3d0-718a-b256-6e564c8201e1-0'),
+      ),
+    );
+    await tester.tap(
+      find.byKey(
+        const Key('location-row-019b4267-c3d0-718a-b256-6e564c8201e1-0'),
+      ),
+    );
     await tester.pump();
     await scrollTo(tester, find.byKey(const Key('adjust_location_code_field')));
     await tester.enterText(
@@ -204,18 +224,16 @@ void main() {
       'Z012-BLK-A01-L02-P05',
     );
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('adjust_quantity_field')),
-      '3',
-    );
+    await scrollTo(tester, find.byKey(const Key('adjust_quantity_field')));
+    await tester.enterText(find.byKey(const Key('adjust_quantity_field')), '3');
     await tester.pumpAndSettle();
     await scrollTo(tester, find.byKey(const Key('adjust_confirm_button')));
     await tester.tap(find.byKey(const Key('adjust_confirm_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Adjust successful'), findsOneWidget);
+    expect(find.text('Adjustment submitted'), findsOneWidget);
     expect(
-      find.text('The item quantity was adjusted successfully.'),
+      find.text('The item adjustment was submitted successfully.'),
       findsOneWidget,
     );
     expect(
@@ -236,11 +254,13 @@ void main() {
     expect(find.text('Adjust Item'), findsOneWidget);
     expect(find.text('Home'), findsNothing);
     expect(gateway.lastParams, isNotNull);
-    expect(gateway.lastParams!.locationId, 2);
+    expect(gateway.lastParams!.warehouseId, 'wh-1');
+    expect(
+        gateway.lastParams!.locationId, '019b4267-c3d0-718a-b256-6e564c8201f0');
     expect(gateway.lastParams!.locationBarcode, 'Z012-BLK-A01-L02-P05');
-    expect(gateway.lastParams!.newQuantity, 3);
+    expect(gateway.lastParams!.systemQuantity, 400);
+    expect(gateway.lastParams!.actualQuantity, 3);
     expect(gateway.lastParams!.note, isNull);
-    expect(gateway.lastParams!.reason, 'Count Correction');
 
     await tester.tap(find.byKey(const Key('adjust_success_confirm_button')));
     await tester.pumpAndSettle();
@@ -248,7 +268,10 @@ void main() {
     expect(find.text('Home'), findsOneWidget);
   });
 
-  testWidgets('adjust mode allows submitting zero quantity', (tester) async {
+  testWidgets(
+      'adjust mode enables confirm after entering location and quantity', (
+    tester,
+  ) async {
     final gateway = _FakeAdjustStockGateway();
 
     await tester.pumpWidget(
@@ -261,14 +284,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await scrollTo(tester, find.byKey(const Key('location-row-1-0')));
-    await tester.tap(find.byKey(const Key('location-row-1-0')));
+    await scrollTo(
+      tester,
+      find.byKey(
+        const Key('location-row-019b4267-c3d0-718a-b256-6e564c8201e1-0'),
+      ),
+    );
+    await tester.tap(
+      find.byKey(
+        const Key('location-row-019b4267-c3d0-718a-b256-6e564c8201e1-0'),
+      ),
+    );
     await tester.pump();
     await scrollTo(tester, find.byKey(const Key('adjust_quantity_field')));
-    await tester.enterText(
-      find.byKey(const Key('adjust_quantity_field')),
-      '0',
-    );
+    await tester.enterText(find.byKey(const Key('adjust_quantity_field')), '9');
     await tester.pumpAndSettle();
     await scrollTo(tester, find.byKey(const Key('adjust_confirm_button')));
     expect(
@@ -285,7 +314,9 @@ void main() {
     expect(
         find.byKey(const Key('adjust_success_confirm_button')), findsOneWidget);
     expect(gateway.lastParams, isNotNull);
-    expect(gateway.lastParams!.newQuantity, 0);
+    expect(gateway.lastParams!.warehouseId, 'wh-1');
+    expect(gateway.lastParams!.systemQuantity, 150);
+    expect(gateway.lastParams!.actualQuantity, 9);
 
     await tester.tap(find.byKey(const Key('adjust_success_confirm_button')));
     await tester.pumpAndSettle();
@@ -293,7 +324,9 @@ void main() {
     expect(find.text('Home'), findsOneWidget);
   });
 
-  testWidgets('adjust mode keeps confirm disabled until a location is chosen', (
+  testWidgets(
+      'adjust mode keeps confirm disabled until location and quantity are provided',
+      (
     tester,
   ) async {
     final gateway = _FakeAdjustStockGateway();
@@ -322,7 +355,7 @@ void main() {
       isNull,
     );
     expect(gateway.lastParams, isNull);
-    expect(find.text('Adjust successful'), findsNothing);
+    expect(find.text('Adjustment submitted'), findsNothing);
   });
 
   testWidgets('adjust mode failure shows inline error and keeps form state', (
@@ -341,8 +374,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await scrollTo(tester, find.byKey(const Key('location-row-1-0')));
-    await tester.tap(find.byKey(const Key('location-row-1-0')));
+    await scrollTo(
+      tester,
+      find.byKey(
+        const Key('location-row-019b4267-c3d0-718a-b256-6e564c8201e1-0'),
+      ),
+    );
+    await tester.tap(
+      find.byKey(
+        const Key('location-row-019b4267-c3d0-718a-b256-6e564c8201e1-0'),
+      ),
+    );
     await tester.pump();
     await scrollTo(tester, find.byKey(const Key('adjust_quantity_field')));
     await tester.enterText(find.byKey(const Key('adjust_quantity_field')), '1');
@@ -353,6 +395,7 @@ void main() {
 
     expect(find.text('Adjust Item'), findsOneWidget);
     expect(find.text('Exception: adjust failed'), findsOneWidget);
+    expect(find.byKey(const Key('adjust_reason_field')), findsNothing);
     expect(find.text('1'), findsWidgets);
   });
 
@@ -392,6 +435,132 @@ void main() {
     expect(find.text('A10.2'), findsOneWidget);
     expect(find.text('Bulk Locations'), findsNothing);
   });
+
+  testWidgets('lookup mode renders ground locations in a separate section',
+      (tester) async {
+    await tester.pumpWidget(
+      buildApp(
+        buildRouter(repository: const _GroundLocationItemRepository()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('Ground Locations'));
+
+    expect(find.text('Shelf Locations'), findsOneWidget);
+    expect(find.text('Bulk Locations'), findsOneWidget);
+    expect(find.text('Ground Locations'), findsOneWidget);
+    expect(find.text('Z03-PT01-GRND-L01-P01'), findsOneWidget);
+    expect(find.text('3'), findsWidgets);
+  });
+
+  testWidgets('lookup mode renders plain A-GRND locations in ground section',
+      (tester) async {
+    await tester.pumpWidget(
+      buildApp(
+        buildRouter(repository: const _PlainGroundAliasItemRepository()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('Ground Locations'));
+
+    expect(find.text('Ground Locations'), findsOneWidget);
+    expect(find.text('A-GRND'), findsOneWidget);
+    expect(find.text('1'), findsWidgets);
+  });
+
+  testWidgets(
+      'adjust mode with no saved locations still enables confirm after typing location and quantity',
+      (tester) async {
+    final gateway = _FakeAdjustStockGateway();
+
+    await tester.pumpWidget(
+      buildApp(
+        buildRouter(
+          mode: ItemLookupPageMode.adjust,
+          gateway: gateway,
+          repository: const _NoLocationsItemRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No locations'), findsWidgets);
+
+    await scrollTo(tester, find.byKey(const Key('adjust_location_code_field')));
+    await tester.enterText(
+      find.byKey(const Key('adjust_location_code_field')),
+      'Z01-A03-SS-L04-P06',
+    );
+    await tester.pumpAndSettle();
+
+    await scrollTo(tester, find.byKey(const Key('adjust_quantity_field')));
+    await tester.enterText(find.byKey(const Key('adjust_quantity_field')), '8');
+    await tester.pumpAndSettle();
+
+    await scrollTo(tester, find.byKey(const Key('adjust_confirm_button')));
+    expect(
+      tester
+          .widget<ElevatedButton>(
+              find.byKey(const Key('adjust_confirm_button')))
+          .onPressed,
+      isNotNull,
+    );
+
+    await tester.tap(find.byKey(const Key('adjust_confirm_button')));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const Key('adjust_success_confirm_button')), findsOneWidget);
+    expect(gateway.lastParams, isNotNull);
+    expect(gateway.lastParams!.locationBarcode, 'Z01-A03-SS-L04-P06');
+    expect(gateway.lastParams!.actualQuantity, 8);
+    expect(gateway.lastParams!.locationId, isEmpty);
+    expect(gateway.lastParams!.systemQuantity, 0);
+  });
+
+  testWidgets(
+      'adjust mode still submits when barcode lookup does not return warehouse id',
+      (tester) async {
+    final gateway = _FakeAdjustStockGateway();
+
+    await tester.pumpWidget(
+      buildApp(
+        buildRouter(
+          mode: ItemLookupPageMode.adjust,
+          gateway: gateway,
+          repository: const _NoWarehouseItemRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await scrollTo(
+      tester,
+      find.byKey(
+        const Key('location-row-019b4267-c3d0-718a-b256-6e564c8201e1-0'),
+      ),
+    );
+    await tester.tap(
+      find.byKey(
+        const Key('location-row-019b4267-c3d0-718a-b256-6e564c8201e1-0'),
+      ),
+    );
+    await tester.pump();
+
+    await scrollTo(tester, find.byKey(const Key('adjust_quantity_field')));
+    await tester.enterText(find.byKey(const Key('adjust_quantity_field')), '4');
+    await tester.pumpAndSettle();
+
+    await scrollTo(tester, find.byKey(const Key('adjust_confirm_button')));
+    await tester.tap(find.byKey(const Key('adjust_confirm_button')));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const Key('adjust_success_confirm_button')), findsOneWidget);
+    expect(gateway.lastParams, isNotNull);
+    expect(gateway.lastParams!.warehouseId, isEmpty);
+    expect(gateway.lastParams!.actualQuantity, 4);
+  });
 }
 
 class _FakeAdjustStockGateway {
@@ -415,14 +584,14 @@ class _DuplicateLocationItemRepository extends FakeItemRepository {
             totalQuantity: 550,
             locations: [
               ItemLocationEntity(
-                locationId: 1,
+                locationId: 'dup-1',
                 zone: 'Z012',
                 type: 'shelf',
                 code: 'Z012-C01-L02-P02',
                 quantity: 150,
               ),
               ItemLocationEntity(
-                locationId: 1,
+                locationId: 'dup-1',
                 zone: 'Z012',
                 type: 'shelf',
                 code: 'Z012-C01-L02-P03',
@@ -444,11 +613,106 @@ class _CompactShelfItemRepository extends FakeItemRepository {
             totalQuantity: 1,
             locations: [
               ItemLocationEntity(
-                locationId: 101,
+                locationId: '101',
                 zone: '',
                 type: 'shelf',
                 code: 'A10.2',
                 quantity: 1,
+              ),
+            ],
+          ),
+        );
+}
+
+class _NoLocationsItemRepository extends FakeItemRepository {
+  const _NoLocationsItemRepository()
+      : super(
+          summary: const ItemLocationSummaryEntity(
+            itemId: 11251,
+            itemName: 'No Location Product',
+            barcode: '9990001112223',
+            warehouseId: 'wh-1',
+            totalQuantity: 0,
+            locations: [],
+          ),
+        );
+}
+
+class _NoWarehouseItemRepository extends FakeItemRepository {
+  const _NoWarehouseItemRepository()
+      : super(
+          summary: const ItemLocationSummaryEntity(
+            itemId: 1001,
+            itemName: 'Hajer Water',
+            barcode: '6287009170024',
+            totalQuantity: 150,
+            locations: [
+              ItemLocationEntity(
+                locationId: '019b4267-c3d0-718a-b256-6e564c8201e1',
+                zone: 'Z012',
+                type: 'shelf',
+                code: 'Z012-C01-L02-P02',
+                quantity: 150,
+              ),
+            ],
+          ),
+        );
+}
+
+class _GroundLocationItemRepository extends FakeItemRepository {
+  const _GroundLocationItemRepository()
+      : super(
+          summary: const ItemLocationSummaryEntity(
+            itemId: 1001,
+            itemName: 'Hajer Water',
+            barcode: '6287009170024',
+            warehouseId: 'wh-1',
+            totalQuantity: 551,
+            locations: [
+              ItemLocationEntity(
+                locationId: 'shelf-1',
+                zone: 'Z03',
+                type: 'shelf',
+                code: 'Z03-C01-SS-L01-P01',
+                quantity: 150,
+              ),
+              ItemLocationEntity(
+                locationId: 'bulk-1',
+                zone: 'Z03',
+                type: 'bulk',
+                code: 'Z03-C01-BLK-L01-P01',
+                quantity: 400,
+              ),
+              ItemLocationEntity(
+                locationId: 'ground-1',
+                zone: 'Z03',
+                type: 'ground',
+                code: 'Z03-PT01-GRND-L01-P01',
+                quantity: 1,
+              ),
+            ],
+          ),
+        );
+}
+
+class _PlainGroundAliasItemRepository extends FakeItemRepository {
+  const _PlainGroundAliasItemRepository()
+      : super(
+          summary: const ItemLocationSummaryEntity(
+            itemId: 17303,
+            itemName: 'كيت كات اصبعين 20.5جم',
+            barcode: '6294017130551',
+            warehouseId: '019966c3-0f2c-7950-ae4d-ae6b1d9a1fa7',
+            itemImageUrl:
+                'https://img.qeu.app/products/6294017130551/6294017130551_image.webp',
+            totalQuantity: 230060,
+            locations: [
+              ItemLocationEntity(
+                locationId: '3e5ace4e-fc66-4764-b5e0-e83d99672435',
+                zone: 'A',
+                type: 'ground',
+                code: 'A-GRND',
+                quantity: 230060,
               ),
             ],
           ),

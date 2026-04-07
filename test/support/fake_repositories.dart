@@ -23,6 +23,7 @@ class FakeTaskRepository implements TaskRepository {
   }
 
   final List<TaskEntity> _tasks = <TaskEntity>[];
+  String? lastRequestedTaskType;
 
   void addTask(TaskEntity task) {
     _tasks.removeWhere((existing) => existing.id == task.id);
@@ -53,8 +54,15 @@ class FakeTaskRepository implements TaskRepository {
   Future<List<AiAlertEntity>> getAiAlerts() async => const <AiAlertEntity>[];
 
   @override
-  Future<List<TaskEntity>> getTasksForZone(String zone) async {
-    return _tasks.where((task) => zone.isEmpty || task.zone == zone).toList();
+  Future<List<TaskEntity>> getTasksForZone(
+    String zone, {
+    String? taskType,
+  }) async {
+    lastRequestedTaskType = taskType;
+    return _tasks
+        .where((task) => zone.isEmpty || task.zone == zone)
+        .where((task) => _matchesTaskType(task, taskType))
+        .toList();
   }
 
   @override
@@ -226,6 +234,18 @@ class FakeTaskRepository implements TaskRepository {
       workflowData: workflowData ?? task.workflowData,
     );
   }
+
+  bool _matchesTaskType(TaskEntity task, String? taskType) {
+    if (taskType == null || taskType.isEmpty) {
+      return true;
+    }
+    final normalizedTaskType = taskType.trim().toLowerCase();
+    final taskApiType = task.apiTaskType?.trim().toLowerCase();
+    if (taskApiType != null && taskApiType.isNotEmpty) {
+      return taskApiType == normalizedTaskType;
+    }
+    return task.type.code == normalizedTaskType;
+  }
 }
 
 TaskEntity buildTestTask({
@@ -237,6 +257,7 @@ TaskEntity buildTestTask({
   String itemName = 'Demo Item',
   String? itemBarcode = '123456789012',
   String? itemImageUrl,
+  String? apiTaskType,
   String? fromLocation,
   String? toLocation = 'Z01-C02-L02-P03',
   String? toLocationId,
@@ -247,6 +268,7 @@ TaskEntity buildTestTask({
 }) {
   return TaskEntity(
     id: id,
+    apiTaskType: apiTaskType,
     type: type,
     itemId: itemId,
     itemName: itemName,
@@ -281,18 +303,19 @@ class FakeItemRepository implements ItemRepository {
     itemId: 1001,
     itemName: 'Hajer Water',
     barcode: '6287009170024',
+    warehouseId: 'wh-1',
     itemImageUrl: 'assets/images/hajer_water.jpg',
     totalQuantity: 550,
     locations: <ItemLocationEntity>[
       ItemLocationEntity(
-        locationId: 1,
+        locationId: '019b4267-c3d0-718a-b256-6e564c8201e1',
         zone: 'Z012',
         type: 'shelf',
         code: 'Z012-C01-L02-P02',
         quantity: 150,
       ),
       ItemLocationEntity(
-        locationId: 2,
+        locationId: '019b4267-c3d0-718a-b256-6e564c8201f0',
         zone: 'Z012',
         type: 'bulk',
         code: 'Z012-BLK-A01-L02-P05',
@@ -329,7 +352,7 @@ class FakeItemRepository implements ItemRepository {
         stocks: summary.locations
             .map(
               (location) => LocationStock(
-                locationId: location.locationId,
+                locationId: _stableIntFromString(location.locationId),
                 locationName: location.code,
                 quantity: location.quantity,
               ),
@@ -354,6 +377,14 @@ class FakeItemRepository implements ItemRepository {
   @override
   Future<Result<void>> adjustStock(StockAdjustmentParams params) async {
     return adjustStockResult;
+  }
+
+  static int _stableIntFromString(String value) {
+    var hash = 0;
+    for (final codeUnit in value.codeUnits) {
+      hash = ((hash * 31) + codeUnit) & 0x7fffffff;
+    }
+    return hash;
   }
 }
 

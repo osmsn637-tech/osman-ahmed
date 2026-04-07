@@ -5,6 +5,7 @@ class ItemLocationSummaryEntity {
     required this.itemId,
     required this.itemName,
     required this.barcode,
+    this.warehouseId,
     this.itemImageUrl,
     required this.totalQuantity,
     required this.locations,
@@ -13,6 +14,7 @@ class ItemLocationSummaryEntity {
   final int itemId;
   final String itemName;
   final String barcode;
+  final String? warehouseId;
   final String? itemImageUrl;
   final int totalQuantity;
   final List<ItemLocationEntity> locations;
@@ -23,5 +25,9 @@ class ItemLocationSummaryEntity {
 
   List<ItemLocationEntity> get bulkLocations =>
       locations.where((l) => l.isBulk).toList()
+        ..sort((a, b) => a.zone.compareTo(b.zone));
+
+  List<ItemLocationEntity> get groundLocations =>
+      locations.where((l) => l.isGround).toList()
         ..sort((a, b) => a.zone.compareTo(b.zone));
 }

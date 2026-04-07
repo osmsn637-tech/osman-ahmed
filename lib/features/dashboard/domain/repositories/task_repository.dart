@@ -10,7 +10,7 @@ abstract class TaskRepository {
   Future<void> resolveException({required int id, required String action});
   Future<List<AiAlertEntity>> getAiAlerts();
 
-  Future<List<TaskEntity>> getTasksForZone(String zone);
+  Future<List<TaskEntity>> getTasksForZone(String zone, {String? taskType});
   Future<List<TaskEntity>> getTasksForWorker(String workerId);
   Future<TaskEntity?> findBySourceEventId(String sourceEventId);
   Future<TaskEntity> completeTask(

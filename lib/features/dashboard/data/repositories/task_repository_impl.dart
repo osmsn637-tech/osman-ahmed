@@ -59,9 +59,12 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
-  Future<List<TaskEntity>> getTasksForZone(String zone) async {
+  Future<List<TaskEntity>> getTasksForZone(
+    String zone, {
+    String? taskType,
+  }) async {
     try {
-      final remoteTasks = await _fetchAllRemoteTasks();
+      final remoteTasks = await _fetchAllRemoteTasks(taskType: taskType);
       _cacheRemoteTasks(remoteTasks);
       final normalizedZone = _normalizeZone(zone);
       for (final task in remoteTasks) {
@@ -267,6 +270,7 @@ class TaskRepositoryImpl implements TaskRepository {
 
     await _taskRemoteDataSource.reportTaskIssue(
       taskId: _remoteTaskIdFor(task),
+      taskType: _workerTaskType(task),
       note: note,
       photoPath: photoPath,
     );
@@ -354,6 +358,7 @@ class TaskRepositoryImpl implements TaskRepository {
     for (final item in tasks) {
       if (item is! Map) continue;
       final data = Map<String, dynamic>.from(item);
+      if (_shouldHideApprovalPendingTask(data)) continue;
       final unifiedTask = _parseUnifiedTask(data);
       if (unifiedTask != null) {
         list.add(unifiedTask);
@@ -489,7 +494,7 @@ class TaskRepositoryImpl implements TaskRepository {
           toLocationId: toLocationId,
           quantity: quantity,
           unit: unit,
-          assignedTo: null,
+          assignedTo: _assignedWorkerId(data: data),
           status: _toTaskStatus(_asString(data['status'])),
           createdBy: _asString(data['createdBy']) ??
               _asString(data['created_by']) ??
@@ -503,6 +508,22 @@ class TaskRepositoryImpl implements TaskRepository {
       );
     }
     return list;
+  }
+
+  bool _shouldHideApprovalPendingTask(Map<String, dynamic> data) {
+    final rawStatus = _asString(_firstNonNull([
+      data['status'],
+      data['task_status'],
+      data['taskStatus'],
+    ]));
+    if (rawStatus == null) return false;
+
+    final normalized = rawStatus.trim().toLowerCase().replaceAll('_', ' ');
+    final mentionsApproval = normalized.contains('approval');
+    final mentionsPending = normalized.contains('pending');
+    final mentionsAwaiting = normalized.contains('await');
+
+    return mentionsApproval && (mentionsPending || mentionsAwaiting);
   }
 
   Future<TaskEntity?> _findTaskInRemoteById(int taskId) async {
@@ -520,13 +541,18 @@ class TaskRepositoryImpl implements TaskRepository {
     return _localTasks[taskId];
   }
 
-  Future<List<TaskEntity>> _fetchAllRemoteTasks() async {
+  Future<List<TaskEntity>> _fetchAllRemoteTasks({
+    String? taskType,
+  }) async {
     final mergedTasks = <int, TaskEntity>{};
     final seenCursors = <String>{};
     String? cursor;
 
     while (true) {
-      final page = await _taskRemoteDataSource.fetchMyTasks(cursor: cursor);
+      final page = await _taskRemoteDataSource.fetchMyTasks(
+        taskType: taskType,
+        cursor: cursor,
+      );
       final tasks = _parseTaskCollection(page);
       for (final task in tasks) {
         mergedTasks[task.id] = task;
@@ -758,6 +784,10 @@ class TaskRepositoryImpl implements TaskRepository {
       product: product,
       firstProduct: firstProduct,
     );
+    final assignedTo = _assignedWorkerId(
+      data: data,
+      detail: detail,
+    );
     final workflowData = rawType == 'cycle_count'
         ? _buildCycleCountWorkflowData(data)
         : const <String, Object?>{};
@@ -811,7 +841,7 @@ class TaskRepositoryImpl implements TaskRepository {
       toLocationId: toLocationId,
       quantity: quantity,
       unit: unit,
-      assignedTo: status == TaskStatus.pending ? null : '__worker__',
+      assignedTo: assignedTo,
       status: status,
       createdBy: 'system',
       zone: zone,
@@ -942,6 +972,47 @@ class TaskRepositoryImpl implements TaskRepository {
       firstProduct?['quantity_unit'],
       firstProduct?['quantityUnit'],
     ]));
+  }
+
+  String? _assignedWorkerId({
+    required Map<String, dynamic> data,
+    Map<String, dynamic>? detail,
+  }) {
+    return _assignedWorkerIdFromDynamic(_firstNonNull([
+      data['assigned_to'],
+      data['assignedTo'],
+      data['assigned_worker_id'],
+      data['assignedWorkerId'],
+      data['assignee_id'],
+      data['assigneeId'],
+      data['worker_id'],
+      data['workerId'],
+      detail?['assigned_to'],
+      detail?['assignedTo'],
+      detail?['assigned_worker_id'],
+      detail?['assignedWorkerId'],
+      detail?['assignee_id'],
+      detail?['assigneeId'],
+      detail?['worker_id'],
+      detail?['workerId'],
+    ]));
+  }
+
+  String? _assignedWorkerIdFromDynamic(dynamic value) {
+    final map = _asMap(value);
+    if (map != null) {
+      return _assignedWorkerIdFromDynamic(_firstNonNull([
+        map['id'],
+        map['worker_id'],
+        map['workerId'],
+        map['user_id'],
+        map['userId'],
+      ]));
+    }
+
+    final text = _asString(value)?.trim();
+    if (text == null || text.isEmpty) return null;
+    return text;
   }
 
   String? _resolveUnifiedSubtitleLocation({

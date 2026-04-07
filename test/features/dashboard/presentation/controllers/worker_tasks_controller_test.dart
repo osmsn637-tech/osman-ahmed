@@ -86,6 +86,76 @@ void main() {
     );
   });
 
+  test('applyTaskTypeFilter reloads with task type and refresh keeps it',
+      () async {
+    final session = SessionController();
+    session.setUser(
+      const User(
+        id: 'worker-1',
+        name: 'Worker',
+        role: 'worker',
+        phone: '9990000000',
+        zone: 'Z01',
+      ),
+    );
+    final repository = _FakeTaskRepository.withTasks(
+      const <TaskEntity>[
+        TaskEntity(
+          id: 1,
+          type: TaskType.move,
+          itemId: 1,
+          itemName: 'Move Task',
+          itemBarcode: '123456789012',
+          fromLocation: 'A-01',
+          toLocation: 'B-01',
+          quantity: 1,
+          assignedTo: null,
+          status: TaskStatus.pending,
+          createdBy: 'system',
+          zone: 'Z01',
+        ),
+        TaskEntity(
+          id: 2,
+          type: TaskType.returnTask,
+          itemId: 2,
+          itemName: 'Return Task',
+          itemBarcode: '223456789012',
+          fromLocation: 'RT-01',
+          toLocation: 'RET-01',
+          quantity: 1,
+          assignedTo: null,
+          status: TaskStatus.pending,
+          createdBy: 'system',
+          zone: 'Z01',
+        ),
+      ],
+    );
+    final controller = WorkerTasksController(
+      getTasksForZone: GetTasksForZoneUseCase(repository),
+      claimTask: ClaimTaskUseCase(repository),
+      completeTask: CompleteTaskUseCase(repository),
+      getTaskSuggestion: GetTaskSuggestionUseCase(repository),
+      reportTaskIssue: ReportTaskIssueUseCase(repository),
+      scanAdjustmentLocation: ScanAdjustmentLocationUseCase(repository),
+      saveCycleCountProgress: SaveCycleCountProgressUseCase(repository),
+      submitAdjustmentCount: SubmitAdjustmentCountUseCase(repository),
+      validateTaskLocation: ValidateTaskLocationUseCase(repository),
+      session: session,
+    );
+
+    await controller.applyTaskTypeFilter('return');
+
+    expect(repository.lastRequestedTaskType, 'return');
+    expect(controller.activeTaskType, 'return');
+    expect(controller.state.current.map((task) => task.id), [2]);
+
+    repository.lastRequestedTaskType = null;
+    await controller.refresh();
+
+    expect(repository.lastRequestedTaskType, 'return');
+    expect(controller.state.current.map((task) => task.id), [2]);
+  });
+
   test('claim returns the newly claimed task when refreshed list is stale',
       () async {
     final session = SessionController();
@@ -317,6 +387,7 @@ class _FakeTaskRepository implements TaskRepository {
   String? reportedNote;
   String? reportedPhotoPath;
   String? lastRequestedZone;
+  String? lastRequestedTaskType;
 
   @override
   Future<TaskEntity> claimTask(
@@ -340,9 +411,16 @@ class _FakeTaskRepository implements TaskRepository {
   }
 
   @override
-  Future<List<TaskEntity>> getTasksForZone(String zone) async {
+  Future<List<TaskEntity>> getTasksForZone(
+    String zone, {
+    String? taskType,
+  }) async {
     lastRequestedZone = zone;
-    return _tasks.where((task) => zone.isEmpty || task.zone == zone).toList();
+    lastRequestedTaskType = taskType;
+    return _tasks
+        .where((task) => zone.isEmpty || task.zone == zone)
+        .where((task) => taskType == null || task.type.code == taskType)
+        .toList();
   }
 
   @override

@@ -4,11 +4,12 @@ import 'package:wherehouse/core/errors/error_mapper.dart';
 import 'package:wherehouse/core/network/api_client.dart';
 import 'package:wherehouse/core/utils/result.dart';
 import 'package:wherehouse/features/move/data/datasources/item_remote_data_source.dart';
+import 'package:wherehouse/features/move/domain/entities/item_location_summary_entity.dart';
 import 'package:wherehouse/features/move/domain/entities/location_lookup_summary_entity.dart';
 import 'package:wherehouse/features/move/domain/entities/stock_adjustment_params.dart';
 
 void main() {
-  test('adjustStock uses correct-product endpoint with one correction',
+  test('adjustStock uses correct-product endpoint with corrections payload',
       () async {
     final client = _FakeApiClient();
     final dataSource = ItemRemoteDataSourceImpl(client);
@@ -16,10 +17,11 @@ void main() {
     await dataSource.adjustStock(
       const StockAdjustmentParams(
         itemId: 1001,
-        locationId: 2,
+        warehouseId: 'wh-1',
+        locationId: '019b4267-c3d0-718a-b256-6e564c8201f0',
         locationBarcode: 'Z012-BLK-A01-L02-P05',
-        newQuantity: 7,
-        reason: 'Count Correction',
+        systemQuantity: 7,
+        actualQuantity: 7,
         workerId: 'worker-1',
       ),
     );
@@ -32,11 +34,11 @@ void main() {
       client.lastPostData,
       <String, dynamic>{
         'product_id': 1001,
-        'corrections': [
-          {
+        'corrections': <Map<String, dynamic>>[
+          <String, dynamic>{
             'location_barcode': 'Z012-BLK-A01-L02-P05',
             'actual_quantity': 7,
-          }
+          },
         ],
       },
     );
@@ -121,16 +123,25 @@ void main() {
       ..lookupGetResponse = <String, dynamic>{
         'data': <String, dynamic>{
           'product_id': '1001',
+          'warehouse_id': 'wh-lookup',
           'product_name': 'Hajer Water',
           'barcode': '6287009170024',
           'product_image': '',
           'total_quantity': 12,
-          'locations': const <Map<String, dynamic>>[],
+          'locations': const <Map<String, dynamic>>[
+            <String, dynamic>{
+              'location_id': '019b4267-c3d0-718a-b256-6e564c8201f0',
+              'location_code': 'Z012-BLK-A01-L02-P05',
+              'location_type': 'bulk',
+              'zone': 'Z012',
+              'quantity': 12,
+            },
+          ],
         },
       };
     final dataSource = ItemRemoteDataSourceImpl(client);
 
-    await dataSource.fetchItemLocations('6287009170024');
+    final result = await dataSource.fetchItemLocations('6287009170024');
 
     expect(
       client.lastGetPath,
@@ -138,6 +149,13 @@ void main() {
     );
     expect(client.loginPostPath, isEmpty);
     expect(client.lastGetHeaders, isNull);
+    expect(result, isA<Success<ItemLocationSummaryEntity>>());
+    final summary = (result as Success<ItemLocationSummaryEntity>).data;
+    expect(summary.warehouseId, 'wh-lookup');
+    expect(
+      summary.locations.first.locationId,
+      '019b4267-c3d0-718a-b256-6e564c8201f0',
+    );
   });
 }
 

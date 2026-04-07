@@ -6,6 +6,7 @@ class ItemLocationSummaryModel {
     required this.itemId,
     required this.itemName,
     required this.barcode,
+    required this.warehouseId,
     required this.itemImageUrl,
     required this.totalQuantity,
     required this.locations,
@@ -14,6 +15,7 @@ class ItemLocationSummaryModel {
   final int itemId;
   final String itemName;
   final String barcode;
+  final String? warehouseId;
   final String? itemImageUrl;
   final int totalQuantity;
   final List<ItemLocationModel> locations;
@@ -29,6 +31,9 @@ class ItemLocationSummaryModel {
                 (e) => ItemLocationModel.fromJson(Map<String, dynamic>.from(e)))
             .toList()
         : <ItemLocationModel>[];
+    final firstLocationMap = rawLocations is List && rawLocations.isNotEmpty
+        ? _readMap(rawLocations.first)
+        : null;
 
     final itemId = _readInt(json['item_id'] ??
         json['itemId'] ??
@@ -43,6 +48,14 @@ class ItemLocationSummaryModel {
         productMap?['product_name'] ??
         productMap?['name']);
     final barcode = _readString(json['barcode'] ?? json['sku']);
+    final warehouseId = _readNullableString(
+      json['warehouse_id'] ??
+          json['warehouseId'] ??
+          productMap?['warehouse_id'] ??
+          productMap?['warehouseId'] ??
+          firstLocationMap?['warehouse_id'] ??
+          firstLocationMap?['warehouseId'],
+    );
     final itemImageUrl = _normalizeImageUrl(_readNullableString(
       json['item_image_url'] ??
           json['itemImageUrl'] ??
@@ -62,6 +75,7 @@ class ItemLocationSummaryModel {
       itemId: itemId,
       itemName: itemName,
       barcode: barcode,
+      warehouseId: warehouseId,
       itemImageUrl: itemImageUrl,
       totalQuantity: totalQuantity,
       locations: locs,
@@ -72,6 +86,7 @@ class ItemLocationSummaryModel {
         itemId: itemId,
         itemName: itemName,
         barcode: barcode,
+        warehouseId: warehouseId,
         itemImageUrl: itemImageUrl,
         totalQuantity: totalQuantity,
         locations: locations.map((e) => e.toEntity()).toList(),

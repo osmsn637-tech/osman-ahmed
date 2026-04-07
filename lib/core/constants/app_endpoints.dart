@@ -28,6 +28,7 @@ class AppEndpoints {
       '/mobile/v1/adjustments/$adjustmentId/scan-location';
   static String adjustmentItemCount(String adjustmentItemId) =>
       '/mobile/v1/adjustment-items/$adjustmentItemId/count';
+  static const quickProductAdjustment = '/mobile/v1/adjustments/quick';
   static const correctProductAdjustment =
       '/mobile/v1/adjustments/correct-product';
   static String adjustmentFinish(String adjustmentId) =>

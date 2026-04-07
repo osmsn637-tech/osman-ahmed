@@ -29,7 +29,6 @@ class WorkerHomePage extends StatefulWidget {
 class _WorkerHomePageState extends State<WorkerHomePage> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _requestedInitialLoad = false;
-  _CurrentTaskFilterOption? _selectedCurrentTaskFilter;
 
   @override
   void initState() {
@@ -121,19 +120,18 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
             }
             return a.$1.compareTo(b.$1);
           });
-        final currentTaskFilters = _buildCurrentTaskFilters(
-          orderedCurrentTasks.map((entry) => entry.$2),
-        );
-        final activeCurrentTaskFilter =
-            currentTaskFilters.contains(_selectedCurrentTaskFilter)
-                ? _selectedCurrentTaskFilter
-                : null;
-        final filteredCurrentTasks = activeCurrentTaskFilter == null
-            ? orderedCurrentTasks
-            : orderedCurrentTasks
-                .where((entry) => activeCurrentTaskFilter.matches(entry.$2))
-                .toList(growable: false);
         final completedTasks = ctrl.state.completed;
+        final currentTaskFilters = _buildCurrentTaskFilters(
+          <TaskEntity>[
+            ...orderedCurrentTasks.map((entry) => entry.$2),
+            ...completedTasks,
+          ],
+        );
+        final activeCurrentTaskFilter = currentTaskFilters
+            .where((filter) => filter.requestValue == ctrl.activeTaskType)
+            .cast<_CurrentTaskFilterOption?>()
+            .firstOrNull;
+        final filteredCurrentTasks = orderedCurrentTasks;
         final loading = ctrl.state.loading;
         final availableCount = currentTasks
             .where((t) => t.assignedTo == null && t.isPending)
@@ -245,27 +243,27 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                           ),
                         ),
                         const SliverToBoxAdapter(child: SizedBox(height: 10)),
-                        if (orderedCurrentTasks.isNotEmpty)
+                        if (orderedCurrentTasks.isNotEmpty ||
+                            completedTasks.isNotEmpty ||
+                            ctrl.activeTaskType != null)
                           SliverPadding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             sliver: SliverToBoxAdapter(
                               child: _CurrentTaskFilterRow(
                                 filters: currentTaskFilters,
                                 selectedFilter: activeCurrentTaskFilter,
-                                onSelectAll: () {
-                                  setState(() {
-                                    _selectedCurrentTaskFilter = null;
-                                  });
-                                },
-                                onSelectFilter: (filter) {
-                                  setState(() {
-                                    _selectedCurrentTaskFilter = filter;
-                                  });
-                                },
+                                onSelectAll: () =>
+                                    ctrl.applyTaskTypeFilter(null),
+                                onSelectFilter: (filter) =>
+                                    ctrl.applyTaskTypeFilter(
+                                  filter.requestValue,
+                                ),
                               ),
                             ),
                           ),
-                        if (orderedCurrentTasks.isNotEmpty)
+                        if (orderedCurrentTasks.isNotEmpty ||
+                            completedTasks.isNotEmpty ||
+                            ctrl.activeTaskType != null)
                           const SliverToBoxAdapter(child: SizedBox(height: 10)),
                         if (filteredCurrentTasks.isEmpty)
                           SliverPadding(
@@ -601,6 +599,7 @@ class _MetricPill extends StatelessWidget {
           children: [
             Text(
               value,
+              key: Key('overview-metric-$label'),
               style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -738,6 +737,23 @@ class _CurrentTaskFilterOption {
     return type.code.replaceAll('_', '-');
   }
 
+  String get requestValue {
+    if (isPutaway) {
+      return 'putaway';
+    }
+
+    switch (type) {
+      case TaskType.returnTask:
+        return 'return';
+      case TaskType.cycleCount:
+        return 'cycle count';
+      case TaskType.refill:
+        return 'restock';
+      default:
+        return type.code;
+    }
+  }
+
   Color get color => taskTypeColor(type);
 
   String label(BuildContext context) {
@@ -793,6 +809,7 @@ class _TaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final typeColor = taskTypeColor(task.type);
+    final statusColor = taskStatusColor(task.status);
     final imageUrl = task.itemImageUrl?.trim();
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
     return RepaintBoundary(
@@ -815,20 +832,10 @@ class _TaskCard extends StatelessWidget {
                         isPutaway: task.isPutawayTask,
                       ),
                       const Spacer(),
-                      if (completed)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.check_circle,
-                                size: 16, color: AppTheme.success),
-                            const SizedBox(width: 4),
-                            Text(l10n.workerDone,
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppTheme.success)),
-                          ],
-                        ),
+                      _TaskStatusPill(
+                        label: _taskStatusLabel(context, task.status),
+                        color: statusColor,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -978,5 +985,58 @@ class _TaskImageThumb extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: image,
     );
+  }
+}
+
+class _TaskStatusPill extends StatelessWidget {
+  const _TaskStatusPill({
+    required this.label,
+    required this.color,
+  });
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+String _taskStatusLabel(BuildContext context, TaskStatus status) {
+  switch (status) {
+    case TaskStatus.pending:
+      return context.trText(
+        english: 'Pending',
+        arabic: 'قيد الانتظار',
+        urdu: 'অপেক্ষমাণ',
+      );
+    case TaskStatus.inProgress:
+      return context.trText(
+        english: 'In Progress',
+        arabic: 'قيد التنفيذ',
+        urdu: 'চলমান',
+      );
+    case TaskStatus.completed:
+      return context.trText(
+        english: 'Completed',
+        arabic: 'مكتملة',
+        urdu: 'সম্পন্ন',
+      );
   }
 }

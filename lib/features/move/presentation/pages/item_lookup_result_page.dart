@@ -176,7 +176,8 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                     itemImageUrl: summary.itemImageUrl,
                     totalQuantity: summary.totalQuantity,
                     totalLocations: summary.shelfLocations.length +
-                        summary.bulkLocations.length,
+                        summary.bulkLocations.length +
+                        summary.groundLocations.length,
                     isArabic: isRtl,
                   ),
                   const SizedBox(height: 14),
@@ -192,11 +193,12 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                       urdu: 'শেলফ',
                     ),
                     icon: Icons.grid_view_rounded,
+                    badgeColor: Colors.blue.shade700,
                     locations: summary.shelfLocations,
                     isArabic: isRtl,
-                    isShelf: true,
                     selectedLocationId: adjustmentState?.selectedLocationId,
-                    onLocationTap: isAdjustMode
+                    onLocationTap: isAdjustMode &&
+                            !(adjustmentState?.isSubmitting ?? false)
                         ? adjustmentController!.selectLocation
                         : null,
                   ),
@@ -213,28 +215,56 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                       urdu: 'বাল্ক',
                     ),
                     icon: Icons.warehouse_rounded,
+                    badgeColor: const Color(0xFFB45309),
                     locations: summary.bulkLocations,
                     isArabic: isRtl,
-                    isShelf: false,
                     selectedLocationId: adjustmentState?.selectedLocationId,
-                    onLocationTap: isAdjustMode
+                    onLocationTap: isAdjustMode &&
+                            !(adjustmentState?.isSubmitting ?? false)
+                        ? adjustmentController!.selectLocation
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  _LocationSection(
+                    title: context.trText(
+                      english: 'Ground Locations',
+                      arabic: 'المواقع الأرضية',
+                      urdu: 'গ্রাউন্ড অবস্থান',
+                    ),
+                    label: context.trText(
+                      english: 'Ground',
+                      arabic: 'أرضي',
+                      urdu: 'গ্রাউন্ড',
+                    ),
+                    icon: Icons.landscape_rounded,
+                    badgeColor: const Color(0xFF15803D),
+                    locations: summary.groundLocations,
+                    isArabic: isRtl,
+                    selectedLocationId: adjustmentState?.selectedLocationId,
+                    onLocationTap: isAdjustMode &&
+                            !(adjustmentState?.isSubmitting ?? false)
                         ? adjustmentController!.selectLocation
                         : null,
                   ),
                   if (isAdjustMode) ...[
                     const SizedBox(height: 12),
-                    _AdjustmentPanel(
-                      state: adjustmentState!,
-                      isArabic: isRtl,
-                      onLocationCodeChanged: (value) =>
-                          adjustmentController.updateSelectedLocationCode(
-                        value,
-                        knownLocations: summary.locations,
-                      ),
-                      onQuantityChanged: adjustmentController!.setQuantityText,
-                      onConfirm: adjustmentState.canSubmit
-                          ? () => adjustmentController.submitForItem(summary)
-                          : null,
+                    Builder(
+                      builder: (_) {
+                        final controller = adjustmentController!;
+                        return _AdjustmentPanel(
+                          state: adjustmentState!,
+                          isArabic: isRtl,
+                          onLocationCodeChanged: (value) =>
+                              controller.updateSelectedLocationCode(
+                            value,
+                            knownLocations: summary.locations,
+                          ),
+                          onQuantityChanged: controller.setQuantityText,
+                          onConfirm: adjustmentState.canSubmit
+                              ? () => controller.submitForItem(summary)
+                              : null,
+                        );
+                      },
                     ),
                   ],
                 ],
@@ -297,9 +327,9 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                 const SizedBox(height: 20),
                 Text(
                   dialogContext.trText(
-                    english: 'Adjust successful',
-                    arabic: 'تم التعديل بنجاح',
-                    urdu: 'সমন্বয় সফল',
+                    english: 'Adjustment submitted',
+                    arabic: 'تم إرسال التعديل',
+                    urdu: 'সমন্বয় জমা দেওয়া হয়েছে',
                   ),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleLarge?.copyWith(
@@ -310,9 +340,9 @@ class _ItemLookupResultPageState extends State<ItemLookupResultPage> {
                 const SizedBox(height: 10),
                 Text(
                   dialogContext.trText(
-                    english: 'The item quantity was adjusted successfully.',
-                    arabic: 'تم تعديل كمية الصنف بنجاح.',
-                    urdu: 'আইটেমের পরিমাণ সফলভাবে সমন্বয় করা হয়েছে।',
+                    english: 'The item adjustment was submitted successfully.',
+                    arabic: 'تم إرسال تعديل الصنف بنجاح.',
+                    urdu: 'আইটেমের সমন্বয় সফলভাবে জমা দেওয়া হয়েছে।',
                   ),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -632,9 +662,9 @@ class _LocationSection extends StatelessWidget {
     required this.title,
     required this.label,
     required this.icon,
+    required this.badgeColor,
     required this.locations,
     required this.isArabic,
-    required this.isShelf,
     this.selectedLocationId,
     this.onLocationTap,
   });
@@ -642,10 +672,10 @@ class _LocationSection extends StatelessWidget {
   final String title;
   final String label;
   final IconData icon;
+  final Color badgeColor;
   final List<ItemLocationEntity> locations;
   final bool isArabic;
-  final bool isShelf;
-  final int? selectedLocationId;
+  final String? selectedLocationId;
   final ValueChanged<ItemLocationEntity>? onLocationTap;
 
   @override
@@ -701,7 +731,7 @@ class _LocationSection extends StatelessWidget {
                       : locations[index].code,
                   typeLabel: label,
                   quantity: '${locations[index].quantity}',
-                  isShelfOverride: isShelf,
+                  badgeColorOverride: badgeColor,
                   selected: locations[index].locationId == selectedLocationId,
                   trailing: locations[index].locationId == selectedLocationId
                       ? Icon(
@@ -869,12 +899,13 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
             TextField(
               key: const Key('adjust_location_code_field'),
               controller: _locationController,
+              enabled: !widget.state.isSubmitting,
               onChanged: widget.onLocationCodeChanged,
               decoration: InputDecoration(
                 hintText: context.trText(
-                  english: 'Enter shelf or bulk location',
-                  arabic: 'أدخل موقع الرف أو التخزين',
-                  urdu: 'শেলফ বা বাল্ক অবস্থান লিখুন',
+                  english: 'Enter shelf, bulk, or ground location',
+                  arabic: 'أدخل موقع الرف أو التخزين أو الأرضي',
+                  urdu: 'শেলফ, বাল্ক, বা গ্রাউন্ড অবস্থান লিখুন',
                 ),
                 filled: true,
                 fillColor: surfaceTint,
@@ -901,9 +932,9 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
             const SizedBox(height: 12),
             Text(
               context.trText(
-                english: 'New Quantity',
-                arabic: 'الكمية الجديدة',
-                urdu: 'নতুন পরিমাণ',
+                english: 'Adjusted Quantity',
+                arabic: 'الكمية المعدلة',
+                urdu: 'সমন্বিত পরিমাণ',
               ),
               style: TextStyle(
                 color: mutedText,
@@ -915,6 +946,7 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
             TextField(
               key: const Key('adjust_quantity_field'),
               controller: _quantityController,
+              enabled: !widget.state.isSubmitting,
               keyboardType: TextInputType.number,
               onChanged: widget.onQuantityChanged,
               decoration: InputDecoration(

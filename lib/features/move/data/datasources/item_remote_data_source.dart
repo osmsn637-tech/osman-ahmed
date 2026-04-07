@@ -74,8 +74,8 @@ class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
         'corrections': [
           {
             'location_barcode': params.locationBarcode,
-            'actual_quantity': params.newQuantity,
-          }
+            'actual_quantity': params.actualQuantity,
+          },
         ],
         if (params.note != null && params.note!.trim().isNotEmpty)
           'notes': params.note!.trim(),
@@ -96,7 +96,8 @@ class ItemRemoteDataSourceImpl implements ItemRemoteDataSource {
     return data;
   }
 
-  Future<Result<ItemLocationSummaryEntity>> _callLookupEndpoint(String barcode) {
+  Future<Result<ItemLocationSummaryEntity>> _callLookupEndpoint(
+      String barcode) {
     return _client.get<ItemLocationSummaryEntity>(
       AppEndpoints.lookupProductByBarcode(barcode),
       parser: (data) {

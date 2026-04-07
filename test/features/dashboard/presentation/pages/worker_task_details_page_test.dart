@@ -151,14 +151,14 @@ void main() {
       locations: locations ??
           const [
             ItemLocationEntity(
-              locationId: 1,
+              locationId: '1',
               zone: 'Z01',
               type: 'bulk',
               code: 'BULK-01-01',
               quantity: 20,
             ),
             ItemLocationEntity(
-              locationId: 2,
+              locationId: '2',
               zone: 'Z01',
               type: 'shelf',
               code: 'SHELF-01-01',
@@ -1271,21 +1271,21 @@ void main() {
       buildLookupSummary(
         locations: const [
           ItemLocationEntity(
-            locationId: 11,
+            locationId: '11',
             zone: 'Z01',
             type: 'bulk',
             code: 'Z08-H01-BLK-L01-P03',
             quantity: 20,
           ),
           ItemLocationEntity(
-            locationId: 12,
+            locationId: '12',
             zone: 'Z01',
             type: 'shelf',
             code: 'Z01-AC01-SS-L01-P01',
             quantity: 6,
           ),
           ItemLocationEntity(
-            locationId: 13,
+            locationId: '13',
             zone: 'Z01',
             type: 'shelf',
             code: 'Z01-AC01-SS-L04-P02',

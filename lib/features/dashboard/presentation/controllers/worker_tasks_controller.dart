@@ -80,7 +80,9 @@ class WorkerTasksController extends ChangeNotifier {
       <int, TaskDetailResumeState>{};
 
   WorkerTasksState _state;
+  String? _activeTaskType;
   WorkerTasksState get state => _state;
+  String? get activeTaskType => _activeTaskType;
 
   TaskDetailResumeState? taskDetailResumeStateFor(int taskId) {
     return _taskDetailResumeStates[taskId];
@@ -99,12 +101,22 @@ class WorkerTasksController extends ChangeNotifier {
   }
 
   Future<void> load() async {
+    await _loadForTaskType(_activeTaskType);
+  }
+
+  Future<void> applyTaskTypeFilter(String? taskType) async {
+    _activeTaskType = taskType;
+    await _loadForTaskType(taskType);
+  }
+
+  Future<void> _loadForTaskType(String? taskType) async {
     _state = _state.copyWith(loading: true);
     notifyListeners();
     try {
-      final tasks = await _getTasksForZone.execute('');
-      final current = tasks.where((t) => !t.isCompleted).toList();
-      final completed = tasks.where((t) => t.isCompleted).toList();
+      final tasks = await _getTasksForZone.execute('', taskType: taskType);
+      final visibleTasks = _visibleTasksForWorker(tasks);
+      final current = visibleTasks.where((t) => !t.isCompleted).toList();
+      final completed = visibleTasks.where((t) => t.isCompleted).toList();
       _pruneTaskDetailResumeStates(current);
       _state = _state.copyWith(
         current: current,
@@ -220,6 +232,18 @@ class WorkerTasksController extends ChangeNotifier {
       quantity: quantity,
       notes: notes,
     );
+  }
+
+  List<TaskEntity> _visibleTasksForWorker(List<TaskEntity> tasks) {
+    final workerId = _session.state.user?.id.trim();
+    if (workerId == null || workerId.isEmpty) {
+      return tasks;
+    }
+
+    return tasks.where((task) {
+      final assignedTo = task.assignedTo?.trim();
+      return assignedTo == null || assignedTo.isEmpty || assignedTo == workerId;
+    }).toList(growable: false);
   }
 
   void _pruneTaskDetailResumeStates(List<TaskEntity> currentTasks) {

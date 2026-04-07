@@ -80,14 +80,14 @@ class _DuplicateLocationItemRepository extends FakeItemRepository {
             totalQuantity: 275,
             locations: [
               ItemLocationEntity(
-                locationId: 1,
+                locationId: 'dup-1',
                 zone: 'Z012',
                 type: 'shelf',
                 code: 'Z012-C01-L02-P02',
                 quantity: 150,
               ),
               ItemLocationEntity(
-                locationId: 1,
+                locationId: 'dup-1',
                 zone: 'Z012',
                 type: 'shelf',
                 code: 'Z012-C01-L02-P03',

@@ -6,7 +6,7 @@ class GetTasksForZoneUseCase {
 
   final TaskRepository _repo;
 
-  Future<List<TaskEntity>> execute(String zone) {
-    return _repo.getTasksForZone(zone);
+  Future<List<TaskEntity>> execute(String zone, {String? taskType}) {
+    return _repo.getTasksForZone(zone, taskType: taskType);
   }
 }

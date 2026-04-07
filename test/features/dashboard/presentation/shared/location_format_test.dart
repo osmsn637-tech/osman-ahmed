@@ -19,6 +19,7 @@ void main() {
     expect(detectLocationType('bulkB10.2'), LocationType.bulk);
     expect(detectLocationType('BULK-C3.1'), LocationType.bulk);
     expect(detectLocationType('bulk d4.7'), LocationType.bulk);
+    expect(detectLocationType('BULK-A117'), LocationType.bulk);
   });
 
   test('detectLocationType keeps legacy shelf and bulk parsing intact', () {

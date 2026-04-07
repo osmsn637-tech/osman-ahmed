@@ -8,10 +8,17 @@ bool isBulkLocationCode(String? value) {
   final normalized = value.trim().toUpperCase();
   if (normalized.isEmpty) return false;
   if (_compactBulkPattern.hasMatch(normalized)) return true;
-  if (normalized.contains('-BLK-') || normalized.contains('-GRND-')) {
+  if (normalized.contains('-BLK-')) {
     return true;
   }
   return false;
+}
+
+bool isGroundLocationCode(String? value) {
+  if (value == null) return false;
+  final normalized = value.trim().toUpperCase();
+  if (normalized.isEmpty) return false;
+  return _groundSegmentPattern.hasMatch(normalized);
 }
 
 bool isRecognizedLocationCode(String? value) {
@@ -19,6 +26,7 @@ bool isRecognizedLocationCode(String? value) {
   final normalized = value.trim().toUpperCase();
   if (normalized.isEmpty) return false;
   if (isCompactShelfLocation(normalized)) return true;
+  if (isGroundLocationCode(normalized)) return true;
   if (isBulkLocationCode(normalized)) return true;
   if (normalized.contains('-SS-') || normalized.contains('-SB-')) {
     return true;
@@ -70,4 +78,5 @@ String formatZoneForDisplay(String? value) {
 final RegExp _explicitZonePattern = RegExp(r'^(?:ZONE[\s-]*)?([ABCD])$');
 final RegExp _compactShelfPattern = RegExp(r'^([ABCD])\d{1,2}\.\d+$');
 final RegExp _compactBulkPattern =
-    RegExp(r'^BULK(?:[\s-]*)([ABCD]\d{1,2}\.\d+)$');
+    RegExp(r'^BULK(?:[\s-]*)([ABCD]\d{1,3}(?:\.\d+)?)$');
+final RegExp _groundSegmentPattern = RegExp(r'(^|-)(?:[AB]-)?GRND(?:-|$)');

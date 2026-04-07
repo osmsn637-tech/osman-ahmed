@@ -55,18 +55,26 @@ void main() {
     expect(client.lastQueryParameters.containsKey('limit'), isFalse);
   });
 
-  test('reportTaskIssue posts to the worker task flag endpoint', () async {
+  test('reportTaskIssue posts task_type to the worker task flag endpoint',
+      () async {
     final client = _FakeApiClient();
     final dataSource = TaskRemoteDataSource(client);
 
     await dataSource.reportTaskIssue(
       taskId: 'task-77',
+      taskType: 'cycle_count',
       note: 'Damaged package',
     );
 
     expect(client.lastPostPath, '/mobile/v1/worker/tasks/task-77/flag');
     expect(client.lastPostData, isA<FormData>());
     final formData = client.lastPostData! as FormData;
+    expect(
+      formData.fields.any(
+        (field) => field.key == 'task_type' && field.value == 'cycle_count',
+      ),
+      isTrue,
+    );
     expect(
       formData.fields.any(
         (field) => field.key == 'note' && field.value == 'Damaged package',

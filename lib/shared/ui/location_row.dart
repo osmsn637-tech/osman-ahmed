@@ -9,6 +9,7 @@ class LocationRow extends StatelessWidget {
     required this.quantity,
     this.trailing,
     this.isShelfOverride,
+    this.badgeColorOverride,
     this.selected = false,
     this.onTap,
   });
@@ -18,6 +19,7 @@ class LocationRow extends StatelessWidget {
   final String quantity;
   final Widget? trailing;
   final bool? isShelfOverride;
+  final Color? badgeColorOverride;
   final bool selected;
   final VoidCallback? onTap;
 
@@ -25,7 +27,8 @@ class LocationRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isShelf =
         isShelfOverride ?? typeLabel.toLowerCase().contains('shelf');
-    final badgeColor = isShelf ? Colors.blue.shade700 : Colors.orange.shade700;
+    final badgeColor = badgeColorOverride ??
+        (isShelf ? Colors.blue.shade700 : Colors.orange.shade700);
     final borderColor =
         selected ? Theme.of(context).colorScheme.primary : Colors.grey.shade300;
     final backgroundColor = selected
